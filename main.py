@@ -3,34 +3,49 @@ from audio.speak import speak
 from core.brain import think
 
 USE_WAKE_WORD = False
+EXIT_WORDS = {"exit", "quit", "goodbye", "shutdown"}
 
 def main():
     print("Jarvis starting...")
     speak("Jarvis online.")
 
     while True:
-        if USE_WAKE_WORD:
-            from audio.listen import listen_for_wake_word
+        try:
+            if USE_WAKE_WORD:
+                from audio.listen import listen_for_wake_word
 
-            if not listen_for_wake_word():
+                if not listen_for_wake_word():
+                    continue
+                speak("Yes?")
+            else:
+                input("\nPress Enter, then speak to Jarvis...")
+
+            command = listen_command().strip()
+
+            if not command:
+                print("Jarvis: I didn't catch that.")
                 continue
-            speak("Yes?")
-        else:
-            input("\nPress Enter, then speak to Jarvis...")
 
-        command = listen_command().strip()
+            print(f"You said: {command}")
 
-        if not command:
-            print("Jarvis: I didn't catch that.")
-            continue
+            if command.lower() in EXIT_WORDS:
+                response = "Goodbye."
+                print(f"Jarvis: {response}")
+                speak(response)
+                break
 
-        response = think(command)
+            response = think(command)
 
-        print(f"Jarvis: {response}")
-        speak(response)
+            print(f"Jarvis: {response}")
+            speak(response)
 
-        if command.lower() in ["exit", "quit"]:
+        except KeyboardInterrupt:
+            print("\nJarvis: Shutting down.")
+            speak("Shutting down.")
             break
+        except Exception as e:
+            print(f"Jarvis error: {e}")
+            speak("Something went wrong.")
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,18 @@
+# Python
 __pycache__/
 *.pyc
+
+# Audio temp
 *.wav
+*.raw
+
+# Models (BIG FILES)
 models/
+
+# Node / React
+ui-app/node_modules/
+ui-app/dist/
+
+# System
+.DS_Store
+.env
