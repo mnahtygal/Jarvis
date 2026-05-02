@@ -1,32 +1,22 @@
 # skills/llm_skill.py
 
-import subprocess
+import requests
 from core.session import get_context
 
 
-MODEL = "qwen2.5-coder:3b"
+OLLAMA_URL = "http://localhost:11434/api/generate"
+MODEL = "qwen2.5-coder:7b"
 
 
 SYSTEM_PROMPT = """
-You are Jarvis, a concise and helpful local AI assistant running on Marty's Jetson device.
+You are Jarvis, Marty's local AI assistant.
 
-Be clear, practical, and conversational.
-Keep most answers short unless more detail is asked for.
-If asked about system/device/project help, be technically helpful.
-
-Use the conversation context to answer follow-up questions.
-If Marty says "it", "that", "this", or asks a comparison question,
-infer what he means from the recent conversation and last topic.
-
-Be technically accurate.
-Do not say Flask and Express are both Python frameworks.
-Flask is a Python web framework.
-Express is a Node.js / JavaScript web framework.
-
-When comparing technologies, use this format:
-- What each one is
-- Main difference
-- When you would use each
+Rules:
+- Answer clearly and briefly.
+- Use recent context for follow-up questions.
+- If Marty asks "how is it different", compare against the last topic.
+- Flask is Python.
+- Express is Node.js / JavaScript.
 """.strip()
 
 
@@ -36,37 +26,45 @@ def ask_local_llm(user_text: str) -> str:
     prompt = f"""
 {SYSTEM_PROMPT}
 
-Conversation context:
+Recent context:
 {context}
 
-User: {user_text}
-Jarvis:
+Question:
+{user_text}
+
+Answer:
 """.strip()
 
     try:
-        result = subprocess.run(
-            ["ollama", "run", MODEL, prompt],
-            capture_output=True,
-            text=True,
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.2,
+                    "num_predict": 200
+                }
+            },
             timeout=120,
         )
 
-        if result.returncode != 0:
-            print("ollama stderr:", result.stderr)
-            return "I had trouble reaching my local brain."
+        response.raise_for_status()
 
-        response = result.stdout.strip()
-        if not response:
-            return "My local brain did not return anything."
+        data = response.json()
+        answer = data.get("response", "").strip()
 
-        return response
+        if not answer:
+            return "My local brain returned nothing."
 
-    except subprocess.TimeoutExpired:
-        return "My local brain took too long to respond."
+        if len(set(answer)) <= 2 and len(answer) > 10:
+            return "My local brain returned a bad repeated-character response. Try again."
 
-    except Exception as e:
-        print("ask_local_llm error:", e)
-        return "Something went wrong with my local brain."
+        return answer
+
+    except requests.exceptions.RequestException as error:
+        return f"Sorry Marty, I had trouble reaching my local brain: {error}"
 
 
 def get_llm_response(command: str) -> str:
