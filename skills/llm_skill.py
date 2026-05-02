@@ -1,4 +1,7 @@
+# skills/llm_skill.py
+
 import subprocess
+from core.session import get_context
 
 
 MODEL = "qwen2.5-coder:3b"
@@ -6,14 +9,39 @@ MODEL = "qwen2.5-coder:3b"
 
 SYSTEM_PROMPT = """
 You are Jarvis, a concise and helpful local AI assistant running on Marty's Jetson device.
+
 Be clear, practical, and conversational.
 Keep most answers short unless more detail is asked for.
 If asked about system/device/project help, be technically helpful.
+
+Use the conversation context to answer follow-up questions.
+If Marty says "it", "that", "this", or asks a comparison question,
+infer what he means from the recent conversation and last topic.
+
+Be technically accurate.
+Do not say Flask and Express are both Python frameworks.
+Flask is a Python web framework.
+Express is a Node.js / JavaScript web framework.
+
+When comparing technologies, use this format:
+- What each one is
+- Main difference
+- When you would use each
 """.strip()
 
 
 def ask_local_llm(user_text: str) -> str:
-    prompt = f"{SYSTEM_PROMPT}\n\nUser: {user_text}\nJarvis:"
+    context = get_context()
+
+    prompt = f"""
+{SYSTEM_PROMPT}
+
+Conversation context:
+{context}
+
+User: {user_text}
+Jarvis:
+""".strip()
 
     try:
         result = subprocess.run(
@@ -39,3 +67,7 @@ def ask_local_llm(user_text: str) -> str:
     except Exception as e:
         print("ask_local_llm error:", e)
         return "Something went wrong with my local brain."
+
+
+def get_llm_response(command: str) -> str:
+    return ask_local_llm(command)
