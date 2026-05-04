@@ -1,0 +1,13 @@
+{
+  "facts": {
+    "my favorite ship": "Eurodam"
+  },
+  "history": [
+    {
+      "type": "remember",
+      "key": "my favorite ship",
+      "value": "Eurodam",
+      "timestamp": "2026-05-04T12:32:37.836372"
+    }
+  ]
+}

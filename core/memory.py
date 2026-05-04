@@ -1,25 +1,55 @@
-MAX_MEMORY = 5  # number of past exchanges to keep
+# core/memory.py
 
-conversation = []
+import json
+import os
+from datetime import datetime
+
+MEMORY_FILE = "data/memory.json"
 
 
-def add_to_memory(user: str, assistant: str):
-    conversation.append({
-        "user": user,
-        "assistant": assistant
+def _default_memory():
+    return {
+        "facts": {},
+        "history": []
+    }
+
+
+def load_memory():
+    if not os.path.exists(MEMORY_FILE):
+        return _default_memory()
+
+    try:
+        with open(MEMORY_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return _default_memory()
+
+
+def save_memory(memory):
+    os.makedirs("data", exist_ok=True)
+
+    with open(MEMORY_FILE, "w") as f:
+        json.dump(memory, f, indent=2)
+
+
+def remember_fact(key: str, value: str):
+    memory = load_memory()
+    memory["facts"][key] = value
+    memory["history"].append({
+        "type": "remember",
+        "key": key,
+        "value": value,
+        "timestamp": datetime.now().isoformat()
     })
-
-    if len(conversation) > MAX_MEMORY:
-        conversation.pop(0)
+    save_memory(memory)
 
 
-def get_context() -> str:
-    if not conversation:
-        return ""
+def recall_fact(key: str):
+    memory = load_memory()
+    return memory["facts"].get(key)
 
-    lines = []
-    for item in conversation:
-        lines.append(f"User: {item['user']}")
-        lines.append(f"Jarvis: {item['assistant']}")
 
-    return "\n".join(lines)
+def get_all_facts():
+    memory = load_memory()
+    return memory.get("facts", {})
+
