@@ -34,6 +34,9 @@ def save_memory(memory):
 
 def remember_fact(key: str, value: str):
     memory = load_memory()
+    key = key.strip().lower()
+    value = value.strip()
+
     memory["facts"][key] = value
     memory["history"].append({
         "type": "remember",
@@ -41,15 +44,52 @@ def remember_fact(key: str, value: str):
         "value": value,
         "timestamp": datetime.now().isoformat()
     })
+
     save_memory(memory)
+
+
+def update_fact(key: str, value: str):
+    memory = load_memory()
+    key = key.strip().lower()
+    value = value.strip()
+
+    old_value = memory["facts"].get(key)
+    memory["facts"][key] = value
+
+    memory["history"].append({
+        "type": "update",
+        "key": key,
+        "old_value": old_value,
+        "new_value": value,
+        "timestamp": datetime.now().isoformat()
+    })
+
+    save_memory(memory)
+    return old_value
+
+
+def forget_fact(key: str):
+    memory = load_memory()
+    key = key.strip().lower()
+
+    old_value = memory["facts"].pop(key, None)
+
+    memory["history"].append({
+        "type": "forget",
+        "key": key,
+        "old_value": old_value,
+        "timestamp": datetime.now().isoformat()
+    })
+
+    save_memory(memory)
+    return old_value
 
 
 def recall_fact(key: str):
     memory = load_memory()
-    return memory["facts"].get(key)
+    return memory["facts"].get(key.strip().lower())
 
 
 def get_all_facts():
     memory = load_memory()
     return memory.get("facts", {})
-

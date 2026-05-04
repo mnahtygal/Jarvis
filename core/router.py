@@ -4,7 +4,7 @@ from skills.time_skill import get_time_response
 from skills.system_skill import get_system_response
 from skills.chat_skill import get_chat_response
 from skills.llm_skill import get_llm_response
-from core.memory import remember_fact, recall_fact, get_all_facts
+from core.memory import remember_fact, update_fact, forget_fact, recall_fact, get_all_facts
 
 
 def route(command: str) -> str:
@@ -25,6 +25,31 @@ def route(command: str) -> str:
             return f"Got it, Marty. I'll remember that {key} is {value}."
 
         return "I can remember that, but say it like: remember that my favorite ship is Eurodam."
+
+    # Long-term memory: update facts
+    if text.startswith("update my ") and " to " in text:
+        fact = command[len("update "):].strip()
+        key, value = fact.split(" to ", 1)
+        key = key.strip().lower()
+        value = value.strip()
+
+        old_value = update_fact(key, value)
+
+        if old_value:
+            return f"Updated, Marty. Your {key.replace('my ', '')} changed from {old_value} to {value}."
+
+        return f"Got it, Marty. I saved your {key.replace('my ', '')} as {value}."
+
+    # Long-term memory: forget facts
+    if text.startswith("forget that "):
+        key = command[len("forget that "):].strip().lower()
+
+        old_value = forget_fact(key)
+
+        if old_value:
+            return f"Forgot it, Marty. I removed {key} from memory."
+
+        return f"I couldn't find {key} in memory, Marty."
 
     # Long-term memory: recall simple facts
     if text.startswith("what is my ") or text.startswith("what's my "):
@@ -71,4 +96,4 @@ def route(command: str) -> str:
     # Everything else goes to local LLM
     print("[BRAIN] Falling back to LLM...")
     return get_llm_response(command)
-
+    
