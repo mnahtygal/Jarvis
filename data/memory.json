@@ -1,6 +1,9 @@
 {
   "facts": {
-    "my favorite ship": "Eurodam"
+    "my favorite ship": "Eurodam",
+    "my wife's name": "Kelly",
+    "my workplace": "GM",
+    "my preferred database": "SQL Server over Databricks"
   },
   "history": [
     {
@@ -8,6 +11,24 @@
       "key": "my favorite ship",
       "value": "Eurodam",
       "timestamp": "2026-05-04T12:32:37.836372"
+    },
+    {
+      "type": "remember",
+      "key": "my wife's name",
+      "value": "Kelly",
+      "timestamp": "2026-05-04T13:30:02.596965"
+    },
+    {
+      "type": "remember",
+      "key": "my workplace",
+      "value": "GM",
+      "timestamp": "2026-05-04T13:30:03.082565"
+    },
+    {
+      "type": "remember",
+      "key": "my preferred database",
+      "value": "SQL Server over Databricks",
+      "timestamp": "2026-05-04T13:30:07.852920"
     }
   ]
 }
