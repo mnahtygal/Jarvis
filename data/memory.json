@@ -3,7 +3,9 @@
     "my favorite ship": "Eurodam",
     "my wife's name": "Kelly",
     "my preferred database": "SQL Server",
-    "my workplace": "GM"
+    "my workplace": "GM",
+    "my taco tuesday drink": "Diet Coke",
+    "my preference": "SQL Server"
   },
   "history": [
     {
@@ -48,6 +50,24 @@
       "key": "my workplace",
       "value": "GM",
       "timestamp": "2026-05-04T14:13:16.892554"
+    },
+    {
+      "type": "remember",
+      "key": "my workplace",
+      "value": "GM",
+      "timestamp": "2026-05-05T15:11:18.703361"
+    },
+    {
+      "type": "remember",
+      "key": "my taco tuesday drink",
+      "value": "Diet Coke",
+      "timestamp": "2026-05-05T15:11:19.684781"
+    },
+    {
+      "type": "remember",
+      "key": "my preference",
+      "value": "SQL Server",
+      "timestamp": "2026-05-05T15:11:20.664534"
     }
   ]
 }
