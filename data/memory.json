@@ -68,6 +68,18 @@
       "key": "my preference",
       "value": "SQL Server",
       "timestamp": "2026-05-05T15:11:20.664534"
+    },
+    {
+      "type": "remember",
+      "key": "my preferred database",
+      "value": "PostgreSQL",
+      "timestamp": "2026-05-06T15:05:58.911069"
+    },
+    {
+      "type": "remember",
+      "key": "my preferred database",
+      "value": "SQL Server",
+      "timestamp": "2026-05-06T15:07:44.297302"
     }
   ]
 }
