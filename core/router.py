@@ -4,7 +4,14 @@ from skills.time_skill import get_time_response
 from skills.system_skill import get_system_response
 from skills.chat_skill import get_chat_response
 from skills.llm_skill import get_llm_response
-from core.memory import remember_fact, update_fact, forget_fact, recall_fact, get_all_facts
+
+from core.memory import (
+    remember,
+    recall,
+    update_memory,
+    forget,
+    get_all_memories,
+)
 
 
 def normalize_key(key: str) -> str:
@@ -48,8 +55,7 @@ def _remember_is_fact(fact: str):
     if not key or not value:
         return None
 
-    remember_fact(key, value)
-    return f"Got it, Marty. I'll remember that {key} is {value}."
+    return remember(key, value)
 
 
 def _try_natural_memory(command: str):
@@ -60,23 +66,19 @@ def _try_natural_memory(command: str):
 
     if text.startswith("i work at "):
         value = command[len("I work at "):].strip()
-        remember_fact("my workplace", value)
-        return f"Got it, Marty. I'll remember that your workplace is {value}."
+        return remember("my workplace", value)
 
     if text.startswith("i work for "):
         value = command[len("I work for "):].strip()
-        remember_fact("my workplace", value)
-        return f"Got it, Marty. I'll remember that your workplace is {value}."
+        return remember("my workplace", value)
 
     if text.startswith("i prefer "):
         value = command[len("I prefer "):].strip()
-        remember_fact("my preferred database", value)
-        return f"Got it, Marty. I'll remember that your preferred database is {value}."
+        return remember("my preferred database", value)
 
     if text.startswith("i like "):
         value = command[len("I like "):].strip()
-        remember_fact("something I like", value)
-        return f"Got it, Marty. I'll remember that you like {value}."
+        return remember("something I like", value)
 
     return None
 
@@ -99,26 +101,17 @@ def route(command: str) -> str:
     if text.startswith("update my ") and " to " in text:
         fact = command[len("update "):].strip()
         key, value = fact.split(" to ", 1)
+
         key = normalize_key(key)
         value = value.strip()
 
-        old_value = update_fact(key, value)
-
-        if old_value:
-            return f"Updated, Marty. Your {key.replace('my ', '')} changed from {old_value} to {value}."
-
-        return f"Got it, Marty. I saved your {key.replace('my ', '')} as {value}."
+        return update_memory(key, value)
 
     if text.startswith("forget that "):
         key = command[len("forget that "):].strip().lower()
         key = normalize_key(key)
 
-        old_value = forget_fact(key)
-
-        if old_value:
-            return f"Forgot it, Marty. I removed {key} from memory."
-
-        return f"I couldn't find {key} in memory, Marty."
+        return forget(key)
 
     if (
         text.startswith("what is my ")
@@ -130,20 +123,20 @@ def route(command: str) -> str:
     ):
         key = normalize_key(_clean_question_key(text))
 
-        value = recall_fact(key)
+        value = recall(key)
         if value:
             return f"Your {key.replace('my ', '')} is {value}, Marty."
 
         return f"I don't have your {key.replace('my ', '')} saved yet."
 
     if text in ["what do you remember", "what do you remember about me"]:
-        facts = get_all_facts()
+        memories = get_all_memories()
 
-        if not facts:
+        if not memories:
             return "I don't have any long-term memories saved yet, Marty."
 
         response = "Here's what I remember, Marty: "
-        response += "; ".join([f"{k} is {v}" for k, v in facts.items()])
+        response += "; ".join([f"{k} is {v}" for k, v in memories.items()])
         return response
 
     natural_memory_response = _try_natural_memory(command)
@@ -170,4 +163,3 @@ def route(command: str) -> str:
 
     print("[BRAIN] Falling back to LLM...")
     return get_llm_response(command)
-

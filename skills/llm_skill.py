@@ -2,7 +2,7 @@
 
 import requests
 from core.session import get_context
-from core.memory import get_all_facts
+from core.memory import build_memory_context
 
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -10,7 +10,7 @@ MODEL = "qwen2.5-coder:7b"
 
 
 def _format_long_term_memory() -> str:
-    facts = get_all_facts()
+    facts = memory_context = build_memory_context()
 
     if not facts:
         return "No long-term memories saved yet."

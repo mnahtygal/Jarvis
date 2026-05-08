@@ -1,95 +1,177 @@
-# core/memory.py
-
-import json
-import os
-from datetime import datetime
-
-MEMORY_FILE = "data/memory.json"
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 
-def _default_memory():
-    return {
-        "facts": {},
-        "history": []
-    }
+DB_CONFIG = {
+    "host": "localhost",
+    "port": 5432,
+    "database": "jarvis",
+    "user": "mnahtygal",
+    "password": "jarvis123",
+}
 
 
-def load_memory():
-    if not os.path.exists(MEMORY_FILE):
-        return _default_memory()
-
-    try:
-        with open(MEMORY_FILE, "r") as f:
-            return json.load(f)
-    except Exception:
-        return _default_memory()
+def get_connection():
+    return psycopg2.connect(**DB_CONFIG)
 
 
-def save_memory(memory):
-    os.makedirs("data", exist_ok=True)
+def remember(memory_key: str, memory_value: str) -> str:
+    memory_key = memory_key.strip().lower()
+    memory_value = memory_value.strip()
 
-    with open(MEMORY_FILE, "w") as f:
-        json.dump(memory, f, indent=2)
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO memories (memory_key, memory_value)
+                VALUES (%s, %s)
+                ON CONFLICT (memory_key)
+                DO UPDATE SET
+                    memory_value = EXCLUDED.memory_value,
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING memory_value;
+                """,
+                (memory_key, memory_value),
+            )
 
+            cur.execute(
+                """
+                INSERT INTO memory_history
+                    (action_type, memory_key, old_value, new_value, event_timestamp)
+                VALUES
+                    (%s, %s, %s, %s, CURRENT_TIMESTAMP);
+                """,
+                ("remember", memory_key, None, memory_value),
+            )
 
-def remember_fact(key: str, value: str):
-    memory = load_memory()
-    key = key.strip().lower()
-    value = value.strip()
-
-    memory["facts"][key] = value
-    memory["history"].append({
-        "type": "remember",
-        "key": key,
-        "value": value,
-        "timestamp": datetime.now().isoformat()
-    })
-
-    save_memory(memory)
-
-
-def update_fact(key: str, value: str):
-    memory = load_memory()
-    key = key.strip().lower()
-    value = value.strip()
-
-    old_value = memory["facts"].get(key)
-    memory["facts"][key] = value
-
-    memory["history"].append({
-        "type": "update",
-        "key": key,
-        "old_value": old_value,
-        "new_value": value,
-        "timestamp": datetime.now().isoformat()
-    })
-
-    save_memory(memory)
-    return old_value
+    return f"Got it, Marty. I'll remember that {memory_key} is {memory_value}."
 
 
-def forget_fact(key: str):
-    memory = load_memory()
-    key = key.strip().lower()
+def recall(memory_key: str) -> str:
+    memory_key = memory_key.strip().lower()
 
-    old_value = memory["facts"].pop(key, None)
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT memory_value
+                FROM memories
+                WHERE memory_key = %s;
+                """,
+                (memory_key,),
+            )
+            row = cur.fetchone()
 
-    memory["history"].append({
-        "type": "forget",
-        "key": key,
-        "old_value": old_value,
-        "timestamp": datetime.now().isoformat()
-    })
+    if row:
+        return row["memory_value"]
 
-    save_memory(memory)
-    return old_value
+    return ""
 
 
-def recall_fact(key: str):
-    memory = load_memory()
-    return memory["facts"].get(key.strip().lower())
+def update_memory(memory_key: str, memory_value: str) -> str:
+    memory_key = memory_key.strip().lower()
+    memory_value = memory_value.strip()
+
+    old_value = recall(memory_key)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO memories (memory_key, memory_value)
+                VALUES (%s, %s)
+                ON CONFLICT (memory_key)
+                DO UPDATE SET
+                    memory_value = EXCLUDED.memory_value,
+                    updated_at = CURRENT_TIMESTAMP;
+                """,
+                (memory_key, memory_value),
+            )
+
+            cur.execute(
+                """
+                INSERT INTO memory_history
+                    (action_type, memory_key, old_value, new_value, event_timestamp)
+                VALUES
+                    (%s, %s, %s, %s, CURRENT_TIMESTAMP);
+                """,
+                ("update", memory_key, old_value or None, memory_value),
+            )
+
+    return f"Updated, Marty. {memory_key} is now {memory_value}."
 
 
-def get_all_facts():
-    memory = load_memory()
-    return memory.get("facts", {})
+def forget(memory_key: str) -> str:
+    memory_key = memory_key.strip().lower()
+
+    old_value = recall(memory_key)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM memories
+                WHERE memory_key = %s;
+                """,
+                (memory_key,),
+            )
+
+            cur.execute(
+                """
+                INSERT INTO memory_history
+                    (action_type, memory_key, old_value, new_value, event_timestamp)
+                VALUES
+                    (%s, %s, %s, %s, CURRENT_TIMESTAMP);
+                """,
+                ("forget", memory_key, old_value or None, None),
+            )
+
+    if old_value:
+        return f"Forgot that {memory_key}, Marty."
+
+    return f"I didn't have anything stored for {memory_key}, Marty."
+
+
+def get_all_memories() -> dict:
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT memory_key, memory_value
+                FROM memories
+                ORDER BY memory_key;
+                """
+            )
+            rows = cur.fetchall()
+
+    return {row["memory_key"]: row["memory_value"] for row in rows}
+
+
+def build_memory_context() -> str:
+    memories = get_all_memories()
+
+    if not memories:
+        return ""
+
+    lines = ["Known facts about Marty:"]
+    for key, value in memories.items():
+        lines.append(f"- {key}: {value}")
+
+    return "\n".join(lines)
+
+
+def get_memory_history(limit: int = 20) -> list:
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT action_type, memory_key, old_value, new_value, event_timestamp
+                FROM memory_history
+                ORDER BY event_timestamp DESC
+                LIMIT %s;
+                """,
+                (limit,),
+            )
+            rows = cur.fetchall()
+
+    return rows
