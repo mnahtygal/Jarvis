@@ -10,12 +10,12 @@ MODEL = "qwen2.5-coder:7b"
 
 
 def _format_long_term_memory() -> str:
-    facts = memory_context = build_memory_context()
+    memory_context = build_memory_context()
 
-    if not facts:
+    if not memory_context:
         return "No long-term memories saved yet."
 
-    return "\n".join([f"- {key} is {value}" for key, value in facts.items()])
+    return memory_context
 
 
 SYSTEM_PROMPT = """
@@ -59,8 +59,8 @@ Answer:
                 "stream": False,
                 "options": {
                     "temperature": 0.1,
-                    "num_predict": 200
-                }
+                    "num_predict": 200,
+                },
             },
             timeout=120,
         )
