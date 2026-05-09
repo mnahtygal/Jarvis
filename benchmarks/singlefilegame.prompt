@@ -1,0 +1,205 @@
+Create a single file `game.html` (HTML+CSS+JS+Three.js via CDN, NO build tools, NO external assets, NO postprocessing). On load the game world renders and simulates immediately. A single click anywhere acquires pointer lock for mouse-look – this is the only gate, no menu screen.
+
+
+THREE.JS SETUP:
+- Use an importmap in the HTML head pointing "three" to https://unpkg.com/three@0.160.0/build/three.module.js
+- Import via `import * as THREE from 'three'` inside one `<script type="module">` block
+- No EffectComposer, no postprocessing passes, no shader passes
+- NO CSS vignette, NO radial darkening overlay, NO color-grade filters – the canvas renders edge-to-edge cleanly
+
+
+GAME: Minimal Quake3-style arena shooter, first-person.
+
+
+============================================================
+CRITICAL FEEL REQUIREMENTS — these MUST NOT regress
+============================================================
+
+
+MOUSE LOOK — perfectly smooth, never jumpy, never inverted:
+- Maintain two scalars on the player: `yaw` and `pitch` (both in radians).
+- On `mousemove` while `document.pointerLockElement === canvas`:
+      yaw   -= e.movementX * sensitivity
+      pitch -= e.movementY * sensitivity
+  Both signs are NEGATIVE. This gives the standard FPS convention:
+  mouse right → look right, mouse up → look up. Do not flip them.
+- Clamp pitch to [-Math.PI/2 + 0.001, Math.PI/2 - 0.001].
+- Each frame, REBUILD the camera rotation from these scalars (do not rotate the camera incrementally — incremental rotation accumulates float drift and causes visible jumps and roll):
+      camera.rotation.order = 'YXZ'
+      camera.rotation.y = yaw
+      camera.rotation.x = pitch
+      camera.rotation.z = 0
+- Sensitivity: 0.0022 rad/pixel. Apply as a single multiplier — 1 px of mouse delta produces exactly the same yaw/pitch delta every time. NO smoothing, NO lerp, NO acceleration curve, NO mouse-input buffer. Strict 1:1 mapping.
+- Recoil and hit-feedback NEVER write to yaw/pitch. Camera-punch effects use a separate transient position/FOV offset only — the player's aim is sacred.
+
+
+CURSOR HYGIENE — the OS cursor must never be visible during gameplay:
+- CSS: `html, body { cursor: none; overflow: hidden; margin: 0; }`
+- HUD overlay div: `pointer-events: none` so clicks always reach the canvas
+- Pointer lock is requested from a user-gesture click handler only; guard against duplicate requests in the same frame
+- On `pointerlockchange` with null target, auto-pause; on re-lock, resume
+
+
+MOVEMENT — snappy and grounded, not floaty, not wobbly:
+- Gravity: 28 ² (firm; 9.8 feels moony — do not use it)
+- Walk speed: 7 , sprint: 11 
+- Ground acceleration: 90 ² (reaches max speed in <0.1s — instant feel)
+- Ground friction: 12 (decelerates predictably when no input)
+- Air acceleration: 18 ² (limited air control, no wobble)
+- Build the input vector from WASD in camera-yaw space ONLY (ignore pitch when projecting horizontal movement). Normalize before scaling.
+- Integrate velocity straight from input + friction + gravity. Do NOT apply any spring/critically-damped smoothing to the input vector itself — that is what creates the "schwabbelig" feel.
+- Reject NaN velocity and reset to zero each frame as a guard.
+
+
+JUMP & LANDING — crisp, with subtle landing dip but zero input lag:
+- Jump velocity: 9.0  on Space when grounded
+- Coyote time: 90 ms (can still jump 90 ms after walking off an edge)
+- Jump buffer: 120 ms (Space pressed up to 120 ms before landing still triggers a jump on touchdown)
+- Landing dampening: when vertical velocity at touchdown is < -6 , apply a small `cameraOffsetY` (start at ~ -0.12 u, springs back to 0 over ~180 ms with critical damping). This offset is added AFTER rotation is set; it is purely visual and never affects controls or physics.
+
+
+COLLISION — player must NEVER get stuck inside a wall, box, or corner:
+- Player AABB: half-width 0.35, height 1.7, eye height 1.6
+- Each frame, resolve movement axis-by-axis in order X → Z → Y:
+    1. Add velocity.x*dt to position.x. For each static AABB, if overlap, push out along X by minimum penetration and zero velocity.x.
+    2. Same for Z.
+    3. Same for Y; +Y stop = ceiling, -Y stop = grounded (set canJump=true, store landing impact for landing-dip).
+  Axis-by-axis naturally yields wall-sliding on diagonal input and prevents corner traps.
+- DEPENETRATION PASS at the start of each frame: if the player AABB already overlaps any static AABB (spawn-glitch, ramp edge, lag spike), push out along the smallest-penetration axis. This guarantees recovery.
+- Ramps: solid AABBs PLUS a downward feet-probe each frame; if grounded over a ramp's slanted top, snap player Y to the surface so they don't bounce down slopes.
+- Bots use the same axis-by-axis resolution against walls/boxes (bots may overlap each other, that's fine).
+- Clamp dt to ≤0.05 s in the loop so a tab-switch never tunnels the player through geometry.
+
+
+============================================================
+
+
+CONTROLS:
+- WASD move, mouse look, Space jump, Shift sprint
+- Left click = railgun shot (also acquires pointer lock if not yet locked)
+- ESC toggles pause (overlay "PAUSED"); ESC again resumes. Release/request pointer-lock accordingly. Guard against double-toggle on a single key event.
+- requestAnimationFrame natively (no manual cap); 120/144 Hz monitors get full refresh; simulation is delta-time and frame-rate-independent.
+
+
+WEAPON – RAILGUN (only weapon, one-shot-one-kill):
+- Hitscan via raycast, instant hit; bot hit = instant kill, always
+- Cooldown ~1.2 s, visible thin cooldown bar at bottom center
+- Heavy visual recoil on the camera ONLY (FOV punch + transient position offset, springs back over ~200 ms). Recoil never alters yaw/pitch.
+- Beam: glowing thin cylinder/tube from muzzle to impact point, ~250 ms life, fades via opacity, with a brighter inner core line
+- Muzzle flash: brief PointLight + small additive sprite quad at shot origin
+- Wall impact: spark particles + small dark quad oriented to the hit-surface normal, offset 0.01 along the normal to avoid z-fighting (no DecalGeometry)
+- WebAudio synth sound: short noise burst + descending sawtooth
+
+
+VISUAL STYLE — ESPORTS-CLEAN, BRIGHT, READABLE (NOT dark, NOT moody):
+- The arena should read clearly on a laptop in a lit room. Aim for "bright daylight scrim", not "dim corridor".
+- NO vignette, NO radial darkening, NO color-grade overlays. The HUD div is fully transparent except for crosshair/text.
+- Palette (use these exact hex values):
+  - Background/sky:        #1A2230
+  - Floor base:            #4A5360
+  - Floor grid lines:      #6E7986
+  - Wall base:             #545E6C
+  - Wall grid lines:       #7A8492
+  - Cover/ramps:           #5E6876
+  - Accent (beam/HUD/marker): #B8EEFF
+  - Bots:                  #E86A3C
+- Lighting (bright and even):
+  - HemisphereLight(skyColor=0xCFE3F5, groundColor=0x3B424E, intensity=0.85)
+  - DirectionalLight(white, intensity=0.95) from above-front; soft shadows enabled
+  - AmbientLight(0x404858, 0.25) to lift deep shadows
+- Renderer: ACESFilmicToneMapping, exposure 1.15, outputColorSpace = THREE.SRGBColorSpace, clearColor matches sky
+- Materials matte (MeshStandardMaterial, roughness ~0.85, metalness 0); only beam/HUD/bot accents slightly emissive
+- Glow faked with emissive materials and additive sprite quads — no bloom
+- HUD typography: thin sans-serif (system-ui), thin lines, lots of negative space
+
+
+MAP (procedural, deterministic with seed):
+- Square arena ~50×50 units, walls 4 units tall
+- Floor + walls: canvas-generated grid texture (base color + lighter grid lines, ~2 u cell size, sharp 1-px-equivalent lines), tiled via texture.repeat with SRGBColorSpace
+- 8–14 cover boxes of varying size scattered, NONE within 4 u of spawn
+- 2–3 ramps (slanted boxes) for height variation
+- All from BoxGeometry, consistent material style
+
+
+BOTS (3) — TUNED EASY, the player should usually win duels:
+- Humanoid silhouette built from simple box parts (head, torso, 2 arms, 2 legs) grouped under a parent Object3D — modular for dismemberment
+- Orange accent material
+- Wander to random points (~3.2 ), spot the player via raycast LOS, then fire their own railgun (visible beam)
+- Difficulty (forgiving on purpose):
+  - Continuous LOS for ~1.0 s before firing (peeking around cover doesn't get you killed instantly)
+  - Fire cooldown: ~3.8 s + up to 0.8 s random jitter
+  - Aim inaccuracy: WIDE cone (~0.28 rad spread)
+  - Detection / fire range: ~22 u
+- One-shot-one-kill both ways
+- Respawn after 3 s at a random point ≥15 u from the player
+
+
+HIT FEEDBACK — must feel juicy (core feel of the game):
+Every player-fired hit on a bot triggers ALL of the following, layered:
+
+
+  Visual on the target:
+  - Bot mesh hides; body parts (head/torso/arms/legs) detach as separate physics chunks
+  - Each chunk: radial initial velocity from impact + slight upward bias, random angular velocity, gravity, ground bounce with damping
+  - Burst of ~40 small shard particles (tiny boxes) in bot accent + white, fly out radially, fade
+  - Bright white additive flash sprite at impact (80 ms)
+  - Expanding ground shockwave ring (flat ring mesh growing, fades over 400 ms)
+  - Brief upward dust puff (soft particles, fades over 600 ms)
+  - Debris stays ~2 s, then fade and cleanup
+  - NO blood, NO gore — clean geometric fragmentation only
+
+
+  Camera/screen feedback:
+  - Tiny camera punch toward the target (transient position offset only — never yaw/pitch)
+  - Crosshair hit-marker: 4 short cyan strokes flash outward from center for 120 ms with a small scale pop
+
+
+  Audio (all WebAudio synth):
+  - Sharp high-frequency "tink" blip on hit
+  - Layered low sub-thump for weight
+  - Short noise sweep for the shatter
+  - Slight pitch variation per hit
+
+
+  Game-state feedback:
+  - Score counter scales up briefly when incrementing
+
+
+Wall hits get a smaller version: spark particles, tiny dark quad, soft impact sound, no camera punch, no hit-marker.
+
+
+PLAYER DEATH:
+- Brief camera position jolt (not rotation), screen fades to dark slate with thin cyan "ELIMINATED" text, 1.5 s auto-respawn
+- LEFT CLICK during the ELIMINATED screen forces immediate respawn
+- Respawn at spawn point with velocity zeroed; yaw/pitch preserved; bots not reset
+
+
+HUD (DOM overlay over the canvas):
+- Crosshair: fine 1 px + in accent cyan with thin dark outline for readability
+- HP bottom-left (number + thin bar)
+- Score bottom-right (kills)
+- Cooldown bar bottom-center, thin, accent-colored
+- Pause overlay: semi-transparent dark layer + centered "PAUSED" in thin type
+- Overlay div has `pointer-events: none`; body has `cursor: none`
+
+
+PHYSICS: simple homemade — gravity, ground check, axis-by-axis AABB collision against walls/boxes for player and bots, simple point physics for debris/particles. No external lib.
+
+
+ROBUSTNESS — avoid common failure modes:
+- Guard pointer-lock requests against repeated calls in the same frame
+- On `pointerlockchange` with null, auto-pause (don't crash)
+- Clamp dt to ≤0.05 s to prevent tunneling on lag spikes
+- Reject NaN velocities and reset to zero
+- Never call `requestPointerLock` outside a user-gesture handler
+
+
+CODE STRUCTURE:
+- One `<script type="module">` block
+- Clear functions: initScene, buildMap, spawnBots, updatePlayer, updateBots, fireRailgun, killBot (dismember + effects), spawnHitFeedback, updateDebris, render, gameLoop
+- Frame-rate-independent (delta time)
+- Comments only where genuinely needed
+
+
+DELIVERABLE: only the full content of `game.html`, nothing else.
+Ignore all existing files and structures, only focus on generating `game.html`, nothing else.
