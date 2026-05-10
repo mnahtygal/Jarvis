@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jarvis System Visual Representation</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1e293b;
+      --border: #334155;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --blue: #38bdf8;
+      --green: #22c55e;
+      --purple: #a78bfa;
+      --orange: #f59e0b;
+      --red: #f87171;
+      --white: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 32px;
+      font-family: Arial, Helvetica, sans-serif;
+      background: radial-gradient(circle at top left, #1e3a8a 0, var(--bg) 36%);
+      color: var(--text);
+    }
+
+    .page {
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 20px 45px rgba(0,0,0,0.35);
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 34px;
+      color: var(--white);
+    }
+
+    h2 {
+      font-size: 21px;
+      color: #bfdbfe;
+      margin: 36px 0 14px;
+    }
+
+    h3 {
+      margin-top: 0;
+      color: var(--white);
+      font-size: 17px;
+    }
+
+    p, li {
+      color: #cbd5e1;
+      line-height: 1.55;
+    }
+
+    code {
+      background: #020617;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 2px 6px;
+      color: #bfdbfe;
+      white-space: nowrap;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 16px;
+      margin-bottom: 14px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .meta-card {
+      background: #020617;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .meta-label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 5px;
+    }
+
+    .meta-value {
+      color: var(--white);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .badge {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      background: #020617;
+      color: #dbeafe;
+    }
+
+    .badge.green { border-color: var(--green); color: #bbf7d0; background: #052e16; }
+    .badge.orange { border-color: var(--orange); color: #fde68a; background: #451a03; }
+    .badge.purple { border-color: var(--purple); color: #ddd6fe; background: #2e1065; }
+    .badge.blue { border-color: var(--blue); color: #bae6fd; background: #082f49; }
+
+    .diagram {
+      display: grid;
+      grid-template-columns: 1fr 1.15fr 1.2fr 1.15fr 1fr;
+      gap: 16px;
+      align-items: stretch;
+      margin-top: 18px;
+    }
+
+    .column {
+      background: rgba(17, 24, 39, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      min-height: 560px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+    }
+
+    .column-title {
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-size: 12px;
+      color: #93c5fd;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+      font-weight: 700;
+    }
+
+    .box {
+      background: var(--panel-2);
+      border: 1px solid #475569;
+      border-radius: 13px;
+      padding: 13px;
+      margin-bottom: 13px;
+    }
+
+    .box.source { background: #082f49; border-color: var(--blue); }
+    .box.process { background: #172554; border-color: #60a5fa; }
+    .box.db { background: #052e16; border-color: var(--green); }
+    .box.llm { background: #2e1065; border-color: var(--purple); }
+    .box.future { background: #451a03; border-color: var(--orange); }
+    .box.output { background: #1f2937; border-color: #cbd5e1; }
+
+    .box-title {
+      color: var(--white);
+      font-weight: 800;
+      margin-bottom: 6px;
+      font-size: 15px;
+    }
+
+    .box-detail {
+      color: #cbd5e1;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .arrow {
+      color: var(--blue);
+      font-weight: 900;
+      text-align: center;
+      margin: 6px 0 12px;
+      font-size: 18px;
+    }
+
+    .section {
+      margin-top: 26px;
+      background: rgba(17, 24, 39, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.22);
+    }
+
+    .flow-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 14px;
+    }
+
+    .flow-card {
+      background: var(--panel-2);
+      border: 1px solid #475569;
+      border-radius: 13px;
+      padding: 16px;
+    }
+
+    .mini-flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .pill {
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #020617;
+      border: 1px solid var(--border);
+      color: #dbeafe;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .pill-arrow {
+      color: var(--blue);
+      font-weight: 900;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 14px;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px;
+      vertical-align: top;
+    }
+
+    th {
+      background: #1e293b;
+      color: #bfdbfe;
+      text-align: left;
+    }
+
+    td { color: #dbeafe; }
+
+    .footer {
+      margin-top: 26px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+      padding: 16px;
+    }
+
+    @media (max-width: 1200px) {
+      .diagram { grid-template-columns: 1fr; }
+      .column { min-height: auto; }
+      .flow-grid { grid-template-columns: 1fr; }
+      .meta-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media print {
+      body { background: white; color: black; padding: 16px; }
+      .header, .column, .section, .flow-card { box-shadow: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="header">
+      <h1>Jarvis System Visual Representation</h1>
+      <div class="subtitle">Source → Process → Target → Data Flow view for Marty’s local Jarvis assistant</div>
+
+      <div class="meta-grid">
+        <div class="meta-card">
+          <div class="meta-label">Created By</div>
+          <div class="meta-value">ChatGPT — GPT-5.5 Thinking</div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">Document Type</div>
+          <div class="meta-value">HTML Visual Architecture</div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">Target Audience</div>
+          <div class="meta-value">Technical + Layperson View</div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-label">System Status</div>
+          <div class="meta-value">Health Check READY</div>
+        </div>
+      </div>
+
+      <div class="badge-row">
+        <span class="badge green">PostgreSQL persistence active</span>
+        <span class="badge blue">llama.cpp primary LLM</span>
+        <span class="badge purple">Ollama fallback</span>
+        <span class="badge orange">pgvector planned</span>
+        <span class="badge orange">Voice/camera later</span>
+      </div>
+    </section>
+
+    <h2>1. Big Picture: What Jarvis Does</h2>
+    <section class="section">
+      <p>
+        Jarvis takes a user request, decides whether it can answer with a direct skill or memory lookup,
+        gathers useful context from PostgreSQL, sends the question to a local AI model when needed,
+        then saves the conversation for future follow-up questions.
+      </p>
+      <div class="mini-flow">
+        <span class="pill">Marty asks</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill">Jarvis brain</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill">Memory + history</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill">Local LLM</span>
+        <span class="pill-arrow">→</span>
+        <span class="pill">Answer saved + returned</span>
+      </div>
+    </section>
+
+    <h2>2. Source → Process → Target Architecture</h2>
+    <div class="diagram">
+      <div class="column">
+        <div class="column-title">Sources</div>
+        <div class="box source">
+          <div class="box-title">User Input</div>
+          <div class="box-detail">Current source is typed CLI input through <code>testbrain.py</code>.</div>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="box source">
+          <div class="box-title">Future Inputs</div>
+          <div class="box-detail">React UI, Flask API, voice input, and camera input are planned later.</div>
+        </div>
+      </div>
+
+      <div class="column">
+        <div class="column-title">Brain / Process</div>
+        <div class="box process">
+          <div class="box-title">core/brain.py</div>
+          <div class="box-detail">Main orchestrator. Saves user input, detects topic, routes command, saves response.</div>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="box process">
+          <div class="box-title">core/router.py</div>
+          <div class="box-detail">Routes direct memory/time/system/chat commands before using the LLM.</div>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="box process">
+          <div class="box-title">core/context.py</div>
+          <div class="box-detail">Builds the prompt using long-term memory, last topic, and recent conversation history.</div>
+        </div>
+      </div>
+
+      <div class="column">
+        <div class="column-title">PostgreSQL Targets</div>
+        <div class="box db">
+          <div class="box-title">core/db.py</div>
+          <div class="box-detail">Central database connection layer.</div>
+        </div>
+        <div class="box db">
+          <div class="box-title">memories</div>
+          <div class="box-detail">Current long-term known facts.</div>
+        </div>
+        <div class="box db">
+          <div class="box-title">memory_history</div>
+          <div class="box-detail">Audit trail for remember, update, and forget actions.</div>
+        </div>
+        <div class="box db">
+          <div class="box-title">conversation_history</div>
+          <div class="box-detail">User and assistant message history.</div>
+        </div>
+        <div class="box db">
+          <div class="box-title">session_state</div>
+          <div class="box-detail">Persistent <code>last_topic</code> for follow-up context.</div>
+        </div>
+      </div>
+
+      <div class="column">
+        <div class="column-title">AI Backends</div>
+        <div class="box llm">
+          <div class="box-title">skills/llm_skill.py</div>
+          <div class="box-detail">Chooses the local brain path.</div>
+        </div>
+        <div class="arrow">↓ primary</div>
+        <div class="box llm">
+          <div class="box-title">llama.cpp</div>
+          <div class="box-detail">Primary backend at <code>127.0.0.1:8080</code>. Uses Qwen2.5-Coder 7B GGUF.</div>
+        </div>
+        <div class="arrow">↓ fallback</div>
+        <div class="box llm">
+          <div class="box-title">Ollama</div>
+          <div class="box-detail">Fallback backend at <code>localhost:11434</code>.</div>
+        </div>
+      </div>
+
+      <div class="column">
+        <div class="column-title">Outputs</div>
+        <div class="box output">
+          <div class="box-title">Jarvis Response</div>
+          <div class="box-detail">Answer is returned to the user and saved to conversation history.</div>
+        </div>
+        <div class="box output">
+          <div class="box-title">Health Check</div>
+          <div class="box-detail"><code>tools/health_check.py</code> validates that Jarvis is ready.</div>
+        </div>
+        <div class="box future">
+          <div class="box-title">Future Semantic Memory</div>
+          <div class="box-detail"><code>semantic_memories</code> will support pgvector-based recall after pgvector is installed.</div>
+        </div>
+      </div>
+    </div>
+
+    <h2>3. Main Data Flows</h2>
+    <section class="section">
+      <div class="flow-grid">
+        <div class="flow-card">
+          <h3>Normal AI Question</h3>
+          <ol>
+            <li>User asks a question.</li>
+            <li>Jarvis saves the user message.</li>
+            <li>Jarvis detects topic and updates session state.</li>
+            <li>Context is assembled from memory and history.</li>
+            <li>llama.cpp answers first; Ollama is fallback.</li>
+            <li>Response is saved and returned.</li>
+          </ol>
+        </div>
+        <div class="flow-card">
+          <h3>Memory Write</h3>
+          <ol>
+            <li>User says <code>remember that...</code>.</li>
+            <li>Router detects memory intent.</li>
+            <li>Memory is inserted or updated.</li>
+            <li>Audit row is written to <code>memory_history</code>.</li>
+            <li>Jarvis confirms the memory.</li>
+          </ol>
+        </div>
+        <div class="flow-card">
+          <h3>Follow-Up Question</h3>
+          <ol>
+            <li>User asks about a topic like Flask.</li>
+            <li><code>last_topic</code> is saved as Flask.</li>
+            <li>User asks “how is it different?”</li>
+            <li>Jarvis keeps the topic and adds recent history.</li>
+            <li>LLM answers with context.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <h2>4. Database Tables</h2>
+    <section class="section">
+      <table>
+        <thead>
+          <tr>
+            <th>Table</th>
+            <th>Purpose</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>memories</code></td>
+            <td>Stores current known long-term facts.</td>
+            <td>Active</td>
+          </tr>
+          <tr>
+            <td><code>memory_history</code></td>
+            <td>Stores audit history for memory changes.</td>
+            <td>Active</td>
+          </tr>
+          <tr>
+            <td><code>conversation_history</code></td>
+            <td>Stores user and assistant conversation turns.</td>
+            <td>Active</td>
+          </tr>
+          <tr>
+            <td><code>session_state</code></td>
+            <td>Stores persistent session values such as <code>last_topic</code>.</td>
+            <td>Active</td>
+          </tr>
+          <tr>
+            <td><code>semantic_memories</code></td>
+            <td>Future pgvector semantic memory storage.</td>
+            <td>Planned</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <h2>5. Operational Startup</h2>
+    <section class="section">
+      <p>Before coding or testing Jarvis, run:</p>
+      <pre><code>cd ~/jarvis
+./tools/health_check.py
+python3 testbrain.py</code></pre>
+      <p>Expected result:</p>
+      <pre><code>Jarvis health check complete: READY</code></pre>
+    </section>
+
+    <h2>6. Current Status and Next Steps</h2>
+    <section class="section">
+      <div class="flow-grid">
+        <div class="flow-card">
+          <h3>Stable Now</h3>
+          <ul>
+            <li>PostgreSQL persistence</li>
+            <li>Long-term memory</li>
+            <li>Conversation history</li>
+            <li>Persistent last topic</li>
+            <li>Context assembler</li>
+          </ul>
+        </div>
+        <div class="flow-card">
+          <h3>AI Path</h3>
+          <ul>
+            <li>llama.cpp primary</li>
+            <li>Ollama fallback</li>
+            <li>Qwen2.5-Coder 7B local model</li>
+            <li>Health check validation</li>
+          </ul>
+        </div>
+        <div class="flow-card">
+          <h3>Next</h3>
+          <ul>
+            <li>Install/build pgvector</li>
+            <li>Create semantic memory table</li>
+            <li>Add embedding skill</li>
+            <li>Add semantic recall</li>
+            <li>Voice and camera later</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer">
+      Generated for the Jarvis project. Visual representation created by ChatGPT — GPT-5.5 Thinking.
+    </div>
+  </main>
+</body>
+</html>
