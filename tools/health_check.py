@@ -79,13 +79,14 @@ def run_check(name: str, check_func: Callable[[], Tuple[bool, str, bool]]) -> bo
 def check_imports() -> Tuple[bool, str, bool]:
     from core.db import get_connection
     from core.memory import get_all_memories
-    from core.session import get_recent_history
+    from core.session import get_recent_history, get_last_topic
     from core.context import build_context_summary
     from skills.llm_skill import ask_local_llm
 
     _ = get_connection
     _ = get_all_memories
     _ = get_recent_history
+    _ = get_last_topic
     _ = build_context_summary
     _ = ask_local_llm
 
@@ -102,6 +103,59 @@ def check_postgres() -> Tuple[bool, str, bool]:
 
     short_version = version.split(",")[0]
     return True, short_version, False
+
+
+def check_session_state() -> Tuple[bool, str, bool]:
+    """
+    Validate persistent session state.
+
+    This checks:
+    - session_state table exists
+    - default session row can be read or created by current code
+    - last_topic can be retrieved through core.session.get_last_topic()
+    """
+
+    from core.db import get_connection
+    from core.session import get_last_topic
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                      AND table_name = 'session_state'
+                );
+                """
+            )
+
+            table_exists = cur.fetchone()[0]
+
+            if not table_exists:
+                return False, "session_state table does not exist", False
+
+            cur.execute(
+                """
+                SELECT session_id, last_topic, updated_at
+                FROM session_state
+                WHERE session_id = %s;
+                """,
+                ("default",),
+            )
+
+            row = cur.fetchone()
+
+    last_topic = get_last_topic()
+
+    if not row:
+        return False, "session_state table exists but default row is missing", True
+
+    if not last_topic:
+        return False, "session_state is readable but last_topic is empty", True
+
+    return True, f"last_topic={last_topic}", False
 
 
 def check_memories() -> Tuple[bool, str, bool]:
@@ -201,6 +255,7 @@ def main() -> int:
     checks = [
         ("Python imports", check_imports),
         ("PostgreSQL connection", check_postgres),
+        ("Session state", check_session_state),
         ("Long-term memories", check_memories),
         ("Conversation history", check_conversation_history),
         ("Context builder", check_context_builder),
