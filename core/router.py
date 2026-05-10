@@ -37,6 +37,8 @@ def _clean_question_key(text: str) -> str:
         .replace("who's my ", "")
         .replace("where is my ", "")
         .replace("where's my ", "")
+        .replace(" called", "")
+        .replace(" named", "")
         .replace("?", "")
         .strip()
     )
@@ -45,12 +47,23 @@ def _clean_question_key(text: str) -> str:
 
 
 def _remember_is_fact(fact: str):
-    if " is " not in fact:
+    lowered = fact.lower()
+
+    if " is called " in lowered:
+        split_text = " is called "
+    elif " is named " in lowered:
+        split_text = " is named "
+    elif " is " in lowered:
+        split_text = " is "
+    else:
         return None
 
-    key, value = fact.split(" is ", 1)
+    index = lowered.find(split_text)
+
+    key = fact[:index].strip()
+    value = fact[index + len(split_text):].strip()
+
     key = normalize_key(key)
-    value = value.strip()
 
     if not key or not value:
         return None
@@ -61,7 +74,11 @@ def _remember_is_fact(fact: str):
 def _try_natural_memory(command: str):
     text = command.lower().strip()
 
-    if text.startswith("my ") and " is " in text:
+    if text.startswith("my ") and (
+        " is called " in text
+        or " is named " in text
+        or " is " in text
+    ):
         return _remember_is_fact(command)
 
     if text.startswith("i work at "):
