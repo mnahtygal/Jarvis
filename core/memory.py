@@ -1,23 +1,18 @@
-import psycopg2
+# core/memory.py
+
 from psycopg2.extras import RealDictCursor
 
-
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "database": "jarvis",
-    "user": "mnahtygal",
-    "password": "jarvis123",
-}
-
-
-def get_connection():
-    return psycopg2.connect(**DB_CONFIG)
+from core.db import get_connection
 
 
 def remember(memory_key: str, memory_value: str) -> str:
     memory_key = memory_key.strip().lower()
     memory_value = memory_value.strip()
+
+    if not memory_key or not memory_value:
+        return "I need both a memory name and value to remember that, Marty."
+
+    old_value = recall(memory_key)
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -41,7 +36,7 @@ def remember(memory_key: str, memory_value: str) -> str:
                 VALUES
                     (%s, %s, %s, %s, CURRENT_TIMESTAMP);
                 """,
-                ("remember", memory_key, None, memory_value),
+                ("remember", memory_key, old_value or None, memory_value),
             )
 
     return f"Got it, Marty. I'll remember that {memory_key} is {memory_value}."
@@ -49,6 +44,9 @@ def remember(memory_key: str, memory_value: str) -> str:
 
 def recall(memory_key: str) -> str:
     memory_key = memory_key.strip().lower()
+
+    if not memory_key:
+        return ""
 
     with get_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -71,6 +69,9 @@ def recall(memory_key: str) -> str:
 def update_memory(memory_key: str, memory_value: str) -> str:
     memory_key = memory_key.strip().lower()
     memory_value = memory_value.strip()
+
+    if not memory_key or not memory_value:
+        return "I need both a memory name and value to update that, Marty."
 
     old_value = recall(memory_key)
 
@@ -103,6 +104,9 @@ def update_memory(memory_key: str, memory_value: str) -> str:
 
 def forget(memory_key: str) -> str:
     memory_key = memory_key.strip().lower()
+
+    if not memory_key:
+        return "Tell me what memory to forget, Marty."
 
     old_value = recall(memory_key)
 
@@ -139,6 +143,10 @@ def get_all_memories() -> dict:
                 """
                 SELECT memory_key, memory_value
                 FROM memories
+                WHERE memory_key IS NOT NULL
+                  AND memory_value IS NOT NULL
+                  AND btrim(memory_key) <> ''
+                  AND btrim(memory_value) <> ''
                 ORDER BY memory_key;
                 """
             )

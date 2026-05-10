@@ -3,17 +3,9 @@
 import uuid
 from typing import List, Dict
 
-import psycopg2
 from psycopg2.extras import RealDictCursor
 
-
-DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "database": "jarvis",
-    "user": "mnahtygal",
-    "password": "jarvis123",
-}
+from core.db import get_connection
 
 
 SESSION_ID = "default"
@@ -22,10 +14,6 @@ conversation = {
     "last_topic": None,
     "history": [],
 }
-
-
-def get_connection():
-    return psycopg2.connect(**DB_CONFIG)
 
 
 def _save_message(role: str, message: str):
@@ -48,6 +36,11 @@ def _save_message(role: str, message: str):
 
 
 def _remember_in_ram(role: str, message: str):
+    message = message.strip()
+
+    if not message:
+        return
+
     conversation["history"].append(
         {
             "role": role,
@@ -85,6 +78,8 @@ def get_recent_history(limit: int = 8) -> List[Dict[str, str]]:
                 SELECT role, message, created_at
                 FROM conversation_history
                 WHERE session_id = %s
+                  AND message IS NOT NULL
+                  AND btrim(message) <> ''
                 ORDER BY created_at DESC, id DESC
                 LIMIT %s;
                 """,
