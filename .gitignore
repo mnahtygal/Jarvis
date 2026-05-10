@@ -16,3 +16,5 @@ ui-app/dist/
 # System
 .DS_Store
 .env
+__pycache__/
+*.pyc
