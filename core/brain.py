@@ -8,37 +8,85 @@ from core.session import (
 )
 
 
-def detect_topic(command: str):
-    text = command.lower()
+TOPIC_ALIASES = {
+    "flask api": "Flask API",
+    "flask": "Flask",
+    "express": "Express",
+    "node.js": "Node.js",
+    "node": "Node.js",
+    "javascript": "JavaScript",
+    "python": "Python",
+    "ollama": "Ollama",
+    "llama.cpp": "llama.cpp",
+    "llama": "llama.cpp",
+    "qwen": "Qwen",
+    "jarvis": "Jarvis",
+    "react": "React",
+    "vite": "Vite",
+    "backend": "backend",
+    "frontend": "frontend",
+    "memory": "memory",
+    "postgresql": "PostgreSQL",
+    "postgres": "PostgreSQL",
+    "pgvector": "pgvector",
+    "llm": "LLM",
+    "conversation history": "conversation history",
+    "health check": "health check",
+}
 
-    topics = [
-        "flask",
-        "express",
-        "python",
-        "node",
-        "node.js",
-        "javascript",
-        "ollama",
-        "qwen",
-        "jarvis",
-        "react",
-        "vite",
-        "flask api",
-        "backend",
-        "frontend",
-        "memory",
-        "llm",
+
+FOLLOW_UP_PHRASES = [
+    "how is it different",
+    "how is that different",
+    "what about that",
+    "what about it",
+    "tell me more",
+    "explain more",
+    "why is that",
+    "how does it work",
+    "compare it",
+]
+
+
+def detect_topic(command: str):
+    text = command.lower().strip()
+
+    if not text:
+        return None
+
+    # If this is clearly a follow-up, do not overwrite last_topic.
+    for phrase in FOLLOW_UP_PHRASES:
+        if phrase in text:
+            return None
+
+    # Match longer aliases first so "flask api" wins before "flask".
+    for alias, topic in sorted(TOPIC_ALIASES.items(), key=lambda item: len(item[0]), reverse=True):
+        if alias in text:
+            return topic
+
+    # Basic "what is X" / "explain X" style fallback.
+    starter_phrases = [
+        "what is ",
+        "what's ",
+        "explain ",
+        "tell me about ",
+        "define ",
     ]
 
-    for topic in topics:
-        if topic in text:
-            return topic
+    for phrase in starter_phrases:
+        if text.startswith(phrase):
+            topic = text[len(phrase):].strip(" ?.!")
+            if topic:
+                return topic[:80]
 
     return None
 
 
 def think(command: str) -> str:
     cleaned_command = command.strip()
+
+    if not cleaned_command:
+        return "I didn't hear anything, Marty."
 
     print(f"[BRAIN] Heard: {cleaned_command}")
 

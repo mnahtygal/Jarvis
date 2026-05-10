@@ -62,12 +62,51 @@ def remember_assistant_message(message: str):
 
 
 def set_last_topic(topic: str):
-    if topic:
-        conversation["last_topic"] = topic
+    topic = topic.strip() if topic else ""
+
+    if not topic:
+        return
+
+    conversation["last_topic"] = topic
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO session_state
+                    (session_id, last_topic, updated_at)
+                VALUES
+                    (%s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (session_id)
+                DO UPDATE SET
+                    last_topic = EXCLUDED.last_topic,
+                    updated_at = CURRENT_TIMESTAMP;
+                """,
+                (SESSION_ID, topic),
+            )
 
 
 def get_last_topic():
-    return conversation.get("last_topic")
+    if conversation.get("last_topic"):
+        return conversation["last_topic"]
+
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT last_topic
+                FROM session_state
+                WHERE session_id = %s;
+                """,
+                (SESSION_ID,),
+            )
+            row = cur.fetchone()
+
+    if row and row.get("last_topic"):
+        conversation["last_topic"] = row["last_topic"]
+        return row["last_topic"]
+
+    return None
 
 
 def get_recent_history(limit: int = 8) -> List[Dict[str, str]]:
@@ -100,7 +139,7 @@ def get_recent_history(limit: int = 8) -> List[Dict[str, str]]:
 
 
 def get_context() -> str:
-    last_topic = conversation.get("last_topic") or "None"
+    last_topic = get_last_topic() or "None"
     recent_history = get_recent_history(limit=8)
 
     history_text = "\n".join(
@@ -130,11 +169,43 @@ def clear_session_history():
             )
 
 
+def clear_last_topic():
+    conversation["last_topic"] = None
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE session_state
+                SET last_topic = NULL,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE session_id = %s;
+                """,
+                (SESSION_ID,),
+            )
+
+
 def new_session() -> str:
     global SESSION_ID
 
     SESSION_ID = str(uuid.uuid4())
     conversation["last_topic"] = None
     conversation["history"] = []
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO session_state
+                    (session_id, last_topic, updated_at)
+                VALUES
+                    (%s, NULL, CURRENT_TIMESTAMP)
+                ON CONFLICT (session_id)
+                DO UPDATE SET
+                    last_topic = NULL,
+                    updated_at = CURRENT_TIMESTAMP;
+                """,
+                (SESSION_ID,),
+            )
 
     return SESSION_ID
