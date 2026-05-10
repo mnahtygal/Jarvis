@@ -1,54 +1,16 @@
 # skills/llm_skill.py
 
 import requests
-from core.session import get_context
-from core.memory import build_memory_context
+
+from core.context import build_prompt
 
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL = "qwen2.5-coder:7b"
 
 
-def _format_long_term_memory() -> str:
-    memory_context = build_memory_context()
-
-    if not memory_context:
-        return "No long-term memories saved yet."
-
-    return memory_context
-
-
-SYSTEM_PROMPT = """
-You are Jarvis, Marty's local AI assistant.
-
-Rules:
-- Answer clearly and briefly.
-- Use long-term memory when it helps answer Marty's question.
-- Use recent context for follow-up questions.
-- If Marty asks "how is it different", compare against the last topic.
-- Flask is Python.
-- Express is Node.js / JavaScript.
-""".strip()
-
-
 def ask_local_llm(user_text: str) -> str:
-    context = get_context()
-    long_term_memory = _format_long_term_memory()
-
-    prompt = f"""
-{SYSTEM_PROMPT}
-
-Long-term memory:
-{long_term_memory}
-
-Recent context:
-{context}
-
-Question:
-{user_text}
-
-Answer:
-""".strip()
+    prompt = build_prompt(user_text)
 
     try:
         response = requests.post(
