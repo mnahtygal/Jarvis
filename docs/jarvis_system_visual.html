@@ -314,6 +314,7 @@
         <span class="badge blue">llama.cpp primary LLM</span>
         <span class="badge purple">Ollama fallback</span>
         <span class="badge orange">pgvector planned</span>
+        <span class="badge blue">help/version/memory commands active</span>
         <span class="badge orange">Voice/camera later</span>
       </div>
     </section>
@@ -423,6 +424,16 @@
           <div class="box-title">Health Check</div>
           <div class="box-detail"><code>tools/health_check.py</code> validates that Jarvis is ready.</div>
         </div>
+
+        <div class="box output">
+          <div class="box-title">Built-In Commands</div>
+          <div class="box-detail">
+            <code>jarvis help</code><br />
+            <code>jarvis health</code><br />
+            <code>jarvis version</code><br />
+            <code>jarvis memory summary</code>
+          </div>
+        </div>
         <div class="box future">
           <div class="box-title">Future Semantic Memory</div>
           <div class="box-detail"><code>semantic_memories</code> will support pgvector-based recall after pgvector is installed.</div>
@@ -467,7 +478,47 @@
       </div>
     </section>
 
-    <h2>4. Database Tables</h2>
+    <h2>4. Built-In Jarvis Commands</h2>
+    <section class="section">
+      <p>
+        Jarvis now includes operational commands that let the assistant explain itself,
+        check itself, report its version, and summarize memory from inside the chat loop.
+      </p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Command</th>
+            <th>Purpose</th>
+            <th>Module</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>jarvis help</code></td>
+            <td>Shows current capabilities and command examples.</td>
+            <td><code>skills/help_skill.py</code></td>
+          </tr>
+          <tr>
+            <td><code>jarvis health</code></td>
+            <td>Runs PostgreSQL, memory, context, llama.cpp, and Ollama checks.</td>
+            <td><code>skills/health_skill.py</code></td>
+          </tr>
+          <tr>
+            <td><code>jarvis version</code></td>
+            <td>Shows version, runtime backend, model, database, and feature status.</td>
+            <td><code>skills/version_skill.py</code></td>
+          </tr>
+          <tr>
+            <td><code>jarvis memory summary</code></td>
+            <td>Summarizes long-term memories, recent history count, and last topic.</td>
+            <td><code>skills/memory_summary_skill.py</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <h2>5. Database Tables</h2>
     <section class="section">
       <table>
         <thead>
@@ -507,7 +558,7 @@
       </table>
     </section>
 
-    <h2>5. Operational Startup</h2>
+    <h2>6. Operational Startup</h2>
     <section class="section">
       <p>Before coding or testing Jarvis, run:</p>
       <pre><code>cd ~/jarvis
@@ -517,7 +568,7 @@ python3 testbrain.py</code></pre>
       <pre><code>Jarvis health check complete: READY</code></pre>
     </section>
 
-    <h2>6. Current Status and Next Steps</h2>
+    <h2>7. Current Status and Next Steps</h2>
     <section class="section">
       <div class="flow-grid">
         <div class="flow-card">
@@ -528,6 +579,7 @@ python3 testbrain.py</code></pre>
             <li>Conversation history</li>
             <li>Persistent last topic</li>
             <li>Context assembler</li>
+            <li>Help, health, version, and memory summary commands</li>
           </ul>
         </div>
         <div class="flow-card">
