@@ -4,6 +4,7 @@ from skills.time_skill import get_time_response
 from skills.system_skill import get_system_response
 from skills.chat_skill import get_chat_response
 from skills.llm_skill import get_llm_response
+from skills.health_skill import get_health_response
 
 from core.memory import (
     remember,
@@ -100,11 +101,29 @@ def _try_natural_memory(command: str):
     return None
 
 
+def _is_health_check_request(text: str) -> bool:
+    health_phrases = [
+        "jarvis health",
+        "health check",
+        "system health",
+        "jarvis status",
+        "status check",
+        "are you healthy",
+        "are you ok",
+        "are you okay",
+    ]
+
+    return any(phrase in text for phrase in health_phrases)
+
+
 def route(command: str) -> str:
     text = command.lower().strip()
 
     if not text:
         return "I didn't hear anything, Marty."
+
+    if _is_health_check_request(text):
+        return get_health_response()
 
     if text.startswith("remember that "):
         fact = command[len("remember that "):].strip()
