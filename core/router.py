@@ -5,6 +5,7 @@ from skills.system_skill import get_system_response
 from skills.chat_skill import get_chat_response
 from skills.llm_skill import get_llm_response
 from skills.health_skill import get_health_response
+from skills.help_skill import get_help_response
 
 from core.memory import (
     remember,
@@ -116,6 +117,21 @@ def _is_health_check_request(text: str) -> bool:
     return any(phrase in text for phrase in health_phrases)
 
 
+def _is_help_request(text: str) -> bool:
+    help_phrases = [
+        "jarvis help",
+        "help",
+        "what can you do",
+        "what can jarvis do",
+        "show commands",
+        "list commands",
+        "capabilities",
+        "jarvis capabilities",
+    ]
+
+    return text in help_phrases
+
+
 def route(command: str) -> str:
     text = command.lower().strip()
 
@@ -124,6 +140,9 @@ def route(command: str) -> str:
 
     if _is_health_check_request(text):
         return get_health_response()
+
+    if _is_help_request(text):
+        return get_help_response()
 
     if text.startswith("remember that "):
         fact = command[len("remember that "):].strip()
