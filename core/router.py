@@ -8,6 +8,7 @@ from skills.health_skill import get_health_response
 from skills.help_skill import get_help_response
 from skills.version_skill import get_version_response
 from skills.memory_summary_skill import get_memory_summary_response
+from skills.docs_skill import get_docs_response
 
 from core.memory import (
     remember,
@@ -163,6 +164,21 @@ def _is_memory_summary_request(text: str) -> bool:
     return text in memory_summary_phrases
 
 
+def _is_docs_request(text: str) -> bool:
+    docs_phrases = [
+        "jarvis docs",
+        "jarvis documentation",
+        "show docs",
+        "show documentation",
+        "where are the docs",
+        "where is the documentation",
+        "open docs",
+        "documentation",
+    ]
+
+    return text in docs_phrases
+
+
 def route(command: str) -> str:
     text = command.lower().strip()
 
@@ -180,6 +196,9 @@ def route(command: str) -> str:
 
     if _is_memory_summary_request(text):
         return get_memory_summary_response()
+
+    if _is_docs_request(text):
+        return get_docs_response()
 
     if text.startswith("remember that "):
         fact = command[len("remember that "):].strip()
