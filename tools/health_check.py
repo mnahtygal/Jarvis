@@ -204,6 +204,55 @@ def check_context_builder() -> Tuple[bool, str, bool]:
     return True, "context summary built", False
 
 
+
+def check_semantic_memory() -> Tuple[bool, str, bool]:
+    """
+    Validate pgvector semantic memory foundation.
+
+    This checks:
+    - vector extension is installed/enabled
+    - semantic_memories table exists
+    - semantic_memories row count can be read
+    """
+
+    from core.db import get_connection
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM pg_extension
+                    WHERE extname = 'vector'
+                );
+                """
+            )
+            vector_enabled = cur.fetchone()[0]
+
+            if not vector_enabled:
+                return False, "vector extension is not enabled", False
+
+            cur.execute(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                      AND table_name = 'semantic_memories'
+                );
+                """
+            )
+            table_exists = cur.fetchone()[0]
+
+            if not table_exists:
+                return False, "semantic_memories table does not exist", False
+
+            cur.execute("SELECT COUNT(*) FROM semantic_memories;")
+            row_count = cur.fetchone()[0]
+
+    return True, f"vector enabled, semantic_memories rows={row_count}", False
+
 def check_llama_cpp() -> Tuple[bool, str, bool]:
     url = "http://127.0.0.1:8080/v1/models"
 
@@ -259,6 +308,7 @@ def main() -> int:
         ("Long-term memories", check_memories),
         ("Conversation history", check_conversation_history),
         ("Context builder", check_context_builder),
+        ("Semantic memory", check_semantic_memory),
         ("llama.cpp server", check_llama_cpp),
         ("Ollama server", check_ollama),
     ]

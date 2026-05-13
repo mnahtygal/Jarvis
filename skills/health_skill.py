@@ -92,6 +92,48 @@ def _check_context_builder() -> CheckResult:
         return False, str(error)
 
 
+
+def _check_semantic_memory() -> CheckResult:
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM pg_extension
+                        WHERE extname = 'vector'
+                    );
+                    """
+                )
+                vector_enabled = cur.fetchone()[0]
+
+                if not vector_enabled:
+                    return False, "vector extension is not enabled"
+
+                cur.execute(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM information_schema.tables
+                        WHERE table_schema = 'public'
+                          AND table_name = 'semantic_memories'
+                    );
+                    """
+                )
+                table_exists = cur.fetchone()[0]
+
+                if not table_exists:
+                    return False, "semantic_memories table does not exist"
+
+                cur.execute("SELECT COUNT(*) FROM semantic_memories;")
+                row_count = cur.fetchone()[0]
+
+        return True, f"vector enabled, semantic_memories rows={row_count}"
+
+    except Exception as error:
+        return False, str(error)
+
 def _check_llama_cpp() -> CheckResult:
     try:
         response = requests.get(
@@ -141,6 +183,7 @@ def get_health_report() -> dict:
         "Long-term memories": _check_memories(),
         "Conversation history": _check_conversation_history(),
         "Context builder": _check_context_builder(),
+        "Semantic memory": _check_semantic_memory(),
         "llama.cpp": _check_llama_cpp(),
         "Ollama": _check_ollama(),
     }
