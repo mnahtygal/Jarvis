@@ -6,6 +6,8 @@ from skills.chat_skill import get_chat_response
 from skills.llm_skill import get_llm_response
 from skills.health_skill import get_health_response
 from skills.help_skill import get_help_response
+from skills.version_skill import get_version_response
+from skills.memory_summary_skill import get_memory_summary_response
 
 from core.memory import (
     remember,
@@ -132,6 +134,35 @@ def _is_help_request(text: str) -> bool:
     return text in help_phrases
 
 
+def _is_version_request(text: str) -> bool:
+    version_phrases = [
+        "jarvis version",
+        "version",
+        "build info",
+        "jarvis build",
+        "jarvis build info",
+        "what version are you",
+        "what version is jarvis",
+    ]
+
+    return text in version_phrases
+
+
+def _is_memory_summary_request(text: str) -> bool:
+    memory_summary_phrases = [
+        "jarvis memory summary",
+        "memory summary",
+        "summarize memory",
+        "summarize memories",
+        "memory status",
+        "what is in memory",
+        "show memory",
+        "show memories",
+    ]
+
+    return text in memory_summary_phrases
+
+
 def route(command: str) -> str:
     text = command.lower().strip()
 
@@ -143,6 +174,12 @@ def route(command: str) -> str:
 
     if _is_help_request(text):
         return get_help_response()
+
+    if _is_version_request(text):
+        return get_version_response()
+
+    if _is_memory_summary_request(text):
+        return get_memory_summary_response()
 
     if text.startswith("remember that "):
         fact = command[len("remember that "):].strip()

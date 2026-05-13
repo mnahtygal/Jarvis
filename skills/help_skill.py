@@ -8,6 +8,8 @@ Jarvis capabilities, Marty:
 Core commands:
 - "what can you do" or "jarvis help" - show this help
 - "jarvis health" - run Jarvis health checks
+- "jarvis version" - show Jarvis version and backend info
+- "jarvis memory summary" - summarize current memory/session state
 - "what time is it" or "what is the date" - time/date response
 - "system status" - CPU, memory, disk, or system status
 
