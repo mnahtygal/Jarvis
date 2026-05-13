@@ -12,6 +12,7 @@ The goal is to clearly identify:
 - Data flows
 - Runtime dependencies
 - Operational health checks
+- Built-in Jarvis commands
 - Future enhancement points
 
 ---
@@ -31,6 +32,7 @@ The current architecture supports:
 - llama.cpp as the primary local LLM backend
 - Ollama as fallback local LLM backend
 - Health check validation script
+- Built-in Jarvis health, help, version, and memory summary commands
 - Future pgvector semantic memory preparation
 
 Voice and camera are intentionally planned later and are not part of the current active flow.
@@ -112,7 +114,26 @@ Response back to user
 
 ---
 
-# 5. Core Processing Modules
+# 5. Built-In Jarvis Commands
+
+These commands are available from `testbrain.py` through `core/router.py`.
+
+| Command | Purpose | Module |
+|---|---|---|
+| `jarvis help` / `what can you do` | Show current Jarvis capabilities | `skills/help_skill.py` |
+| `jarvis health` | Run Jarvis health checks inside the chat loop | `skills/health_skill.py` |
+| `jarvis version` | Show version, model/backend, and runtime status | `skills/version_skill.py` |
+| `jarvis memory summary` | Summarize stored memories, recent history, and last topic | `skills/memory_summary_skill.py` |
+| `what time is it` / `what is the date` | Return time/date response | `skills/time_skill.py` |
+| `system status` | Return CPU, memory, disk, or system status | `skills/system_skill.py` |
+| `remember that ...` | Store long-term memory | `core/memory.py` |
+| `what is my ...` | Recall long-term memory | `core/memory.py` |
+| `update my ... to ...` | Update long-term memory | `core/memory.py` |
+| `forget that ...` | Delete long-term memory | `core/memory.py` |
+
+---
+
+# 6. Core Processing Modules
 
 ## `testbrain.py`
 
@@ -274,7 +295,7 @@ qwen2.5-coder:7b
 
 ---
 
-# 6. Data Flow: Normal LLM Question
+# 7. Data Flow: Normal LLM Question
 
 Example:
 
@@ -317,7 +338,7 @@ Targets updated:
 
 ---
 
-# 7. Data Flow: Memory Write
+# 8. Data Flow: Memory Write
 
 Example:
 
@@ -351,7 +372,7 @@ Targets updated:
 
 ---
 
-# 8. Data Flow: Memory Recall
+# 9. Data Flow: Memory Recall
 
 Example:
 
@@ -382,7 +403,45 @@ Targets read/updated:
 
 ---
 
-# 9. Data Flow: Follow-Up Question
+# 10. Data Flow: Built-In Operational Command
+
+Example:
+
+```text
+jarvis health
+```
+
+Flow:
+
+```text
+testbrain.py
+  -> core.brain.think()
+      -> remember_user_message()
+      -> core.router.route()
+          -> health command detected
+          -> skills.health_skill.get_health_response()
+              -> check PostgreSQL
+              -> check session_state
+              -> check memories
+              -> check conversation_history
+              -> check context builder
+              -> check llama.cpp
+              -> check Ollama
+      -> remember_assistant_message()
+      -> response returned
+```
+
+Similar built-in operational commands:
+
+```text
+jarvis help
+jarvis version
+jarvis memory summary
+```
+
+---
+
+# 11. Data Flow: Follow-Up Question
 
 Example:
 
@@ -419,7 +478,7 @@ user: how is it different from express
 
 ---
 
-# 10. Database Tables
+# 12. Database Tables
 
 ## `memories`
 
@@ -490,7 +549,7 @@ Expected future columns:
 
 ---
 
-# 11. Operational Scripts
+# 13. Operational Scripts
 
 ## Health Check
 
@@ -555,7 +614,7 @@ python3 tools/create_semantic_memory_table.py
 
 ---
 
-# 12. Runtime Dependencies
+# 14. Runtime Dependencies
 
 ## PostgreSQL
 
@@ -604,7 +663,7 @@ qwen2.5-coder:3b
 
 ---
 
-# 13. Current Operational Startup
+# 15. Current Operational Startup
 
 Recommended startup:
 
@@ -622,7 +681,7 @@ Jarvis health check complete: READY
 
 ---
 
-# 14. Current Known Limitations
+# 16. Current Known Limitations
 
 | Area | Limitation |
 |---|---|
@@ -637,16 +696,16 @@ Jarvis health check complete: READY
 
 ---
 
-# 15. Recommended Next Steps
+# 17. Recommended Next Steps
 
 ## Near-Term
 
-1. Add visual architecture HTML
-2. Install/build pgvector
-3. Add pgvector health check
-4. Create embedding skill
-5. Build semantic recall in read-only mode
-6. Tune LLM response length
+1. Install/build pgvector
+2. Add pgvector health check
+3. Create embedding skill
+4. Build semantic recall in read-only mode
+5. Tune LLM response length
+6. Keep documentation updated as commands are added
 
 ## Later
 
@@ -659,7 +718,7 @@ Jarvis health check complete: READY
 
 ---
 
-# 16. Current Architecture Status
+# 18. Current Architecture Status
 
 ```text
 Status: Stable local assistant foundation
@@ -673,8 +732,12 @@ PostgreSQL memories, history, session state
 Fallback:
 Ollama available
 
+Built-in commands:
+help, health, version, memory summary
+
 Health:
 tools/health_check.py passing
+jarvis health available in chat loop
 
 Next major feature:
 pgvector semantic memory
