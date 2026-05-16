@@ -1,10 +1,37 @@
 #!/usr/bin/env python3
 
-# tools/health_check.py
+"""
+Jarvis Thor Health Check
 
+Checks the local Jarvis runtime on NVIDIA Jetson AGX Thor:
+
+- Python imports
+- PostgreSQL connection
+- PostgreSQL tables
+- pgvector extension
+- long-term memories
+- conversation history
+- session state
+- context builder
+- llama.cpp model server
+- Qwen3 model response
+- CUDA / NVIDIA GPU visibility
+- GGUF model files
+- Git repo state
+
+Exit code:
+    0 = ready / no hard failures
+    1 = one or more hard failures
+"""
+
+import json
+import os
+import platform
+import socket
+import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import requests
 
@@ -15,48 +42,86 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-def print_header():
+LLAMA_MODELS_URL = os.getenv(
+    "LLAMA_MODELS_URL",
+    "http://127.0.0.1:8080/v1/models",
+)
+
+LLAMA_CHAT_URL = os.getenv(
+    "LLAMA_CHAT_URL",
+    "http://127.0.0.1:8080/v1/chat/completions",
+)
+
+LLAMA_MODEL_NAME = os.getenv(
+    "LLAMA_CPP_MODEL",
+    "Qwen3-30B-A3B-Q4_K_M.gguf",
+)
+
+MODEL_ROOT = Path(os.getenv("JARVIS_MODEL_ROOT", str(Path.home() / "models")))
+
+
+HealthResult = Tuple[bool, str, bool]
+HealthCheck = Callable[[], HealthResult]
+
+
+def print_header() -> None:
     print("")
     print("===================================")
-    print(" Jarvis Health Check")
+    print(" Jarvis Thor Health Check")
     print("===================================")
     print("")
 
 
-def pass_line(name: str, detail: str = ""):
+def pass_line(name: str, detail: str = "") -> None:
     if detail:
         print(f"[PASS] {name} - {detail}")
     else:
         print(f"[PASS] {name}")
 
 
-def warn_line(name: str, detail: str = ""):
+def warn_line(name: str, detail: str = "") -> None:
     if detail:
         print(f"[WARN] {name} - {detail}")
     else:
         print(f"[WARN] {name}")
 
 
-def fail_line(name: str, detail: str = ""):
+def fail_line(name: str, detail: str = "") -> None:
     if detail:
         print(f"[FAIL] {name} - {detail}")
     else:
         print(f"[FAIL] {name}")
 
 
-def run_check(name: str, check_func: Callable[[], Tuple[bool, str, bool]]) -> bool:
+def run_command(command: List[str], timeout: int = 10) -> Tuple[int, str, str]:
+    try:
+        completed = subprocess.run(
+            command,
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+        return completed.returncode, completed.stdout.strip(), completed.stderr.strip()
+    except FileNotFoundError as error:
+        return 127, "", str(error)
+    except subprocess.TimeoutExpired:
+        return 124, "", f"command timed out after {timeout}s"
+
+
+def run_check(name: str, check_func: HealthCheck) -> bool:
     """
     Run one health check.
-
-    Returns True if the check passed or only warned.
-    Returns False if the check failed hard.
 
     check_func returns:
         passed: bool
         detail: str
         warning_only: bool
-    """
 
+    Returns:
+        True if passed or warning-only.
+        False if hard failure.
+    """
     try:
         passed, detail, warning_only = check_func()
 
@@ -76,12 +141,27 @@ def run_check(name: str, check_func: Callable[[], Tuple[bool, str, bool]]) -> bo
         return False
 
 
-def check_imports() -> Tuple[bool, str, bool]:
+def check_system_identity() -> HealthResult:
+    hostname = socket.gethostname()
+    machine = platform.machine()
+    system = platform.system()
+    release = platform.release()
+
+    detail = f"{hostname} | {system} {release} | {machine}"
+
+    if hostname != "y-thor":
+        return False, f"{detail} | expected hostname y-thor", True
+
+    return True, detail, False
+
+
+def check_python_imports() -> HealthResult:
     from core.db import get_connection
     from core.memory import get_all_memories
     from core.session import get_recent_history, get_last_topic
     from core.context import build_context_summary
     from skills.llm_skill import ask_local_llm
+    from skills.llama_cpp_skill import get_llama_cpp_response
 
     _ = get_connection
     _ = get_all_memories
@@ -89,11 +169,64 @@ def check_imports() -> Tuple[bool, str, bool]:
     _ = get_last_topic
     _ = build_context_summary
     _ = ask_local_llm
+    _ = get_llama_cpp_response
 
-    return True, "core modules imported", False
+    return True, "core and skill modules imported", False
 
 
-def check_postgres() -> Tuple[bool, str, bool]:
+def check_cuda_nvcc() -> HealthResult:
+    code, stdout, stderr = run_command(["nvcc", "--version"], timeout=10)
+
+    if code != 0:
+        return False, stderr or "nvcc not found", False
+
+    last_line = stdout.splitlines()[-1] if stdout else "nvcc found"
+    return True, last_line, False
+
+
+def check_nvidia_smi() -> HealthResult:
+    code, stdout, stderr = run_command(
+        [
+            "nvidia-smi",
+            "--query-gpu=name,driver_version,memory.total,memory.used,persistence_mode",
+            "--format=csv,noheader",
+        ],
+        timeout=10,
+    )
+
+    if code != 0:
+        return False, stderr or "nvidia-smi failed", False
+
+    line = stdout.splitlines()[0] if stdout else "GPU detected"
+
+    if "NVIDIA Thor" not in line:
+        return False, line, True
+
+    return True, line, False
+
+
+def check_postgres_service() -> HealthResult:
+    code, stdout, stderr = run_command(["systemctl", "is-active", "postgresql"], timeout=10)
+
+    if code != 0:
+        return False, stderr or stdout or "postgresql service not active", False
+
+    return True, stdout, False
+
+
+def check_llama_service() -> HealthResult:
+    code, stdout, stderr = run_command(
+        ["systemctl", "is-active", "jarvis-llama.service"],
+        timeout=10,
+    )
+
+    if code != 0:
+        return False, stderr or stdout or "jarvis-llama.service not active", False
+
+    return True, stdout, False
+
+
+def check_postgres_connection() -> HealthResult:
     from core.db import get_connection
 
     with get_connection() as conn:
@@ -105,18 +238,38 @@ def check_postgres() -> Tuple[bool, str, bool]:
     return True, short_version, False
 
 
-def check_session_state() -> Tuple[bool, str, bool]:
-    """
-    Validate persistent session state.
-
-    This checks:
-    - session_state table exists
-    - default session row can be read or created by current code
-    - last_topic can be retrieved through core.session.get_last_topic()
-    """
-
+def check_postgres_tables() -> HealthResult:
     from core.db import get_connection
-    from core.session import get_last_topic
+
+    required_tables = {
+        "conversation_history",
+        "memories",
+        "memory_history",
+        "semantic_memories",
+        "session_state",
+    }
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public';
+                """
+            )
+            found_tables = {row[0] for row in cur.fetchall()}
+
+    missing = sorted(required_tables - found_tables)
+
+    if missing:
+        return False, f"missing tables: {', '.join(missing)}", False
+
+    return True, f"tables found: {', '.join(sorted(required_tables))}", False
+
+
+def check_pgvector_extension() -> HealthResult:
+    from core.db import get_connection
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -124,18 +277,25 @@ def check_session_state() -> Tuple[bool, str, bool]:
                 """
                 SELECT EXISTS (
                     SELECT 1
-                    FROM information_schema.tables
-                    WHERE table_schema = 'public'
-                      AND table_name = 'session_state'
+                    FROM pg_extension
+                    WHERE extname = 'vector'
                 );
                 """
             )
+            vector_enabled = cur.fetchone()[0]
 
-            table_exists = cur.fetchone()[0]
+    if not vector_enabled:
+        return False, "vector extension is not enabled", False
 
-            if not table_exists:
-                return False, "session_state table does not exist", False
+    return True, "vector extension enabled", False
 
+
+def check_session_state() -> HealthResult:
+    from core.db import get_connection
+    from core.session import get_last_topic
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT session_id, last_topic, updated_at
@@ -144,7 +304,6 @@ def check_session_state() -> Tuple[bool, str, bool]:
                 """,
                 ("default",),
             )
-
             row = cur.fetchone()
 
     last_topic = get_last_topic()
@@ -158,7 +317,7 @@ def check_session_state() -> Tuple[bool, str, bool]:
     return True, f"last_topic={last_topic}", False
 
 
-def check_memories() -> Tuple[bool, str, bool]:
+def check_long_term_memories() -> HealthResult:
     from core.memory import get_all_memories
 
     memories = get_all_memories()
@@ -170,7 +329,7 @@ def check_memories() -> Tuple[bool, str, bool]:
     return True, f"{count} memories found", False
 
 
-def check_conversation_history() -> Tuple[bool, str, bool]:
+def check_conversation_history() -> HealthResult:
     from core.session import get_recent_history
 
     history = get_recent_history(limit=5)
@@ -182,7 +341,7 @@ def check_conversation_history() -> Tuple[bool, str, bool]:
     return True, f"{count} recent rows found", False
 
 
-def check_context_builder() -> Tuple[bool, str, bool]:
+def check_context_builder() -> HealthResult:
     from core.context import build_context_summary
 
     summary = build_context_summary(history_limit=3)
@@ -204,75 +363,121 @@ def check_context_builder() -> Tuple[bool, str, bool]:
     return True, "context summary built", False
 
 
-
-def check_semantic_memory() -> Tuple[bool, str, bool]:
-    """
-    Validate pgvector semantic memory foundation.
-
-    This checks:
-    - vector extension is installed/enabled
-    - semantic_memories table exists
-    - semantic_memories row count can be read
-    """
-
+def check_semantic_memory_table() -> HealthResult:
     from core.db import get_connection
 
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM pg_extension
-                    WHERE extname = 'vector'
-                );
-                """
-            )
-            vector_enabled = cur.fetchone()[0]
-
-            if not vector_enabled:
-                return False, "vector extension is not enabled", False
-
-            cur.execute(
-                """
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM information_schema.tables
-                    WHERE table_schema = 'public'
-                      AND table_name = 'semantic_memories'
-                );
-                """
-            )
-            table_exists = cur.fetchone()[0]
-
-            if not table_exists:
-                return False, "semantic_memories table does not exist", False
-
             cur.execute("SELECT COUNT(*) FROM semantic_memories;")
             row_count = cur.fetchone()[0]
 
-    return True, f"vector enabled, semantic_memories rows={row_count}", False
+    return True, f"semantic_memories rows={row_count}", False
 
-def check_llama_cpp() -> Tuple[bool, str, bool]:
-    url = "http://127.0.0.1:8080/v1/models"
 
-    response = requests.get(url, timeout=5)
+def check_llama_models_endpoint() -> HealthResult:
+    response = requests.get(LLAMA_MODELS_URL, timeout=10)
     response.raise_for_status()
 
     data = response.json()
-    model_count = len(data.get("data", []))
+    models = data.get("data", [])
+    model_names = [model.get("id", "unknown") for model in models]
 
-    if model_count == 0:
+    if not model_names:
         return False, "server reachable but no models returned", True
 
-    return True, f"reachable on 127.0.0.1:8080, models={model_count}", False
+    if LLAMA_MODEL_NAME not in model_names:
+        return False, f"model list={', '.join(model_names)}", True
+
+    return True, f"model online: {LLAMA_MODEL_NAME}", False
 
 
-def check_ollama() -> Tuple[bool, str, bool]:
+def check_llama_chat_completion() -> HealthResult:
+    payload: Dict[str, object] = {
+        "model": LLAMA_MODEL_NAME,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are Jarvis. Answer briefly.",
+            },
+            {
+                "role": "user",
+                "content": "Say READY in one word.",
+            },
+        ],
+        "max_tokens": 80,
+        "temperature": 0.0,
+        "stream": False,
+    }
+
+    response = requests.post(LLAMA_CHAT_URL, json=payload, timeout=60)
+    response.raise_for_status()
+
+    data = response.json()
+    message = data.get("choices", [{}])[0].get("message", {})
+    content = message.get("content", "")
+
+    if not content.strip():
+        return False, "chat completion returned empty content", False
+
+    cleaned = content.replace("<think>", "").replace("</think>", "").strip()
+    short = " ".join(cleaned.split())[:120]
+
+    return True, f"response={short}", False
+
+
+def check_model_files() -> HealthResult:
+    if not MODEL_ROOT.exists():
+        return False, f"model root does not exist: {MODEL_ROOT}", False
+
+    ggufs = sorted(MODEL_ROOT.rglob("*.gguf"))
+
+    if not ggufs:
+        return False, f"no GGUF files found under {MODEL_ROOT}", False
+
+    names = [str(path.relative_to(MODEL_ROOT)) for path in ggufs]
+    preview = ", ".join(names[:5])
+
+    return True, f"{len(ggufs)} GGUF file(s): {preview}", False
+
+
+def check_git_status() -> HealthResult:
+    code, stdout, stderr = run_command(
+        ["git", "-C", str(PROJECT_ROOT), "status", "--short"],
+        timeout=10,
+    )
+
+    if code != 0:
+        return False, stderr or "git status failed", True
+
+    if stdout.strip():
+        return False, f"working tree has changes: {stdout.replace(chr(10), '; ')}", True
+
+    return True, "working tree clean", False
+
+
+def check_git_remote() -> HealthResult:
+    code, stdout, stderr = run_command(
+        ["git", "-C", str(PROJECT_ROOT), "remote", "-v"],
+        timeout=10,
+    )
+
+    if code != 0:
+        return False, stderr or "git remote failed", True
+
+    if "git@github.com:mnahtygal/Jarvis.git" not in stdout:
+        return False, "origin is not SSH Jarvis remote", True
+
+    return True, "origin uses GitHub SSH remote", False
+
+
+def check_ollama_optional() -> HealthResult:
     url = "http://localhost:11434/api/tags"
 
-    response = requests.get(url, timeout=5)
-    response.raise_for_status()
+    try:
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+    except Exception as error:
+        return False, f"optional fallback unavailable: {error}", True
 
     data = response.json()
     models = data.get("models", [])
@@ -285,7 +490,7 @@ def check_ollama() -> Tuple[bool, str, bool]:
     return True, f"reachable, models: {preview}", False
 
 
-def print_summary(hard_failures: int):
+def print_summary(hard_failures: int) -> None:
     print("")
     print("===================================")
 
@@ -301,16 +506,27 @@ def print_summary(hard_failures: int):
 def main() -> int:
     print_header()
 
-    checks = [
-        ("Python imports", check_imports),
-        ("PostgreSQL connection", check_postgres),
+    checks: List[Tuple[str, HealthCheck]] = [
+        ("System identity", check_system_identity),
+        ("Python imports", check_python_imports),
+        ("CUDA nvcc", check_cuda_nvcc),
+        ("NVIDIA GPU", check_nvidia_smi),
+        ("PostgreSQL service", check_postgres_service),
+        ("Jarvis llama service", check_llama_service),
+        ("PostgreSQL connection", check_postgres_connection),
+        ("PostgreSQL tables", check_postgres_tables),
+        ("pgvector extension", check_pgvector_extension),
         ("Session state", check_session_state),
-        ("Long-term memories", check_memories),
+        ("Long-term memories", check_long_term_memories),
         ("Conversation history", check_conversation_history),
         ("Context builder", check_context_builder),
-        ("Semantic memory", check_semantic_memory),
-        ("llama.cpp server", check_llama_cpp),
-        ("Ollama server", check_ollama),
+        ("Semantic memory table", check_semantic_memory_table),
+        ("llama.cpp models endpoint", check_llama_models_endpoint),
+        ("llama.cpp chat completion", check_llama_chat_completion),
+        ("Model files", check_model_files),
+        ("Git remote", check_git_remote),
+        ("Git status", check_git_status),
+        ("Ollama server", check_ollama_optional),
     ]
 
     hard_failures = 0
