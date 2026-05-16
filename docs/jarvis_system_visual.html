@@ -1,612 +1,523 @@
+
+---
+
+### `docs/jarvis_system_visual.html`
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Jarvis System Visual Representation</title>
+  <title>Jarvis System Visual Reference</title>
   <style>
     :root {
       --bg: #0f172a;
       --panel: #111827;
-      --panel-2: #1e293b;
-      --border: #334155;
+      --panel-soft: #1f2937;
       --text: #e5e7eb;
-      --muted: #94a3b8;
-      --blue: #38bdf8;
-      --green: #22c55e;
-      --purple: #a78bfa;
-      --orange: #f59e0b;
-      --red: #f87171;
-      --white: #ffffff;
+      --muted: #9ca3af;
+      --accent: #38bdf8;
+      --accent2: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --border: #334155;
+      --code: #020617;
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
-      padding: 32px;
       font-family: Arial, Helvetica, sans-serif;
-      background: radial-gradient(circle at top left, #1e3a8a 0, var(--bg) 36%);
+      background: radial-gradient(circle at top, #1e293b 0%, #0f172a 48%, #020617 100%);
       color: var(--text);
+      line-height: 1.6;
     }
 
-    .page {
-      max-width: 1500px;
+    header {
+      padding: 48px 24px 32px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(34, 197, 94, 0.1));
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: clamp(2rem, 5vw, 4rem);
+      letter-spacing: 0.03em;
+    }
+
+    header p {
+      max-width: 920px;
+      margin: 16px auto 0;
+      color: var(--muted);
+      font-size: 1.1rem;
+    }
+
+    main {
+      max-width: 1180px;
       margin: 0 auto;
+      padding: 32px 20px 80px;
     }
 
-    .header {
-      background: rgba(15, 23, 42, 0.92);
+    section {
+      margin-bottom: 32px;
+      background: rgba(17, 24, 39, 0.82);
       border: 1px solid var(--border);
       border-radius: 18px;
       padding: 24px;
-      box-shadow: 0 20px 45px rgba(0,0,0,0.35);
-      margin-bottom: 24px;
-    }
-
-    h1 {
-      margin: 0 0 8px;
-      font-size: 34px;
-      color: var(--white);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
     }
 
     h2 {
-      font-size: 21px;
-      color: #bfdbfe;
-      margin: 36px 0 14px;
+      margin-top: 0;
+      color: #ffffff;
+      font-size: 1.55rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
     }
 
     h3 {
-      margin-top: 0;
-      color: var(--white);
-      font-size: 17px;
+      color: var(--accent);
+      margin-bottom: 8px;
     }
 
-    p, li {
-      color: #cbd5e1;
-      line-height: 1.55;
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+    }
+
+    .card {
+      background: rgba(31, 41, 55, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(56, 189, 248, 0.14);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      font-size: 0.85rem;
+      margin: 4px 4px 4px 0;
+    }
+
+    .tag.green {
+      background: rgba(34, 197, 94, 0.12);
+      color: var(--accent2);
+      border-color: rgba(34, 197, 94, 0.35);
+    }
+
+    .tag.warn {
+      background: rgba(245, 158, 11, 0.12);
+      color: var(--warn);
+      border-color: rgba(245, 158, 11, 0.35);
+    }
+
+    pre {
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      overflow-x: auto;
+      color: #d1d5db;
     }
 
     code {
-      background: #020617;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 2px 6px;
-      color: #bfdbfe;
-      white-space: nowrap;
+      font-family: Consolas, Monaco, "Courier New", monospace;
     }
 
-    .subtitle {
-      color: var(--muted);
-      font-size: 16px;
-      margin-bottom: 14px;
+    ul {
+      margin-top: 8px;
+      padding-left: 22px;
     }
 
-    .meta-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(180px, 1fr));
+    .flow {
+      display: flex;
+      flex-direction: column;
       gap: 12px;
       margin-top: 18px;
     }
 
-    .meta-card {
-      background: #020617;
+    .flow-step {
+      background: rgba(15, 23, 42, 0.9);
       border: 1px solid var(--border);
+      border-left: 5px solid var(--accent);
       border-radius: 12px;
-      padding: 12px;
+      padding: 14px 16px;
     }
 
-    .meta-label {
-      color: var(--muted);
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      margin-bottom: 5px;
+    .flow-step strong {
+      color: #ffffff;
     }
 
-    .meta-value {
-      color: var(--white);
-      font-weight: 700;
-      font-size: 14px;
-    }
-
-    .badge-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 14px;
-    }
-
-    .badge {
-      display: inline-block;
-      border-radius: 999px;
-      padding: 7px 11px;
-      font-size: 13px;
-      border: 1px solid var(--border);
-      background: #020617;
-      color: #dbeafe;
-    }
-
-    .badge.green { border-color: var(--green); color: #bbf7d0; background: #052e16; }
-    .badge.orange { border-color: var(--orange); color: #fde68a; background: #451a03; }
-    .badge.purple { border-color: var(--purple); color: #ddd6fe; background: #2e1065; }
-    .badge.blue { border-color: var(--blue); color: #bae6fd; background: #082f49; }
-
-    .diagram {
+    .two-column {
       display: grid;
-      grid-template-columns: 1fr 1.15fr 1.2fr 1.15fr 1fr;
-      gap: 16px;
-      align-items: stretch;
-      margin-top: 18px;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 18px;
     }
 
-    .column {
-      background: rgba(17, 24, 39, 0.94);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 16px;
-      min-height: 560px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+    .success {
+      color: var(--accent2);
+      font-weight: bold;
     }
 
-    .column-title {
-      text-transform: uppercase;
-      letter-spacing: 0.09em;
-      font-size: 12px;
-      color: #93c5fd;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 10px;
-      margin-bottom: 14px;
-      font-weight: 700;
+    .warning {
+      color: var(--warn);
+      font-weight: bold;
     }
 
-    .box {
-      background: var(--panel-2);
-      border: 1px solid #475569;
-      border-radius: 13px;
-      padding: 13px;
-      margin-bottom: 13px;
-    }
-
-    .box.source { background: #082f49; border-color: var(--blue); }
-    .box.process { background: #172554; border-color: #60a5fa; }
-    .box.db { background: #052e16; border-color: var(--green); }
-    .box.llm { background: #2e1065; border-color: var(--purple); }
-    .box.future { background: #451a03; border-color: var(--orange); }
-    .box.output { background: #1f2937; border-color: #cbd5e1; }
-
-    .box-title {
-      color: var(--white);
-      font-weight: 800;
-      margin-bottom: 6px;
-      font-size: 15px;
-    }
-
-    .box-detail {
-      color: #cbd5e1;
-      font-size: 13px;
-      line-height: 1.45;
-    }
-
-    .arrow {
-      color: var(--blue);
-      font-weight: 900;
+    footer {
       text-align: center;
-      margin: 6px 0 12px;
-      font-size: 18px;
-    }
-
-    .section {
-      margin-top: 26px;
-      background: rgba(17, 24, 39, 0.94);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.22);
-    }
-
-    .flow-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-top: 14px;
-    }
-
-    .flow-card {
-      background: var(--panel-2);
-      border: 1px solid #475569;
-      border-radius: 13px;
-      padding: 16px;
-    }
-
-    .mini-flow {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      margin-top: 12px;
-    }
-
-    .pill {
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: #020617;
-      border: 1px solid var(--border);
-      color: #dbeafe;
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    .pill-arrow {
-      color: var(--blue);
-      font-weight: 900;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 12px;
-      font-size: 14px;
-    }
-
-    th, td {
-      border: 1px solid var(--border);
-      padding: 10px;
-      vertical-align: top;
-    }
-
-    th {
-      background: #1e293b;
-      color: #bfdbfe;
-      text-align: left;
-    }
-
-    td { color: #dbeafe; }
-
-    .footer {
-      margin-top: 26px;
       color: var(--muted);
-      font-size: 13px;
-      text-align: center;
-      padding: 16px;
-    }
-
-    @media (max-width: 1200px) {
-      .diagram { grid-template-columns: 1fr; }
-      .column { min-height: auto; }
-      .flow-grid { grid-template-columns: 1fr; }
-      .meta-grid { grid-template-columns: 1fr 1fr; }
-    }
-
-    @media print {
-      body { background: white; color: black; padding: 16px; }
-      .header, .column, .section, .flow-card { box-shadow: none; }
+      padding: 32px 16px;
+      border-top: 1px solid var(--border);
+      background: #020617;
     }
   </style>
 </head>
 <body>
-  <main class="page">
-    <section class="header">
-      <h1>Jarvis System Visual Representation</h1>
-      <div class="subtitle">Source → Process → Target → Data Flow view for Marty’s local Jarvis assistant</div>
+  <header>
+    <h1>Jarvis System Visual Reference</h1>
+    <p>
+      Local AI assistant platform running on NVIDIA Jetson AGX Thor with CUDA 13,
+      llama.cpp, Qwen3 30B, PostgreSQL memory, and future voice/vision expansion.
+    </p>
+  </header>
 
-      <div class="meta-grid">
-        <div class="meta-card">
-          <div class="meta-label">Created By</div>
-          <div class="meta-value">ChatGPT — GPT-5.5 Thinking</div>
-        </div>
-        <div class="meta-card">
-          <div class="meta-label">Document Type</div>
-          <div class="meta-value">HTML Visual Architecture</div>
-        </div>
-        <div class="meta-card">
-          <div class="meta-label">Target Audience</div>
-          <div class="meta-value">Technical + Layperson View</div>
-        </div>
-        <div class="meta-card">
-          <div class="meta-label">System Status</div>
-          <div class="meta-value">Health Check READY</div>
-        </div>
-      </div>
-
-      <div class="badge-row">
-        <span class="badge green">PostgreSQL persistence active</span>
-        <span class="badge blue">llama.cpp primary LLM</span>
-        <span class="badge purple">Ollama fallback</span>
-        <span class="badge orange">pgvector planned</span>
-        <span class="badge blue">help/version/memory commands active</span>
-        <span class="badge orange">Voice/camera later</span>
-      </div>
-    </section>
-
-    <h2>1. Big Picture: What Jarvis Does</h2>
-    <section class="section">
-      <p>
-        Jarvis takes a user request, decides whether it can answer with a direct skill or memory lookup,
-        gathers useful context from PostgreSQL, sends the question to a local AI model when needed,
-        then saves the conversation for future follow-up questions.
-      </p>
-      <div class="mini-flow">
-        <span class="pill">Marty asks</span>
-        <span class="pill-arrow">→</span>
-        <span class="pill">Jarvis brain</span>
-        <span class="pill-arrow">→</span>
-        <span class="pill">Memory + history</span>
-        <span class="pill-arrow">→</span>
-        <span class="pill">Local LLM</span>
-        <span class="pill-arrow">→</span>
-        <span class="pill">Answer saved + returned</span>
-      </div>
-    </section>
-
-    <h2>2. Source → Process → Target Architecture</h2>
-    <div class="diagram">
-      <div class="column">
-        <div class="column-title">Sources</div>
-        <div class="box source">
-          <div class="box-title">User Input</div>
-          <div class="box-detail">Current source is typed CLI input through <code>testbrain.py</code>.</div>
-        </div>
-        <div class="arrow">↓</div>
-        <div class="box source">
-          <div class="box-title">Future Inputs</div>
-          <div class="box-detail">React UI, Flask API, voice input, and camera input are planned later.</div>
-        </div>
-      </div>
-
-      <div class="column">
-        <div class="column-title">Brain / Process</div>
-        <div class="box process">
-          <div class="box-title">core/brain.py</div>
-          <div class="box-detail">Main orchestrator. Saves user input, detects topic, routes command, saves response.</div>
-        </div>
-        <div class="arrow">↓</div>
-        <div class="box process">
-          <div class="box-title">core/router.py</div>
-          <div class="box-detail">Routes direct memory/time/system/chat commands before using the LLM.</div>
-        </div>
-        <div class="arrow">↓</div>
-        <div class="box process">
-          <div class="box-title">core/context.py</div>
-          <div class="box-detail">Builds the prompt using long-term memory, last topic, and recent conversation history.</div>
-        </div>
-      </div>
-
-      <div class="column">
-        <div class="column-title">PostgreSQL Targets</div>
-        <div class="box db">
-          <div class="box-title">core/db.py</div>
-          <div class="box-detail">Central database connection layer.</div>
-        </div>
-        <div class="box db">
-          <div class="box-title">memories</div>
-          <div class="box-detail">Current long-term known facts.</div>
-        </div>
-        <div class="box db">
-          <div class="box-title">memory_history</div>
-          <div class="box-detail">Audit trail for remember, update, and forget actions.</div>
-        </div>
-        <div class="box db">
-          <div class="box-title">conversation_history</div>
-          <div class="box-detail">User and assistant message history.</div>
-        </div>
-        <div class="box db">
-          <div class="box-title">session_state</div>
-          <div class="box-detail">Persistent <code>last_topic</code> for follow-up context.</div>
-        </div>
-      </div>
-
-      <div class="column">
-        <div class="column-title">AI Backends</div>
-        <div class="box llm">
-          <div class="box-title">skills/llm_skill.py</div>
-          <div class="box-detail">Chooses the local brain path.</div>
-        </div>
-        <div class="arrow">↓ primary</div>
-        <div class="box llm">
-          <div class="box-title">llama.cpp</div>
-          <div class="box-detail">Primary backend at <code>127.0.0.1:8080</code>. Uses Qwen2.5-Coder 7B GGUF.</div>
-        </div>
-        <div class="arrow">↓ fallback</div>
-        <div class="box llm">
-          <div class="box-title">Ollama</div>
-          <div class="box-detail">Fallback backend at <code>localhost:11434</code>.</div>
-        </div>
-      </div>
-
-      <div class="column">
-        <div class="column-title">Outputs</div>
-        <div class="box output">
-          <div class="box-title">Jarvis Response</div>
-          <div class="box-detail">Answer is returned to the user and saved to conversation history.</div>
-        </div>
-        <div class="box output">
-          <div class="box-title">Health Check</div>
-          <div class="box-detail"><code>tools/health_check.py</code> validates that Jarvis is ready.</div>
+  <main>
+    <section>
+      <h2>Current Platform</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Primary Hardware</h3>
+          <p><strong>NVIDIA Jetson AGX Thor Developer Kit</strong></p>
+          <span class="tag green">Primary Node</span>
+          <span class="tag">ARM64</span>
+          <span class="tag">128 GB RAM</span>
+          <span class="tag">Blackwell GPU</span>
         </div>
 
-        <div class="box output">
-          <div class="box-title">Built-In Commands</div>
-          <div class="box-detail">
-            <code>jarvis help</code><br />
-            <code>jarvis health</code><br />
-            <code>jarvis version</code><br />
-            <code>jarvis memory summary</code>
-          </div>
+        <div class="card">
+          <h3>Operating System</h3>
+          <p>Ubuntu 24.04.4 LTS</p>
+          <p>Kernel: Linux 6.8.12-tegra</p>
+          <span class="tag">JetPack 7.0</span>
+          <span class="tag">CUDA 13.0</span>
         </div>
-        <div class="box future">
-          <div class="box-title">Future Semantic Memory</div>
-          <div class="box-detail"><code>semantic_memories</code> will support pgvector-based recall after pgvector is installed.</div>
-        </div>
-      </div>
-    </div>
 
-    <h2>3. Main Data Flows</h2>
-    <section class="section">
-      <div class="flow-grid">
-        <div class="flow-card">
-          <h3>Normal AI Question</h3>
-          <ol>
-            <li>User asks a question.</li>
-            <li>Jarvis saves the user message.</li>
-            <li>Jarvis detects topic and updates session state.</li>
-            <li>Context is assembled from memory and history.</li>
-            <li>llama.cpp answers first; Ollama is fallback.</li>
-            <li>Response is saved and returned.</li>
-          </ol>
+        <div class="card">
+          <h3>Inference Engine</h3>
+          <p>Native ARM64 CUDA-enabled llama.cpp build.</p>
+          <span class="tag green">GGML_CUDA=ON</span>
+          <span class="tag">OpenAI-compatible API</span>
         </div>
-        <div class="flow-card">
-          <h3>Memory Write</h3>
-          <ol>
-            <li>User says <code>remember that...</code>.</li>
-            <li>Router detects memory intent.</li>
-            <li>Memory is inserted or updated.</li>
-            <li>Audit row is written to <code>memory_history</code>.</li>
-            <li>Jarvis confirms the memory.</li>
-          </ol>
-        </div>
-        <div class="flow-card">
-          <h3>Follow-Up Question</h3>
-          <ol>
-            <li>User asks about a topic like Flask.</li>
-            <li><code>last_topic</code> is saved as Flask.</li>
-            <li>User asks “how is it different?”</li>
-            <li>Jarvis keeps the topic and adds recent history.</li>
-            <li>LLM answers with context.</li>
-          </ol>
+
+        <div class="card">
+          <h3>Primary Model</h3>
+          <p><code>Qwen3-30B-A3B-Q4_K_M.gguf</code></p>
+          <span class="tag green">Current Brain</span>
+          <span class="tag">Reasoning Model</span>
+          <span class="tag">~60 tok/sec observed</span>
         </div>
       </div>
     </section>
 
-    <h2>4. Built-In Jarvis Commands</h2>
-    <section class="section">
-      <p>
-        Jarvis now includes operational commands that let the assistant explain itself,
-        check itself, report its version, and summarize memory from inside the chat loop.
-      </p>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Command</th>
-            <th>Purpose</th>
-            <th>Module</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>jarvis help</code></td>
-            <td>Shows current capabilities and command examples.</td>
-            <td><code>skills/help_skill.py</code></td>
-          </tr>
-          <tr>
-            <td><code>jarvis health</code></td>
-            <td>Runs PostgreSQL, memory, context, llama.cpp, and Ollama checks.</td>
-            <td><code>skills/health_skill.py</code></td>
-          </tr>
-          <tr>
-            <td><code>jarvis version</code></td>
-            <td>Shows version, runtime backend, model, database, and feature status.</td>
-            <td><code>skills/version_skill.py</code></td>
-          </tr>
-          <tr>
-            <td><code>jarvis memory summary</code></td>
-            <td>Summarizes long-term memories, recent history count, and last topic.</td>
-            <td><code>skills/memory_summary_skill.py</code></td>
-          </tr>
-        </tbody>
-      </table>
+    <section>
+      <h2>System Architecture</h2>
+      <div class="flow">
+        <div class="flow-step">
+          <strong>1. User Input</strong><br />
+          Input arrives through CLI, API, future UI, voice, or other interface.
+        </div>
+        <div class="flow-step">
+          <strong>2. Brain</strong><br />
+          <code>core.brain.think()</code> receives and logs the request.
+        </div>
+        <div class="flow-step">
+          <strong>3. Router</strong><br />
+          <code>core.router.route()</code> decides whether the request is memory, system, time, docs, health, chat, or LLM fallback.
+        </div>
+        <div class="flow-step">
+          <strong>4. Skills</strong><br />
+          Skills handle specialized tasks such as memory lookup, system status, documentation, or local LLM calls.
+        </div>
+        <div class="flow-step">
+          <strong>5. Storage + Context</strong><br />
+          PostgreSQL stores memories, conversation history, memory history, session state, and semantic memory structures.
+        </div>
+        <div class="flow-step">
+          <strong>6. Local Inference</strong><br />
+          llama.cpp serves Qwen3 30B through an OpenAI-compatible local endpoint.
+        </div>
+        <div class="flow-step">
+          <strong>7. Jarvis Response</strong><br />
+          Jarvis returns a clean response, with Qwen3 thinking blocks stripped from user-visible output.
+        </div>
+      </div>
     </section>
 
-    <h2>5. Database Tables</h2>
-    <section class="section">
-      <table>
-        <thead>
-          <tr>
-            <th>Table</th>
-            <th>Purpose</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>memories</code></td>
-            <td>Stores current known long-term facts.</td>
-            <td>Active</td>
-          </tr>
-          <tr>
-            <td><code>memory_history</code></td>
-            <td>Stores audit history for memory changes.</td>
-            <td>Active</td>
-          </tr>
-          <tr>
-            <td><code>conversation_history</code></td>
-            <td>Stores user and assistant conversation turns.</td>
-            <td>Active</td>
-          </tr>
-          <tr>
-            <td><code>session_state</code></td>
-            <td>Stores persistent session values such as <code>last_topic</code>.</td>
-            <td>Active</td>
-          </tr>
-          <tr>
-            <td><code>semantic_memories</code></td>
-            <td>Future pgvector semantic memory storage.</td>
-            <td>Planned</td>
-          </tr>
-        </tbody>
-      </table>
+    <section>
+      <h2>Primary Runtime Flow</h2>
+      <pre><code>User
+  ↓
+testbrain.py / API / UI
+  ↓
+core.brain.think()
+  ↓
+core.router.route()
+  ↓
+Memory / Time / System / Docs / Health / LLM
+  ↓
+PostgreSQL + llama.cpp
+  ↓
+Qwen3 30B on Thor
+  ↓
+Jarvis response</code></pre>
     </section>
 
-    <h2>6. Operational Startup</h2>
-    <section class="section">
-      <p>Before coding or testing Jarvis, run:</p>
+    <section>
+      <h2>Key Directories</h2>
+      <div class="two-column">
+        <div class="card">
+          <h3>Jarvis Repo</h3>
+          <pre><code>~/jarvis</code></pre>
+          <p>Main application source code.</p>
+        </div>
+
+        <div class="card">
+          <h3>llama.cpp</h3>
+          <pre><code>~/llama.cpp</code></pre>
+          <p>Native local inference engine.</p>
+        </div>
+
+        <div class="card">
+          <h3>Models</h3>
+          <pre><code>~/models</code></pre>
+          <p>GGUF model storage.</p>
+        </div>
+
+        <div class="card">
+          <h3>Backups</h3>
+          <pre><code>~/jarvis-backups</code></pre>
+          <p>PostgreSQL dumps and migration artifacts.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Model Stack</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Current Primary</h3>
+          <p><code>Qwen3-30B-A3B-Q4_K_M.gguf</code></p>
+          <p>Used as Jarvis's upgraded Thor-era local reasoning model.</p>
+          <span class="tag green">Primary</span>
+        </div>
+
+        <div class="card">
+          <h3>Previous Primary</h3>
+          <p><code>qwen2.5-coder-7b-instruct.Q4_K_M.gguf</code></p>
+          <p>Used during Xavier era and still useful as a fast fallback or benchmark baseline.</p>
+          <span class="tag warn">Fallback</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Starting the Qwen3 Server</h2>
+      <pre><code>cd ~/llama.cpp
+
+./build/bin/llama-server \
+  -m ~/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf \
+  --host 0.0.0.0 \
+  --port 8080 \
+  -ngl 999 \
+  -t $(nproc) \
+  --jinja \
+  --reasoning-format none</code></pre>
+    </section>
+
+    <section>
+      <h2>Testing the Local Model API</h2>
+      <pre><code>curl http://127.0.0.1:8080/v1/models</code></pre>
+
+      <pre><code>curl http://127.0.0.1:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+    "messages": [
+      {"role": "user", "content": "What is Flask? Answer in one sentence."}
+    ],
+    "max_tokens": 300,
+    "temperature": 0.2
+  }'</code></pre>
+    </section>
+
+    <section>
+      <h2>Database Layer</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Database</h3>
+          <p><code>jarvis</code></p>
+          <span class="tag green">PostgreSQL 16</span>
+        </div>
+
+        <div class="card">
+          <h3>Extension</h3>
+          <p><code>vector</code></p>
+          <span class="tag green">pgvector</span>
+        </div>
+
+        <div class="card">
+          <h3>Tables</h3>
+          <ul>
+            <li><code>conversation_history</code></li>
+            <li><code>memories</code></li>
+            <li><code>memory_history</code></li>
+            <li><code>semantic_memories</code></li>
+            <li><code>session_state</code></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Status</h3>
+          <p class="success">Restored from Xavier and verified on Thor.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Testing Jarvis CLI</h2>
       <pre><code>cd ~/jarvis
-./tools/health_check.py
+source .venv/bin/activate
 python3 testbrain.py</code></pre>
-      <p>Expected result:</p>
-      <pre><code>Jarvis health check complete: READY</code></pre>
+
+      <p>Useful test commands:</p>
+
+      <pre><code>what do you remember
+what is flask and how is it different from express
+hello jarvis</code></pre>
     </section>
 
-    <h2>7. Current Status and Next Steps</h2>
-    <section class="section">
-      <div class="flow-grid">
-        <div class="flow-card">
-          <h3>Stable Now</h3>
-          <ul>
-            <li>PostgreSQL persistence</li>
-            <li>Long-term memory</li>
-            <li>Conversation history</li>
-            <li>Persistent last topic</li>
-            <li>Context assembler</li>
-            <li>Help, health, version, and memory summary commands</li>
-          </ul>
+    <section>
+      <h2>Current Verified Milestones</h2>
+      <ul>
+        <li class="success">Thor booted and validated.</li>
+        <li class="success">CUDA 13 installed and verified with <code>nvcc --version</code>.</li>
+        <li class="success">JetPack 7 installed.</li>
+        <li class="success">llama.cpp built natively with CUDA support.</li>
+        <li class="success">Qwen3 30B downloaded and tested.</li>
+        <li class="success">PostgreSQL 16 installed.</li>
+        <li class="success">pgvector installed.</li>
+        <li class="success">Jarvis PostgreSQL memory restored.</li>
+        <li class="success">Jarvis memory verified on Thor.</li>
+        <li class="success">Qwen3 thinking output cleanup added.</li>
+        <li class="success">GitHub SSH restored.</li>
+        <li class="success">Thor migration commit pushed to GitHub.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>MartyBench</h2>
+      <p>
+        MartyBench is the local benchmark concept used to evaluate Jarvis model performance,
+        code generation, long-context behavior, and local inference quality.
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Xavier Baseline</h3>
+          <p>Qwen2.5-Coder 7B + llama.cpp + Three.js game generation benchmark.</p>
         </div>
-        <div class="flow-card">
-          <h3>AI Path</h3>
-          <ul>
-            <li>llama.cpp primary</li>
-            <li>Ollama fallback</li>
-            <li>Qwen2.5-Coder 7B local model</li>
-            <li>Health check validation</li>
-          </ul>
+
+        <div class="card">
+          <h3>Thor Target</h3>
+          <p>Qwen3 30B + CUDA 13 + Blackwell inference benchmark.</p>
         </div>
-        <div class="flow-card">
-          <h3>Next</h3>
+
+        <div class="card">
+          <h3>Metrics</h3>
           <ul>
-            <li>Install/build pgvector</li>
-            <li>Create semantic memory table</li>
-            <li>Add embedding skill</li>
-            <li>Add semantic recall</li>
-            <li>Voice and camera later</li>
+            <li>Prompt tokens/sec</li>
+            <li>Generation tokens/sec</li>
+            <li>Load time</li>
+            <li>Context stability</li>
+            <li>Generated code quality</li>
+            <li>Manual fix effort</li>
           </ul>
         </div>
       </div>
     </section>
 
-    <div class="footer">
-      Generated for the Jarvis project. Visual representation created by ChatGPT — GPT-5.5 Thinking.
-    </div>
+    <section>
+      <h2>Near-Term Roadmap</h2>
+      <ol>
+        <li>Create repeatable llama.cpp start scripts.</li>
+        <li>Add Jarvis health check for database and model server.</li>
+        <li>Add model selection/config support.</li>
+        <li>Re-run MartyBench on Qwen3 30B.</li>
+        <li>Add pgvector semantic memory retrieval.</li>
+        <li>Restore streaming UI support.</li>
+        <li>Restore voice input/output later.</li>
+        <li>Add camera and vision pipeline later.</li>
+        <li>Prototype manufacturing-focused assistant workflows.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Manufacturing Prototype Direction</h2>
+      <p>
+        Jarvis should first be used as an assistant, summarizer, observer, and recommender.
+        It should not directly control manufacturing equipment.
+      </p>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Best First Prototype</h3>
+          <p><strong>Shift Handoff Jarvis</strong></p>
+          <p>Capture spoken or typed shift notes, summarize open issues, track owners, and make history searchable.</p>
+        </div>
+
+        <div class="card">
+          <h3>Other Ideas</h3>
+          <ul>
+            <li>Plant-floor Q&A assistant</li>
+            <li>Maintenance triage helper</li>
+            <li>Operational data copilot</li>
+            <li>Quality image review assistant</li>
+            <li>Local SOP/document assistant</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Current Status</h2>
+      <p class="success">
+        Jarvis is now a local Blackwell-powered AI assistant platform with PostgreSQL memory,
+        CUDA llama.cpp inference, and Qwen3 30B primary model support.
+      </p>
+
+      <pre><code>Jetson Xavier local assistant experiment
+        ↓
+Jetson Thor local AI platform</code></pre>
+    </section>
   </main>
+
+  <footer>
+    Jarvis System Visual Reference — Thor Migration Edition
+  </footer>
 </body>
 </html>

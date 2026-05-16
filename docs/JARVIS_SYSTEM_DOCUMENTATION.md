@@ -1,744 +1,688 @@
 # Jarvis System Documentation
 
-## Document Purpose
+## Project Overview
 
-This document describes the current Jarvis local AI assistant architecture using the same practical style used for documenting SQL stored procedures, SQL Agent jobs, and ETL/data flows.
+Jarvis is Marty's local AI assistant platform. It is designed to run primarily on local hardware with persistent memory, local language model inference, PostgreSQL-backed history, and future support for voice, vision, semantic memory, and manufacturing-focused prototype workflows.
 
-The goal is to clearly identify:
-
-- Source systems
-- Processing modules
-- Target systems
-- Data flows
-- Runtime dependencies
-- Operational health checks
-- Built-in Jarvis commands
-- Future enhancement points
+Jarvis began on the NVIDIA Jetson AGX Xavier and has now been migrated to the NVIDIA Jetson AGX Thor Developer Kit as the primary development and inference platform.
 
 ---
 
-# 1. System Overview
+## Current Primary Platform
 
-Jarvis is a local AI assistant running on an NVIDIA Jetson AGX Xavier.
+### NVIDIA Jetson AGX Thor Developer Kit
 
-The current architecture supports:
+Current host:
 
-- CLI-based user interaction
-- Rule-based command routing
-- Long-term memory stored in PostgreSQL
-- Conversation history stored in PostgreSQL
-- Persistent session state stored in PostgreSQL
-- Context assembly for LLM prompts
-- llama.cpp as the primary local LLM backend
-- Ollama as fallback local LLM backend
-- Health check validation script
-- Built-in Jarvis health, help, version, and memory summary commands
-- Future pgvector semantic memory preparation
+    y-thor
 
-Voice and camera are intentionally planned later and are not part of the current active flow.
+Current platform summary:
 
----
-
-# 2. High-Level Architecture
-
-```text
-User
-  |
-  v
-testbrain.py / future UI / future voice
-  |
-  v
-core/brain.py
-  |
-  +--> core/session.py
-  |       |
-  |       +--> PostgreSQL conversation_history
-  |       +--> PostgreSQL session_state
-  |
-  +--> core/router.py
-  |       |
-  |       +--> skills/time_skill.py
-  |       +--> skills/system_skill.py
-  |       +--> skills/chat_skill.py
-  |       +--> core/memory.py
-  |       |       |
-  |       |       +--> PostgreSQL memories
-  |       |       +--> PostgreSQL memory_history
-  |       |
-  |       +--> skills/llm_skill.py
-  |               |
-  |               +--> skills/llama_cpp_skill.py
-  |               |       |
-  |               |       +--> llama.cpp server
-  |               |
-  |               +--> skills/ollama_skill.py
-  |                       |
-  |                       +--> Ollama server
-  |
-  v
-Response back to user
-```
+- Hardware: NVIDIA Jetson AGX Thor Developer Kit
+- Architecture: ARM64
+- Operating System: Ubuntu 24.04.4 LTS
+- Kernel: Linux 6.8.12-tegra
+- Memory: 128 GB
+- GPU: NVIDIA Thor / Blackwell architecture
+- CUDA: 13.0
+- JetPack: 7.0
+- Native inference engine: llama.cpp
+- llama.cpp build: CUDA-enabled ARM64 build
+- Primary model: Qwen3-30B-A3B-Q4_K_M.gguf
+- Database: PostgreSQL 16
+- Vector extension: pgvector
+- Main repo: git@github.com:mnahtygal/Jarvis.git
 
 ---
 
-# 3. Source Systems
+## Previous Platform
 
-| Source | Current/Future | Description |
-|---|---:|---|
-| `testbrain.py` | Current | CLI test harness for typing commands into Jarvis |
-| React/Vite UI | Future | Browser-based Jarvis interface |
-| Voice input | Future | Whisper/STT command source |
-| Camera input | Future | Visual context source |
-| API endpoint | Future | Flask backend input route |
+### NVIDIA Jetson AGX Xavier
 
----
+The Xavier was the original Jarvis development platform.
 
-# 4. Target Systems
+It successfully proved:
 
-## PostgreSQL Targets
+- Local Python assistant architecture
+- Memory commands
+- PostgreSQL-backed memory
+- llama.cpp local inference
+- CUDA-enabled local LLM serving
+- OpenAI-compatible local API
+- Streaming response pipeline
+- MartyBench local benchmark workflow
 
-| Table | Purpose | Status |
-|---|---|---|
-| `memories` | Current long-term known facts | Active |
-| `memory_history` | Audit trail of remember/update/forget events | Active |
-| `conversation_history` | User and assistant message history | Active |
-| `session_state` | Persistent session-level values such as `last_topic` | Active |
-| `semantic_memories` | Future pgvector semantic memory table | Planned |
+The Xavier remains useful as:
 
-## Local LLM Targets
-
-| Target | Role | Endpoint |
-|---|---|---|
-| llama.cpp server | Primary local LLM backend | `http://127.0.0.1:8080/v1/chat/completions` |
-| Ollama server | Fallback local LLM backend | `http://localhost:11434/api/generate` |
+- A backup node
+- A comparison benchmark platform
+- A historical baseline
+- A model transfer/source machine
 
 ---
 
-# 5. Built-In Jarvis Commands
+## Current Jarvis Architecture
 
-These commands are available from `testbrain.py` through `core/router.py`.
-
-| Command | Purpose | Module |
-|---|---|---|
-| `jarvis help` / `what can you do` | Show current Jarvis capabilities | `skills/help_skill.py` |
-| `jarvis health` | Run Jarvis health checks inside the chat loop | `skills/health_skill.py` |
-| `jarvis version` | Show version, model/backend, and runtime status | `skills/version_skill.py` |
-| `jarvis memory summary` | Summarize stored memories, recent history, and last topic | `skills/memory_summary_skill.py` |
-| `what time is it` / `what is the date` | Return time/date response | `skills/time_skill.py` |
-| `system status` | Return CPU, memory, disk, or system status | `skills/system_skill.py` |
-| `remember that ...` | Store long-term memory | `core/memory.py` |
-| `what is my ...` | Recall long-term memory | `core/memory.py` |
-| `update my ... to ...` | Update long-term memory | `core/memory.py` |
-| `forget that ...` | Delete long-term memory | `core/memory.py` |
+    User Input
+       ↓
+    testbrain.py / API / UI
+       ↓
+    core.brain.think()
+       ↓
+    core.router.route()
+       ↓
+    Intent routing
+       ↓
+    Memory / Time / System / Chat / Docs / LLM
+       ↓
+    PostgreSQL memory + llama.cpp inference
+       ↓
+    Jarvis Response
 
 ---
 
-# 6. Core Processing Modules
+## Main Repo Structure
 
-## `testbrain.py`
+    jarvis/
+    ├── api.py
+    ├── main.py
+    ├── testbrain.py
+    ├── testbrain_stream.py
+    ├── core/
+    │   ├── brain.py
+    │   ├── context.py
+    │   ├── db.py
+    │   ├── llm.py
+    │   ├── memory.py
+    │   ├── router.py
+    │   └── session.py
+    ├── skills/
+    │   ├── chat_skill.py
+    │   ├── docs_skill.py
+    │   ├── health_skill.py
+    │   ├── help_skill.py
+    │   ├── llama_cpp_skill.py
+    │   ├── llm_skill.py
+    │   ├── llm_stream_skill.py
+    │   ├── memory_summary_skill.py
+    │   ├── ollama_skill.py
+    │   ├── system_skill.py
+    │   ├── time_skill.py
+    │   └── version_skill.py
+    ├── audio/
+    │   ├── listen.py
+    │   └── speak.py
+    ├── tools/
+    │   ├── create_semantic_memory_table.py
+    │   ├── create_session_state_table.py
+    │   └── health_check.py
+    ├── docs/
+    │   ├── JARVIS_SYSTEM_DOCUMENTATION.md
+    │   ├── early_sessions.md
+    │   └── jarvis_system_visual.html
+    ├── data/
+    │   ├── memory.json
+    │   └── memory_backup_before_postgres.json
+    ├── benchmarks/
+    │   └── singlefilegame.prompt
+    └── ui-app/
 
-CLI-based manual test harness.
+---
+
+## Core Components
+
+### core/brain.py
+
+Primary entry point for Jarvis thinking.
 
 Responsibilities:
 
-- Accept user input
-- Ignore blank input
-- Send command to `core.brain.think()`
-- Print Jarvis response
+- Receives user command
+- Cleans input
+- Stores conversation history
+- Sends command to router
+- Handles fallback behavior
+- Stores Jarvis response
 
-## `core/brain.py`
+### core/router.py
 
-Main orchestration layer.
+Routes user commands to the correct skill.
 
-Responsibilities:
+Current routing areas include:
 
-- Clean user command
-- Save user message to session history
-- Detect topic
-- Persist `last_topic`
-- Route command
-- Save assistant response
-- Return response
+- Greetings
+- Time/date
+- System status
+- Memory commands
+- Documentation commands
+- Health checks
+- LLM fallback
 
-Flow:
+### core/db.py
 
-```text
-think(command)
-  -> strip command
-  -> remember_user_message(command)
-  -> detect_topic(command)
-  -> set_last_topic(topic)
-  -> route(command)
-  -> remember_assistant_message(response)
-  -> return response
-```
+PostgreSQL connection layer.
 
-## `core/router.py`
+Current database:
 
-Rule-based command router.
+    jarvis
 
-Routing order:
+Current user:
 
-```text
-empty command
-remember that ...
-update my ...
-forget that ...
-what is my ...
-what do you remember
-natural memory detection
-time/date
-system/cpu/memory/disk/status
-hello/how are you
-LLM fallback
-```
+    mnahtygal
 
-## `core/memory.py`
+Current password used during migration:
 
-Long-term structured memory management.
+    jarvis123
 
-Targets:
+### core/memory.py
 
-```text
-memories
-memory_history
-```
+Handles persistent memory facts.
 
-Responsibilities:
+Examples:
 
-- Store memories
-- Recall memories
-- Update memories
-- Forget memories
-- List all memories
-- Build memory context for LLM prompts
-- Write memory history audit records
+- my favorite ship is Eurodam
+- my wife's name is Kelly
+- my workplace is GM
+- my preferred database is SQL Server
+- my taco tuesday drink is Diet Coke
 
-## `core/session.py`
+### core/session.py
 
-Conversation and session state manager.
+Handles conversation history.
 
-Targets:
+Current storage:
 
-```text
-conversation_history
-session_state
-```
+    PostgreSQL table: conversation_history
 
 Responsibilities:
 
 - Save user messages
 - Save assistant messages
-- Read recent conversation history
-- Store and retrieve persistent `last_topic`
-- Clear session history
-- Create new session IDs
+- Retrieve recent session context
+- Support future context assembly
 
-## `core/context.py`
+### core/context.py
 
-Central context assembler for LLM calls.
+Context assembler for Jarvis.
 
-Outputs:
+Purpose:
 
-| Function | Target |
-|---|---|
-| `build_prompt()` | Ollama `/api/generate` |
-| `build_messages()` | llama.cpp `/v1/chat/completions` |
-| `build_context_summary()` | Debug / health check |
+- Combine memory facts
+- Combine recent conversation history
+- Prepare context for LLM prompts
+- Eventually support semantic memory and RAG context
 
-## `skills/llm_skill.py`
+---
 
-Main LLM backend selector.
+## Skills
 
-Flow:
+### skills/llama_cpp_skill.py
 
-```text
-ask_local_llm(user_text)
-  -> ask_llama_cpp(user_text)
-      -> if good answer, return
-  -> ask_ollama(user_text)
-      -> if good answer, return
-  -> return local brain error
-```
-
-## `skills/llama_cpp_skill.py`
-
-Primary LLM backend.
-
-Target endpoint:
-
-```text
-http://127.0.0.1:8080/v1/chat/completions
-```
+Primary local LLM skill.
 
 Current model:
 
-```text
-qwen2.5-coder-7b
-```
+    Qwen3-30B-A3B-Q4_K_M.gguf
 
-## `skills/ollama_skill.py`
+Current endpoint:
 
-Fallback LLM backend.
+    http://127.0.0.1:8080/v1/chat/completions
 
-Target endpoint:
+Current purpose:
 
-```text
-http://localhost:11434/api/generate
-```
+- Call local llama.cpp server
+- Send OpenAI-compatible chat payload
+- Strip Qwen3 thinking blocks from visible output
+- Return clean Jarvis responses
 
-Current model:
+### skills/llm_skill.py
 
-```text
-qwen2.5-coder:7b
-```
+General LLM routing skill.
 
----
+Current behavior:
 
-# 7. Data Flow: Normal LLM Question
+- Prefer llama.cpp
+- Fall back to Ollama if configured
+- Return friendly failure message if local brains are unavailable
 
-Example:
+### skills/llm_stream_skill.py
 
-```text
-what is flask
-```
-
-Flow:
-
-```text
-testbrain.py
-  -> core.brain.think()
-      -> core.session.remember_user_message()
-          -> conversation_history insert
-      -> core.brain.detect_topic()
-          -> detects Flask
-      -> core.session.set_last_topic()
-          -> session_state upsert
-      -> core.router.route()
-          -> falls through to LLM
-      -> skills.llm_skill.ask_local_llm()
-          -> skills.llama_cpp_skill.ask_llama_cpp()
-              -> core.context.build_messages()
-                  -> core.memory.build_memory_context()
-                  -> core.session.get_recent_history()
-                  -> core.session.get_last_topic()
-              -> llama.cpp server
-      -> core.session.remember_assistant_message()
-          -> conversation_history insert
-      -> response returned to user
-```
-
-Targets updated:
-
-| Target | Action |
-|---|---|
-| `conversation_history` | Insert user message |
-| `session_state` | Update `last_topic` |
-| `conversation_history` | Insert assistant response |
-
----
-
-# 8. Data Flow: Memory Write
-
-Example:
-
-```text
-remember that my favorite ship is Eurodam
-```
-
-Flow:
-
-```text
-testbrain.py
-  -> core.brain.think()
-      -> remember_user_message()
-      -> core.router.route()
-          -> remember command detected
-          -> core.memory.remember()
-              -> upsert memories
-              -> insert memory_history
-      -> remember_assistant_message()
-      -> response returned
-```
-
-Targets updated:
-
-| Target | Action |
-|---|---|
-| `conversation_history` | Insert user message |
-| `memories` | Insert/update memory |
-| `memory_history` | Insert audit event |
-| `conversation_history` | Insert assistant response |
-
----
-
-# 9. Data Flow: Memory Recall
-
-Example:
-
-```text
-what is my favorite ship?
-```
-
-Flow:
-
-```text
-testbrain.py
-  -> core.brain.think()
-      -> remember_user_message()
-      -> core.router.route()
-          -> recall pattern detected
-          -> core.memory.recall()
-              -> select from memories
-      -> remember_assistant_message()
-      -> response returned
-```
-
-Targets read/updated:
-
-| Target | Action |
-|---|---|
-| `memories` | Select memory value |
-| `conversation_history` | Insert user and assistant messages |
-
----
-
-# 10. Data Flow: Built-In Operational Command
-
-Example:
-
-```text
-jarvis health
-```
-
-Flow:
-
-```text
-testbrain.py
-  -> core.brain.think()
-      -> remember_user_message()
-      -> core.router.route()
-          -> health command detected
-          -> skills.health_skill.get_health_response()
-              -> check PostgreSQL
-              -> check session_state
-              -> check memories
-              -> check conversation_history
-              -> check context builder
-              -> check llama.cpp
-              -> check Ollama
-      -> remember_assistant_message()
-      -> response returned
-```
-
-Similar built-in operational commands:
-
-```text
-jarvis help
-jarvis version
-jarvis memory summary
-```
-
----
-
-# 11. Data Flow: Follow-Up Question
-
-Example:
-
-```text
-what is flask
-how is it different from express
-```
-
-First question:
-
-```text
-detect_topic("what is flask")
-  -> Flask
-set_last_topic("Flask")
-```
-
-Follow-up:
-
-```text
-detect_topic("how is it different from express")
-  -> follow-up phrase detected
-  -> does not overwrite last_topic
-```
-
-LLM context includes:
-
-```text
-Last topic: Flask
-Recent conversation:
-user: what is flask
-assistant: ...
-user: how is it different from express
-```
-
----
-
-# 12. Database Tables
-
-## `memories`
-
-Stores current known long-term facts.
-
-| Column | Description |
-|---|---|
-| `memory_key` | Unique memory key |
-| `memory_value` | Stored value |
-| `updated_at` | Last update timestamp |
-
-## `memory_history`
-
-Audit trail for memory changes.
-
-| Column | Description |
-|---|---|
-| `action_type` | remember/update/forget |
-| `memory_key` | Memory key |
-| `old_value` | Previous value |
-| `new_value` | New value |
-| `event_timestamp` | Event timestamp |
-
-## `conversation_history`
-
-Stores user/assistant conversation turns.
-
-| Column | Description |
-|---|---|
-| `id` | Row identifier |
-| `session_id` | Session identifier |
-| `role` | user or assistant |
-| `message` | Message text |
-| `created_at` | Insert timestamp |
-
-## `session_state`
-
-Stores persistent session state.
-
-| Column | Description |
-|---|---|
-| `session_id` | Session identifier |
-| `last_topic` | Most recent durable topic |
-| `updated_at` | Last update timestamp |
-
-## `semantic_memories`
-
-Future pgvector semantic memory table.
-
-Current status:
-
-- Prep script exists
-- pgvector extension is not currently available from apt packages on current Jetson PostgreSQL install
-- Table is not yet active
-
-Expected future columns:
-
-| Column | Description |
-|---|---|
-| `id` | Row identifier |
-| `source_type` | Source category |
-| `source_id` | Optional external/source row ID |
-| `content` | Text to embed |
-| `metadata` | JSON metadata |
-| `embedding` | Vector embedding |
-| `created_at` | Created timestamp |
-| `updated_at` | Updated timestamp |
-
----
-
-# 13. Operational Scripts
-
-## Health Check
-
-Script:
-
-```text
-tools/health_check.py
-```
-
-Checks:
-
-| Check | Description |
-|---|---|
-| Python imports | Confirms core modules import |
-| PostgreSQL connection | Confirms database access |
-| Session state | Confirms `session_state` and `last_topic` |
-| Long-term memories | Confirms memories are readable |
-| Conversation history | Confirms recent history is readable |
-| Context builder | Confirms prompt context can be assembled |
-| llama.cpp server | Confirms primary LLM backend is reachable |
-| Ollama server | Confirms fallback LLM backend is reachable |
-
-Run:
-
-```bash
-./tools/health_check.py
-```
-
-## Session State Table Migration
-
-Script:
-
-```text
-tools/create_session_state_table.py
-```
-
-Run:
-
-```bash
-python3 tools/create_session_state_table.py
-```
-
-## Semantic Memory Table Prep
-
-Script:
-
-```text
-tools/create_semantic_memory_table.py
-```
-
-Known current result:
-
-```text
-pgvector extension is not available in current PostgreSQL install
-```
-
-Run:
-
-```bash
-python3 tools/create_semantic_memory_table.py
-```
-
----
-
-# 14. Runtime Dependencies
-
-## PostgreSQL
-
-Current version:
-
-```text
-PostgreSQL 12.22 on Ubuntu 20.04 aarch64
-```
+Streaming LLM skill.
 
 Used for:
 
+- Long responses
+- Benchmarks
+- MartyBench
+- Future UI streaming
+
+### skills/ollama_skill.py
+
+Legacy/fallback local LLM integration.
+
+Current status:
+
+- Optional
+- Not primary on Thor
+- Useful if Ollama is installed later
+
+### skills/system_skill.py
+
+Reports system information.
+
+Uses:
+
+- CPU
+- Memory
+- Disk
+- System status
+
+Requires:
+
+    psutil
+
+### Other Skills
+
+- skills/time_skill.py handles date/time requests.
+- skills/chat_skill.py handles simple conversational responses.
+- skills/docs_skill.py handles Jarvis documentation responses.
+- skills/health_skill.py provides Jarvis health checks.
+- skills/memory_summary_skill.py summarizes current Jarvis memory.
+
+---
+
+## PostgreSQL Database
+
+Current database engine:
+
+    PostgreSQL 16
+
+Current database:
+
+    jarvis
+
+Current tables:
+
+- conversation_history
 - memories
-- memory history
-- conversation history
-- session state
-- future semantic memory
+- memory_history
+- semantic_memories
+- session_state
+
+Current extensions:
+
+    vector
+
+Migration from Xavier to Thor restored:
+
+- Conversation history
+- Memory facts
+- Memory history
+- Session state
+- Semantic memory table structure
+
+Verified table list:
+
+- public.conversation_history
+- public.memories
+- public.memory_history
+- public.semantic_memories
+- public.session_state
+
+---
+
+## Current Local Model
+
+### Primary Model
+
+    Qwen3-30B-A3B-Q4_K_M.gguf
+
+Downloaded from:
+
+    unsloth/Qwen3-30B-A3B-GGUF
+
+Stored at:
+
+    ~/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf
+
+Why this model is currently primary:
+
+- Major upgrade from Qwen2.5-Coder 7B
+- Runs well on Thor
+- Good reasoning and coding capability
+- Strong local assistant candidate
+- Approximately 60 tokens/sec generation observed during testing
+- Works with llama.cpp OpenAI-compatible server
+
+### Previous Model
+
+    qwen2.5-coder-7b-instruct.Q4_K_M.gguf
+
+Stored at:
+
+    ~/models/qwen2.5-coder-7b/qwen2.5-coder-7b-instruct.Q4_K_M.gguf
+
+Current role:
+
+- Fast fallback
+- Coding baseline
+- Xavier comparison model
+- MartyBench historical benchmark model
+
+---
 
 ## llama.cpp
 
-Primary LLM backend.
+Current location:
 
-Typical launch:
+    ~/llama.cpp
 
-```bash
-cd ~/llama.cpp
+Build verified:
 
-./build/bin/llama-server \
-  -m /home/mnahtygal/models/qwen2.5-coder-7b/qwen2.5-coder-7b-instruct.Q4_K_M.gguf \
-  --host 127.0.0.1 \
-  --port 8080 \
-  -ngl auto \
-  -t 8
-```
+    version: 9173
+    built with GNU 13.3.0 for Linux aarch64
 
-## Ollama
+CUDA build enabled:
 
-Fallback LLM backend.
+- DGGML_CUDA=ON
+- DLLAMA_CURL=ON
 
-Known local models:
+Current build command:
 
-```text
-phi3:latest
-qwen2.5-coder:7b
-qwen2.5-coder:3b
-```
+    cd ~/llama.cpp
+
+    cmake -B build \
+      -DGGML_CUDA=ON \
+      -DLLAMA_CURL=ON
+
+    cmake --build build --config Release -j$(nproc)
 
 ---
 
-# 15. Current Operational Startup
+## Starting Qwen3 30B Server
 
-Recommended startup:
+    cd ~/llama.cpp
 
-```bash
-cd ~/jarvis
-./tools/health_check.py
-python3 testbrain.py
-```
+    ./build/bin/llama-server \
+      -m ~/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf \
+      --host 0.0.0.0 \
+      --port 8080 \
+      -ngl 999 \
+      -t $(nproc) \
+      --jinja \
+      --reasoning-format none
 
-Expected health status:
+Expected successful server lines:
 
-```text
-Jarvis health check complete: READY
-```
-
----
-
-# 16. Current Known Limitations
-
-| Area | Limitation |
-|---|---|
-| Voice | Planned later |
-| Camera | Planned later |
-| pgvector | Not installed yet |
-| Topic detection | Improved but still rule-based |
-| Context length | Recent history only, currently limited |
-| LLM verbosity | Some answers are longer than desired |
-| Security | DB password still has a local default in code |
-| Session model | Default session only for now |
+    CUDA0 : NVIDIA Thor
+    n_ctx = 40960
+    chat template, thinking = 1
+    model loaded
+    server is listening on http://0.0.0.0:8080
 
 ---
 
-# 17. Recommended Next Steps
+## Testing llama.cpp API
 
-## Near-Term
+    curl http://127.0.0.1:8080/v1/models
 
-1. Install/build pgvector
-2. Add pgvector health check
-3. Create embedding skill
-4. Build semantic recall in read-only mode
-5. Tune LLM response length
-6. Keep documentation updated as commands are added
+Test completion:
 
-## Later
-
-1. Add voice input
-2. Add camera input
-3. Add React/Vite control UI
-4. Add memory management UI
-5. Add benchmark dashboard
-6. Add MartyBench model comparison tooling
+    curl http://127.0.0.1:8080/v1/chat/completions \
+      -H "Content-Type: application/json" \
+      -d '{
+        "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
+        "messages": [
+          {"role": "user", "content": "What is Flask? Answer in one sentence."}
+        ],
+        "max_tokens": 300,
+        "temperature": 0.2
+      }'
 
 ---
 
-# 18. Current Architecture Status
+## Testing Jarvis CLI
 
-```text
-Status: Stable local assistant foundation
+    cd ~/jarvis
+    source .venv/bin/activate
 
-Core path:
-CLI -> brain -> router -> context -> llama.cpp -> response
+    python3 testbrain.py
 
-Persistence:
-PostgreSQL memories, history, session state
+Example memory test:
 
-Fallback:
-Ollama available
+    what do you remember
 
-Built-in commands:
-help, health, version, memory summary
+Expected behavior:
 
-Health:
-tools/health_check.py passing
-jarvis health available in chat loop
+Jarvis should return stored memory facts from PostgreSQL.
 
-Next major feature:
-pgvector semantic memory
-```
+Example:
+
+    Here's what I remember, Marty: favorite_ship is Eurodam; my favorite color is blue; my favorite ship is Eurodam; my preference is SQL Server; my preferred database is SQL Server; my taco tuesday drink is Diet Coke; my test project is blue falcon; my wife's name is Kelly; my workplace is GM
+
+Example LLM fallback test:
+
+    what is flask and how is it different from express
+
+Expected behavior:
+
+- Jarvis routes to LLM fallback
+- llama.cpp handles request
+- Qwen3 responds
+- thinking content is stripped from visible answer
+
+---
+
+## Python Environment
+
+Current virtual environment:
+
+    ~/jarvis/.venv
+
+Activate:
+
+    cd ~/jarvis
+    source .venv/bin/activate
+
+Core packages:
+
+- requests
+- flask
+- flask-cors
+- psycopg2-binary
+- python-dotenv
+- openai
+- numpy
+- psutil
+
+---
+
+## GitHub
+
+Current repo:
+
+    git@github.com:mnahtygal/Jarvis.git
+
+GitHub SSH verified:
+
+    Hi mnahtygal! You've successfully authenticated, but GitHub does not provide shell access.
+
+Current Git identity on Thor:
+
+    user.name=mnahtygal
+    user.email=mnahtyga@hotmail.com
+
+Important commit:
+
+    3a7efdc Add Thor Qwen3 llama.cpp support and thinking cleanup
+
+This commit added:
+
+- Qwen3 30B llama.cpp support
+- Qwen3 thinking block cleanup
+- Updated .gitignore
+- Thor model compatibility changes
+
+---
+
+## Current Working Milestones
+
+Completed:
+
+- Thor booted and validated
+- CUDA 13 installed
+- JetPack 7 installed
+- PostgreSQL 16 installed
+- pgvector installed
+- Jarvis repo cloned
+- GitHub SSH restored
+- llama.cpp built natively on Thor
+- Qwen3 30B downloaded and tested
+- PostgreSQL restored from Xavier
+- Jarvis memory verified on Thor
+- llama.cpp inference verified
+- Jarvis LLM fallback verified with Qwen3
+- Qwen3 thinking output cleaned
+- Thor migration commit pushed to GitHub
+
+---
+
+## MartyBench
+
+MartyBench is the local benchmark concept used to evaluate Jarvis inference performance.
+
+Initial benchmark used:
+
+- Qwen2.5-Coder 7B
+- llama.cpp
+- Three.js single-file game generation
+- Jetson AGX Xavier
+- Windows gaming rig for rendering validation
+
+Future MartyBench direction:
+
+- Compare Xavier vs Thor
+- Compare 7B vs 30B models
+- Track tokens/sec
+- Track first token latency
+- Track long-context stability
+- Track code generation quality
+- Track browser/runtime success
+- Track model hallucinated APIs
+- Track final patch effort
+- Store benchmark outputs in repo
+
+---
+
+## Current Priorities
+
+Recommended next development order:
+
+1. Stabilize Thor docs and config
+2. Create repeatable start scripts for llama.cpp
+3. Create Jarvis health check for model/database availability
+4. Add model selection config
+5. Add pgvector semantic memory workflow
+6. Re-run MartyBench on Qwen3 30B
+7. Add streaming UI support
+8. Restore voice input/output
+9. Add camera/vision later
+10. Prototype manufacturing-focused assistant workflows
+
+---
+
+## Future Directions
+
+### Semantic Memory
+
+Use pgvector to store embedded memories and retrieve relevant context.
+
+Planned table:
+
+    semantic_memories
+
+Possible fields:
+
+- id
+- text
+- source
+- category
+- embedding
+- created_at
+- updated_at
+
+### Voice
+
+Voice remains later-stage.
+
+Planned stack:
+
+- USB microphone
+- Whisper or faster-whisper
+- Piper TTS
+- Jarvis wake/command loop
+- Conversation memory logging
+
+### Vision
+
+Vision remains later-stage.
+
+Possible stack:
+
+- USB camera
+- OpenCV
+- YOLO
+- local vision model
+- document/image understanding
+- manufacturing inspection prototypes
+
+### Manufacturing Prototype Ideas
+
+Possible future Thor/Jarvis manufacturing prototypes:
+
+- Shift handoff assistant
+- Plant-floor Q&A assistant
+- Maintenance triage helper
+- Operational data copilot
+- Quality image review assistant
+- Local SOP/document assistant
+- VLive/ODS query helper
+- Manufacturing issue summarizer
+
+Recommended first manufacturing prototype:
+
+    Shift Handoff Jarvis
+
+Why:
+
+- Low risk
+- High practical value
+- Does not control equipment
+- Easy to demonstrate
+- Good fit for local AI
+- Builds on memory, summarization, and search
+
+---
+
+## Safety / Design Principle
+
+Jarvis should start as an assistant, summarizer, observer, and recommender.
+
+Jarvis should not directly control manufacturing equipment or make autonomous plant-floor decisions without formal safety architecture, validation, and human approval.
+
+---
+
+## Current System Status
+
+As of the Thor migration:
+
+    Jarvis is now a local Blackwell-powered AI assistant platform with PostgreSQL memory, CUDA llama.cpp inference, and Qwen3 30B primary model support.
+
+This marks the transition from:
+
+    Jetson Xavier local assistant experiment
+
+to:
+
+    Jetson Thor local AI platform
+EOF
