@@ -1,12 +1,17 @@
-# Python
-__pycache__/
-*.pyc
-
-# Audio temp
+# Audio / recordings
 *.wav
 *.raw
 
-# Models (BIG FILES)
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.bak
+
+# Environment / secrets
+.env
+
+# Models and local-only assets
 models/
 
 # Node / React
@@ -15,11 +20,3 @@ ui-app/dist/
 
 # System
 .DS_Store
-.env
-__pycache__/
-*.pyc
-
-__pycache__/
-*.pyc
-.venv/
-*.bak
