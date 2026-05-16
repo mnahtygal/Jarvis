@@ -4,6 +4,8 @@ import os
 import re
 import requests
 
+from core.context import build_messages
+
 
 LLAMA_CPP_URL = os.getenv(
     "LLAMA_CPP_URL",
@@ -30,23 +32,17 @@ def strip_thinking(text: str) -> str:
 def get_llama_cpp_response(prompt: str) -> str:
     """
     Sends a prompt to llama.cpp OpenAI-compatible chat endpoint.
+
+    This now uses core.context.build_messages(), so Jarvis includes:
+    - long-term exact memory
+    - semantic pgvector memory
+    - last topic
+    - recent conversation history
     """
 
     payload = {
         "model": LLAMA_CPP_MODEL,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are Jarvis, Marty's helpful local AI assistant. "
-                    "Answer clearly and directly. Do not show internal reasoning."
-                ),
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
+        "messages": build_messages(prompt),
         "temperature": 0.3,
         "max_tokens": 1200,
         "stream": False,
@@ -56,7 +52,7 @@ def get_llama_cpp_response(prompt: str) -> str:
         response = requests.post(
             LLAMA_CPP_URL,
             json=payload,
-            timeout=120,
+            timeout=180,
         )
 
         response.raise_for_status()
@@ -67,8 +63,6 @@ def get_llama_cpp_response(prompt: str) -> str:
 
         answer = message.get("content", "")
 
-        # Some reasoning models may return text in reasoning_content instead.
-        # We do NOT expose that as the final answer unless content is empty.
         if not answer:
             answer = message.get("reasoning_content", "")
 

@@ -3,8 +3,11 @@
 """
 Semantic memory support for Jarvis using PostgreSQL + pgvector.
 
-This module stores and searches meaning-based memories using a local
-sentence-transformers embedding model.
+Jarvis local-only rule:
+- Do not call external model APIs.
+- Do not require Hugging Face tokens.
+- Load the embedding model from a local folder by default.
+- Run Hugging Face / Transformers libraries in offline mode.
 
 Current table expectation:
 
@@ -18,9 +21,9 @@ Current table expectation:
     - created_at timestamp
     - updated_at timestamp
 
-Current embedding model:
+Current local embedding model path:
 
-    sentence-transformers/all-MiniLM-L6-v2
+    ~/jarvis/models/embeddings/all-MiniLM-L6-v2
 
 This model produces 384-dimensional vectors, matching the current table.
 """
@@ -30,16 +33,28 @@ from __future__ import annotations
 import json
 import os
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from sentence_transformers import SentenceTransformer
+# Force local/offline behavior before importing sentence-transformers.
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+
+from sentence_transformers import SentenceTransformer  # noqa: E402
 
 from core.db import get_connection
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+DEFAULT_LOCAL_EMBEDDING_MODEL = str(
+    PROJECT_ROOT / "models" / "embeddings" / "all-MiniLM-L6-v2"
+)
+
 DEFAULT_EMBEDDING_MODEL = os.getenv(
     "JARVIS_EMBEDDING_MODEL",
-    "sentence-transformers/all-MiniLM-L6-v2",
+    DEFAULT_LOCAL_EMBEDDING_MODEL,
 )
 
 EMBEDDING_DIMENSIONS = int(os.getenv("JARVIS_EMBEDDING_DIMENSIONS", "384"))
@@ -48,11 +63,20 @@ EMBEDDING_DIMENSIONS = int(os.getenv("JARVIS_EMBEDDING_DIMENSIONS", "384"))
 @lru_cache(maxsize=1)
 def get_embedding_model() -> SentenceTransformer:
     """
-    Load the embedding model once and reuse it.
+    Load the local embedding model once and reuse it.
 
-    The first call may take a few seconds because the model loads into memory.
+    This should not call Hugging Face Hub. The default model path is local.
     """
-    return SentenceTransformer(DEFAULT_EMBEDDING_MODEL)
+    model_path = Path(DEFAULT_EMBEDDING_MODEL).expanduser()
+
+    if not model_path.exists():
+        raise FileNotFoundError(
+            "Local embedding model folder not found: "
+            f"{model_path}. Copy the cached model into "
+            "~/jarvis/models/embeddings/all-MiniLM-L6-v2 first."
+        )
+
+    return SentenceTransformer(str(model_path), local_files_only=True)
 
 
 def get_embedding(text: str) -> List[float]:
@@ -80,9 +104,6 @@ def get_embedding(text: str) -> List[float]:
 def vector_to_pgvector(vector: List[float]) -> str:
     """
     Convert a Python float list into pgvector text format.
-
-    Example:
-        [0.1, 0.2, 0.3] -> '[0.1,0.2,0.3]'
     """
     return "[" + ",".join(str(float(value)) for value in vector) + "]"
 
@@ -190,16 +211,6 @@ def search_semantic_memories(
     Search semantic memories by meaning.
 
     Uses cosine distance because embeddings are normalized.
-
-    Returns dictionaries with:
-        id
-        source_type
-        source_id
-        content
-        metadata
-        distance
-        similarity
-        created_at
     """
     cleaned = (query or "").strip()
 
@@ -211,34 +222,36 @@ def search_semantic_memories(
     query_embedding = get_embedding(cleaned)
     query_vector = vector_to_pgvector(query_embedding)
 
-    params: List[Any] = [query_vector]
-    source_filter = ""
-
     if source_type:
-        source_filter = "WHERE source_type = %s"
-        params.append(source_type)
-
-    params.append(limit)
-
-    sql = f"""
-        SELECT
-            id,
-            source_type,
-            source_id,
-            content,
-            metadata,
-            embedding <=> %s::vector AS distance,
-            created_at
-        FROM semantic_memories
-        {source_filter}
-        ORDER BY embedding <=> %s::vector
-        LIMIT %s;
-    """
-
-    # Because the query vector is used twice, build params carefully.
-    if source_type:
+        sql = """
+            SELECT
+                id,
+                source_type,
+                source_id,
+                content,
+                metadata,
+                embedding <=> %s::vector AS distance,
+                created_at
+            FROM semantic_memories
+            WHERE source_type = %s
+            ORDER BY embedding <=> %s::vector
+            LIMIT %s;
+        """
         query_params = [query_vector, source_type, query_vector, limit]
     else:
+        sql = """
+            SELECT
+                id,
+                source_type,
+                source_id,
+                content,
+                metadata,
+                embedding <=> %s::vector AS distance,
+                created_at
+            FROM semantic_memories
+            ORDER BY embedding <=> %s::vector
+            LIMIT %s;
+        """
         query_params = [query_vector, query_vector, limit]
 
     results: List[Dict[str, Any]] = []

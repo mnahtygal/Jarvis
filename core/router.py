@@ -18,6 +18,11 @@ from core.memory import (
     get_all_memories,
 )
 
+try:
+    from core.semantic_memory import add_semantic_memory
+except Exception:
+    add_semantic_memory = None
+
 
 def normalize_key(key: str) -> str:
     key = key.lower().strip()
@@ -74,6 +79,36 @@ def _remember_is_fact(fact: str):
         return None
 
     return remember(key, value)
+
+
+def _store_semantic_note(note: str) -> str:
+    """
+    Store freeform notes in pgvector semantic memory.
+
+    Examples:
+    - remember: Marty said ...
+    - note that ...
+    - save this: ...
+    """
+    cleaned = (note or "").strip()
+
+    if not cleaned:
+        return "I can remember that, Marty, but I need something to save."
+
+    if add_semantic_memory is None:
+        return "Semantic memory is not available right now, Marty."
+
+    memory_id = add_semantic_memory(
+        content=cleaned,
+        source_type="user_note",
+        source_id=None,
+        metadata={
+            "source": "marty",
+            "capture_method": "freeform_remember",
+        },
+    )
+
+    return f"I saved that to semantic memory, Marty. Memory #{memory_id}."
 
 
 def _try_natural_memory(command: str):
@@ -200,6 +235,19 @@ def route(command: str) -> str:
     if _is_docs_request(text):
         return get_docs_response()
 
+    # Freeform semantic memory commands.
+    if text.startswith("remember:"):
+        note = command.split(":", 1)[1].strip()
+        return _store_semantic_note(note)
+
+    if text.startswith("note that "):
+        note = command[len("note that "):].strip()
+        return _store_semantic_note(note)
+
+    if text.startswith("save this:"):
+        note = command.split(":", 1)[1].strip()
+        return _store_semantic_note(note)
+
     if text.startswith("remember that "):
         fact = command[len("remember that "):].strip()
 
@@ -207,7 +255,16 @@ def route(command: str) -> str:
         if response:
             return response
 
-        return "I can remember that, but say it like: remember that my favorite ship is Eurodam."
+        return _store_semantic_note(fact)
+
+    if text.startswith("remember "):
+        note = command[len("remember "):].strip()
+
+        response = _remember_is_fact(note)
+        if response:
+            return response
+
+        return _store_semantic_note(note)
 
     if text.startswith("update my ") and " to " in text:
         fact = command[len("update "):].strip()
