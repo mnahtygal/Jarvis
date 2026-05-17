@@ -9,6 +9,7 @@ from skills.help_skill import get_help_response
 from skills.version_skill import get_version_response
 from skills.memory_summary_skill import get_memory_summary_response
 from skills.docs_skill import get_docs_response
+from skills.brain_status_skill import get_brain_status_response
 
 from core.memory import (
     remember,
@@ -214,11 +215,28 @@ def _is_docs_request(text: str) -> bool:
     return text in docs_phrases
 
 
+
+def _is_brain_status_request(text: str) -> bool:
+    brain_status_phrases = [
+        "brain status",
+        "jarvis brain status",
+        "brain health",
+        "jarvis brain health",
+        "how is your brain",
+        "brain check",
+    ]
+
+    return text in brain_status_phrases
+
 def route(command: str) -> str:
     text = command.lower().strip()
 
     if not text:
         return "I didn't hear anything, Marty."
+
+
+    if _is_brain_status_request(text):
+        return get_brain_status_response()
 
     if _is_health_check_request(text):
         return get_health_response()
