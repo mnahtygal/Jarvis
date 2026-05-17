@@ -31,8 +31,8 @@ from pathlib import Path
 
 PIPER_DIR = Path.home() / "piper"
 PIPER_BIN = PIPER_DIR / "piper"
-PIPER_MODEL = Path.home() / "jarvis" / "models" / "piper" / "en_US-lessac-medium.onnx"
-PIPER_CONFIG = Path.home() / "jarvis" / "models" / "piper" / "en_US-lessac-medium.onnx.json"
+PIPER_MODEL = Path.home() / "jarvis" / "models" / "piper" / "en_GB-northern_english_male-medium.onnx"
+PIPER_CONFIG = Path.home() / "jarvis" / "models" / "piper" / "en_GB-northern_english_male-medium.onnx.json"
 
 
 def _verify_files() -> None:
