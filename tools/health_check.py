@@ -9,7 +9,10 @@ Checks the local Jarvis runtime on NVIDIA Jetson AGX Thor:
 - PostgreSQL connection
 - PostgreSQL tables
 - pgvector extension
-- long-term memories
+- exact long-term memory
+- semantic memory
+- local/offline embedding model
+- semantic search
 - conversation history
 - session state
 - context builder
@@ -24,14 +27,13 @@ Exit code:
     1 = one or more hard failures
 """
 
-import json
 import os
 import platform
 import socket
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Tuple
 
 import requests
 
@@ -40,6 +42,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+
+# Force local/offline embedding behavior during health checks.
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 
 
 LLAMA_MODELS_URL = os.getenv(
@@ -58,6 +66,13 @@ LLAMA_MODEL_NAME = os.getenv(
 )
 
 MODEL_ROOT = Path(os.getenv("JARVIS_MODEL_ROOT", str(Path.home() / "models")))
+
+LOCAL_EMBEDDING_PATH = Path(
+    os.getenv(
+        "JARVIS_EMBEDDING_MODEL",
+        str(PROJECT_ROOT / "models" / "embeddings" / "all-MiniLM-L6-v2"),
+    )
+)
 
 
 HealthResult = Tuple[bool, str, bool]
@@ -110,18 +125,6 @@ def run_command(command: List[str], timeout: int = 10) -> Tuple[int, str, str]:
 
 
 def run_check(name: str, check_func: HealthCheck) -> bool:
-    """
-    Run one health check.
-
-    check_func returns:
-        passed: bool
-        detail: str
-        warning_only: bool
-
-    Returns:
-        True if passed or warning-only.
-        False if hard failure.
-    """
     try:
         passed, detail, warning_only = check_func()
 
@@ -160,16 +163,28 @@ def check_python_imports() -> HealthResult:
     from core.memory import get_all_memories
     from core.session import get_recent_history, get_last_topic
     from core.context import build_context_summary
+    from core.semantic_memory import (
+        count_semantic_memories,
+        get_embedding_model,
+        search_semantic_memories,
+    )
     from skills.llm_skill import ask_local_llm
     from skills.llama_cpp_skill import get_llama_cpp_response
+    from skills.brain_status_skill import get_brain_status_response
+    from skills.semantic_memory_skill import get_semantic_memory_status_response
 
     _ = get_connection
     _ = get_all_memories
     _ = get_recent_history
     _ = get_last_topic
     _ = build_context_summary
+    _ = count_semantic_memories
+    _ = get_embedding_model
+    _ = search_semantic_memories
     _ = ask_local_llm
     _ = get_llama_cpp_response
+    _ = get_brain_status_response
+    _ = get_semantic_memory_status_response
 
     return True, "core and skill modules imported", False
 
@@ -317,16 +332,16 @@ def check_session_state() -> HealthResult:
     return True, f"last_topic={last_topic}", False
 
 
-def check_long_term_memories() -> HealthResult:
+def check_exact_long_term_memories() -> HealthResult:
     from core.memory import get_all_memories
 
     memories = get_all_memories()
     count = len(memories)
 
     if count == 0:
-        return False, "no long-term memories found", True
+        return False, "no exact long-term memories found", True
 
-    return True, f"{count} memories found", False
+    return True, f"{count} exact memories found", False
 
 
 def check_conversation_history() -> HealthResult:
@@ -344,14 +359,18 @@ def check_conversation_history() -> HealthResult:
 def check_context_builder() -> HealthResult:
     from core.context import build_context_summary
 
-    summary = build_context_summary(history_limit=3)
+    summary = build_context_summary(
+        history_limit=3,
+        user_text="How many people did Marty say were laid off at General Motors?",
+    )
 
     if not summary.strip():
         return False, "context summary was empty", False
 
     required_sections = [
         "Last topic:",
-        "Long-term memory:",
+        "Exact long-term memory:",
+        "Semantic memory:",
         "Recent conversation:",
     ]
 
@@ -360,18 +379,76 @@ def check_context_builder() -> HealthResult:
     if missing:
         return False, f"missing sections: {', '.join(missing)}", False
 
-    return True, "context summary built", False
+    if "over 600 IT professionals" not in summary:
+        return False, "context built but expected GM layoff semantic memory was not retrieved", True
+
+    return True, "context summary built with semantic memory", False
 
 
 def check_semantic_memory_table() -> HealthResult:
-    from core.db import get_connection
+    from core.semantic_memory import count_semantic_memories
 
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM semantic_memories;")
-            row_count = cur.fetchone()[0]
+    row_count = count_semantic_memories()
+
+    if row_count == 0:
+        return False, "semantic_memories has zero rows", True
 
     return True, f"semantic_memories rows={row_count}", False
+
+
+def check_local_embedding_files() -> HealthResult:
+    if not LOCAL_EMBEDDING_PATH.exists():
+        return False, f"missing local embedding path: {LOCAL_EMBEDDING_PATH}", False
+
+    required_files = [
+        "config.json",
+        "modules.json",
+        "model.safetensors",
+        "tokenizer.json",
+        "vocab.txt",
+        "1_Pooling/config.json",
+    ]
+
+    missing = [
+        item
+        for item in required_files
+        if not (LOCAL_EMBEDDING_PATH / item).exists()
+    ]
+
+    if missing:
+        return False, f"missing embedding files: {', '.join(missing)}", False
+
+    return True, f"local embedding files present at {LOCAL_EMBEDDING_PATH}", False
+
+
+def check_local_embedding_model_loads() -> HealthResult:
+    from core.semantic_memory import get_embedding_model
+
+    model = get_embedding_model()
+    model_name = str(model)
+
+    return True, f"local/offline embedding model loads: {model_name[:120]}", False
+
+
+def check_semantic_search_expected_memory() -> HealthResult:
+    from core.semantic_memory import search_semantic_memories
+
+    results = search_semantic_memories(
+        "General Motors layoffs",
+        limit=3,
+    )
+
+    if not results:
+        return False, "semantic search returned no results", False
+
+    top = results[0]
+    content = top.get("content", "")
+    similarity = float(top.get("similarity", 0.0))
+
+    if "over 600 IT professionals" not in content:
+        return False, f"top result did not match expected memory: {content}", True
+
+    return True, f"expected GM memory found, similarity={similarity:.3f}", False
 
 
 def check_llama_models_endpoint() -> HealthResult:
@@ -517,10 +594,13 @@ def main() -> int:
         ("PostgreSQL tables", check_postgres_tables),
         ("pgvector extension", check_pgvector_extension),
         ("Session state", check_session_state),
-        ("Long-term memories", check_long_term_memories),
+        ("Exact long-term memories", check_exact_long_term_memories),
         ("Conversation history", check_conversation_history),
-        ("Context builder", check_context_builder),
         ("Semantic memory table", check_semantic_memory_table),
+        ("Local embedding files", check_local_embedding_files),
+        ("Local embedding model", check_local_embedding_model_loads),
+        ("Semantic search expected memory", check_semantic_search_expected_memory),
+        ("Context builder", check_context_builder),
         ("llama.cpp models endpoint", check_llama_models_endpoint),
         ("llama.cpp chat completion", check_llama_chat_completion),
         ("Model files", check_model_files),
