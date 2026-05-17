@@ -25,9 +25,10 @@ from core.memory import (
 )
 
 try:
-    from core.semantic_memory import add_semantic_memory
+    from core.semantic_memory import add_semantic_memory, search_semantic_memories
 except Exception:
     add_semantic_memory = None
+    search_semantic_memories = None
 
 
 def normalize_key(key: str) -> str:
@@ -87,14 +88,50 @@ def _remember_is_fact(fact: str):
     return remember(key, value)
 
 
+def _looks_like_duplicate_semantic_note(note: str):
+    """
+    Check for very similar existing semantic memory.
+
+    This is intentionally simple:
+    - exact normalized content match is a duplicate
+    - similarity >= 0.96 is treated as duplicate
+    """
+    if search_semantic_memories is None:
+        return None
+
+    cleaned = " ".join((note or "").strip().lower().split())
+
+    if not cleaned:
+        return None
+
+    try:
+        results = search_semantic_memories(note, limit=3)
+    except Exception:
+        return None
+
+    for item in results:
+        existing_content = " ".join(
+            item.get("content", "").strip().lower().split()
+        )
+        similarity = float(item.get("similarity", 0.0))
+
+        if existing_content == cleaned or similarity >= 0.96:
+            return item
+
+    return None
+
+
 def _store_semantic_note(note: str) -> str:
     """
     Store freeform notes in pgvector semantic memory.
 
     Examples:
     - remember: Marty said ...
+    - remember this: ...
+    - note: ...
     - note that ...
     - save this: ...
+    - save: ...
     """
     cleaned = (note or "").strip()
 
@@ -103,6 +140,16 @@ def _store_semantic_note(note: str) -> str:
 
     if add_semantic_memory is None:
         return "Semantic memory is not available right now, Marty."
+
+    duplicate = _looks_like_duplicate_semantic_note(cleaned)
+
+    if duplicate:
+        memory_id = duplicate.get("id", "?")
+        similarity = float(duplicate.get("similarity", 0.0))
+        return (
+            f"I already have a very similar semantic memory, Marty. "
+            f"Memory #{memory_id}, similarity={similarity:.3f}."
+        )
 
     memory_id = add_semantic_memory(
         content=cleaned,
@@ -220,7 +267,6 @@ def _is_docs_request(text: str) -> bool:
     return text in docs_phrases
 
 
-
 def _is_brain_status_request(text: str) -> bool:
     brain_status_phrases = [
         "brain status",
@@ -233,12 +279,12 @@ def _is_brain_status_request(text: str) -> bool:
 
     return text in brain_status_phrases
 
+
 def route(command: str) -> str:
     text = command.lower().strip()
 
     if not text:
         return "I didn't hear anything, Marty."
-
 
     if text in ["semantic memory status", "semantic status", "pgvector status"]:
         return get_semantic_memory_status_response()
@@ -273,6 +319,10 @@ def route(command: str) -> str:
         return get_docs_response()
 
     # Freeform semantic memory commands.
+    if text.startswith("remember this:"):
+        note = command.split(":", 1)[1].strip()
+        return _store_semantic_note(note)
+
     if text.startswith("remember:"):
         note = command.split(":", 1)[1].strip()
         return _store_semantic_note(note)
@@ -281,7 +331,15 @@ def route(command: str) -> str:
         note = command[len("note that "):].strip()
         return _store_semantic_note(note)
 
+    if text.startswith("note:"):
+        note = command.split(":", 1)[1].strip()
+        return _store_semantic_note(note)
+
     if text.startswith("save this:"):
+        note = command.split(":", 1)[1].strip()
+        return _store_semantic_note(note)
+
+    if text.startswith("save:"):
         note = command.split(":", 1)[1].strip()
         return _store_semantic_note(note)
 
