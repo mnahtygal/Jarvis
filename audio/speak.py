@@ -23,6 +23,7 @@ From Python:
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -51,13 +52,40 @@ def _verify_files() -> None:
         )
 
 
+def clean_text_for_speech(text: str) -> str:
+    """
+    Remove Markdown/control formatting that sounds bad in TTS.
+    """
+    cleaned = text or ""
+
+    # Remove fenced code markers and inline code ticks.
+    cleaned = cleaned.replace("```", "")
+    cleaned = cleaned.replace("`", "")
+
+    # Convert common markdown bullets/headings to plain speech.
+    cleaned = re.sub(r"^\s{0,3}#{1,6}\s*", "", cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r"^\s*[-*+]\s+", "", cleaned, flags=re.MULTILINE)
+
+    # Remove markdown emphasis markers.
+    cleaned = cleaned.replace("**", "")
+    cleaned = cleaned.replace("__", "")
+    cleaned = cleaned.replace("*", "")
+
+    # Remove markdown links but keep the text.
+    cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
+
+    # Make whitespace speech-friendly.
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    return cleaned
+
 def speak(text: str) -> bool:
     """
     Speak text using Piper and paplay.
 
     Returns True if synthesis/playback command completed successfully.
     """
-    cleaned = (text or "").strip()
+    cleaned = clean_text_for_speech(text)
 
     if not cleaned:
         return False

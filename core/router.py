@@ -1,5 +1,7 @@
 # core/router.py
 
+import string
+
 from skills.time_skill import get_time_response
 from skills.system_skill import get_system_response
 from skills.chat_skill import get_chat_response
@@ -31,8 +33,38 @@ except Exception:
     search_semantic_memories = None
 
 
+def normalize_text_for_routing(command: str) -> str:
+    """
+    Normalize text for command routing.
+
+    This helps voice transcripts such as:
+    - "Hello, Jarvis."
+    - "Brain status."
+    - "What do you remember?"
+
+    become:
+    - "hello jarvis"
+    - "brain status"
+    - "what do you remember"
+
+    Important:
+    - The original command is still used when storing memories.
+    - This normalized text is only for intent matching.
+    """
+    text = (command or "").lower().strip()
+
+    # Convert common punctuation to spaces so "hello, jarvis" matches "hello jarvis".
+    translator = str.maketrans({char: " " for char in string.punctuation})
+    text = text.translate(translator)
+
+    # Collapse repeated whitespace.
+    text = " ".join(text.split())
+
+    return text
+
+
 def normalize_key(key: str) -> str:
-    key = key.lower().strip()
+    key = normalize_text_for_routing(key)
 
     if "preferred database" in key or "preference" in key or "prefer" in key:
         return "my preferred database"
@@ -49,14 +81,13 @@ def normalize_key(key: str) -> str:
 def _clean_question_key(text: str) -> str:
     key = (
         text.replace("what is my ", "")
-        .replace("what's my ", "")
+        .replace("what s my ", "")
         .replace("who is my ", "")
-        .replace("who's my ", "")
+        .replace("who s my ", "")
         .replace("where is my ", "")
-        .replace("where's my ", "")
+        .replace("where s my ", "")
         .replace(" called", "")
         .replace(" named", "")
-        .replace("?", "")
         .strip()
     )
 
@@ -78,7 +109,7 @@ def _remember_is_fact(fact: str):
     index = lowered.find(split_text)
 
     key = fact[:index].strip()
-    value = fact[index + len(split_text):].strip()
+    value = fact[index + len(split_text):].strip().strip(" .!?")
 
     key = normalize_key(key)
 
@@ -124,16 +155,8 @@ def _looks_like_duplicate_semantic_note(note: str):
 def _store_semantic_note(note: str) -> str:
     """
     Store freeform notes in pgvector semantic memory.
-
-    Examples:
-    - remember: Marty said ...
-    - remember this: ...
-    - note: ...
-    - note that ...
-    - save this: ...
-    - save: ...
     """
-    cleaned = (note or "").strip()
+    cleaned = (note or "").strip().strip(" .!?")
 
     if not cleaned:
         return "I can remember that, Marty, but I need something to save."
@@ -165,7 +188,7 @@ def _store_semantic_note(note: str) -> str:
 
 
 def _try_natural_memory(command: str):
-    text = command.lower().strip()
+    text = normalize_text_for_routing(command)
 
     if text.startswith("my ") and (
         " is called " in text
@@ -175,19 +198,19 @@ def _try_natural_memory(command: str):
         return _remember_is_fact(command)
 
     if text.startswith("i work at "):
-        value = command[len("I work at "):].strip()
+        value = command[len("I work at "):].strip().strip(" .!?")
         return remember("my workplace", value)
 
     if text.startswith("i work for "):
-        value = command[len("I work for "):].strip()
+        value = command[len("I work for "):].strip().strip(" .!?")
         return remember("my workplace", value)
 
     if text.startswith("i prefer "):
-        value = command[len("I prefer "):].strip()
+        value = command[len("I prefer "):].strip().strip(" .!?")
         return remember("my preferred database", value)
 
     if text.startswith("i like "):
-        value = command[len("I like "):].strip()
+        value = command[len("I like "):].strip().strip(" .!?")
         return remember("something I like", value)
 
     return None
@@ -277,11 +300,56 @@ def _is_brain_status_request(text: str) -> bool:
         "brain check",
     ]
 
-    return text in brain_status_phrases
+    if text in brain_status_phrases:
+        return True
+
+    if text.startswith("brain status ") or text.startswith("jarvis brain status "):
+        return True
+
+    if "brain status" in text or "brain health" in text:
+        return True
+
+    return False
+
+
+def _extract_after_prefix(command: str, prefix: str) -> str:
+    """
+    Extract note text using the original command while matching normalized prefixes.
+
+    Works for voice punctuation such as:
+    - "Remember this, Marty said..."
+    - "Remember this: Marty said..."
+    - "Note, Marty said..."
+    """
+    original = (command or "").strip()
+    normalized = normalize_text_for_routing(original)
+    normalized_prefix = normalize_text_for_routing(prefix)
+
+    if not normalized.startswith(normalized_prefix):
+        return ""
+
+    # Best effort: remove common spoken/written prefix from original.
+    candidates = [
+        prefix,
+        prefix.replace(":", ","),
+        prefix.replace(":", ""),
+    ]
+
+    lower_original = original.lower().strip()
+
+    for candidate in candidates:
+        candidate_lower = candidate.lower().strip()
+        if lower_original.startswith(candidate_lower):
+            return original[len(candidate):].strip(" :,.!?")
+
+    # Fallback using normalized word count.
+    prefix_words = normalized_prefix.split()
+    original_words = original.split()
+    return " ".join(original_words[len(prefix_words):]).strip(" :,.!?")
 
 
 def route(command: str) -> str:
-    text = command.lower().strip()
+    text = normalize_text_for_routing(command)
 
     if not text:
         return "I didn't hear anything, Marty."
@@ -292,12 +360,8 @@ def route(command: str) -> str:
     if text in ["show semantic memories", "show semantic memory", "list semantic memories"]:
         return get_recent_semantic_memories_response()
 
-    if text.startswith("semantic search:"):
-        query = command.split(":", 1)[1].strip()
-        return get_semantic_search_response(query)
-
-    if text.startswith("semantic search "):
-        query = command[len("semantic search "):].strip()
+    if text.startswith("semantic search"):
+        query = _extract_after_prefix(command, "semantic search")
         return get_semantic_search_response(query)
 
     if _is_brain_status_request(text):
@@ -319,32 +383,12 @@ def route(command: str) -> str:
         return get_docs_response()
 
     # Freeform semantic memory commands.
-    if text.startswith("remember this:"):
-        note = command.split(":", 1)[1].strip()
+    if text.startswith("remember this"):
+        note = _extract_after_prefix(command, "remember this")
         return _store_semantic_note(note)
 
-    if text.startswith("remember:"):
-        note = command.split(":", 1)[1].strip()
-        return _store_semantic_note(note)
-
-    if text.startswith("note that "):
-        note = command[len("note that "):].strip()
-        return _store_semantic_note(note)
-
-    if text.startswith("note:"):
-        note = command.split(":", 1)[1].strip()
-        return _store_semantic_note(note)
-
-    if text.startswith("save this:"):
-        note = command.split(":", 1)[1].strip()
-        return _store_semantic_note(note)
-
-    if text.startswith("save:"):
-        note = command.split(":", 1)[1].strip()
-        return _store_semantic_note(note)
-
-    if text.startswith("remember that "):
-        fact = command[len("remember that "):].strip()
+    if text.startswith("remember that"):
+        fact = _extract_after_prefix(command, "remember that")
 
         response = _remember_is_fact(fact)
         if response:
@@ -352,8 +396,8 @@ def route(command: str) -> str:
 
         return _store_semantic_note(fact)
 
-    if text.startswith("remember "):
-        note = command[len("remember "):].strip()
+    if text.startswith("remember"):
+        note = _extract_after_prefix(command, "remember")
 
         response = _remember_is_fact(note)
         if response:
@@ -361,28 +405,44 @@ def route(command: str) -> str:
 
         return _store_semantic_note(note)
 
+    if text.startswith("note that"):
+        note = _extract_after_prefix(command, "note that")
+        return _store_semantic_note(note)
+
+    if text.startswith("note"):
+        note = _extract_after_prefix(command, "note")
+        return _store_semantic_note(note)
+
+    if text.startswith("save this"):
+        note = _extract_after_prefix(command, "save this")
+        return _store_semantic_note(note)
+
+    if text.startswith("save"):
+        note = _extract_after_prefix(command, "save")
+        return _store_semantic_note(note)
+
     if text.startswith("update my ") and " to " in text:
-        fact = command[len("update "):].strip()
+        fact = text[len("update "):].strip()
         key, value = fact.split(" to ", 1)
 
         key = normalize_key(key)
-        value = value.strip()
+        value = value.strip().strip(" .!?")
 
         return update_memory(key, value)
 
     if text.startswith("forget that "):
-        key = command[len("forget that "):].strip().lower()
+        key = text[len("forget that "):].strip()
         key = normalize_key(key)
 
         return forget(key)
 
     if (
         text.startswith("what is my ")
-        or text.startswith("what's my ")
+        or text.startswith("what s my ")
         or text.startswith("who is my ")
-        or text.startswith("who's my ")
+        or text.startswith("who s my ")
         or text.startswith("where is my ")
-        or text.startswith("where's my ")
+        or text.startswith("where s my ")
     ):
         key = normalize_key(_clean_question_key(text))
 
@@ -412,9 +472,8 @@ def route(command: str) -> str:
     if (
         "system" in text
         or "cpu" in text
-        or "memory" in text
         or "disk" in text
-        or "status" in text
+        or text in ["status", "system status"]
     ):
         return get_system_response()
 
