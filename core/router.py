@@ -10,6 +10,11 @@ from skills.version_skill import get_version_response
 from skills.memory_summary_skill import get_memory_summary_response
 from skills.docs_skill import get_docs_response
 from skills.brain_status_skill import get_brain_status_response
+from skills.semantic_memory_skill import (
+    get_recent_semantic_memories_response,
+    get_semantic_memory_status_response,
+    get_semantic_search_response,
+)
 
 from core.memory import (
     remember,
@@ -234,6 +239,20 @@ def route(command: str) -> str:
     if not text:
         return "I didn't hear anything, Marty."
 
+
+    if text in ["semantic memory status", "semantic status", "pgvector status"]:
+        return get_semantic_memory_status_response()
+
+    if text in ["show semantic memories", "show semantic memory", "list semantic memories"]:
+        return get_recent_semantic_memories_response()
+
+    if text.startswith("semantic search:"):
+        query = command.split(":", 1)[1].strip()
+        return get_semantic_search_response(query)
+
+    if text.startswith("semantic search "):
+        query = command[len("semantic search "):].strip()
+        return get_semantic_search_response(query)
 
     if _is_brain_status_request(text):
         return get_brain_status_response()
