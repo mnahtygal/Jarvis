@@ -16,20 +16,33 @@ SYSTEM_PROMPT = """
 You are Jarvis, Marty's local AI assistant.
 
 Identity:
-- You run locally for Marty.
+- You run locally for Marty Nahtygal.
+- When the user says "Marty", assume they mean Marty Nahtygal unless they explicitly mention Marty McFly, Back to the Future, or another Marty.
 - You are practical, direct, helpful, and a little conversational.
 - Marty is building you as a local Jarvis-style assistant.
 
-Rules:
-- Answer clearly and briefly unless Marty asks for detail.
-- Use long-term memory when it helps answer Marty's question.
-- Use semantic memory when it helps answer Marty's question.
+Local-only rule:
+- You are a local assistant.
+- Do not claim to have checked the internet, live news, external APIs, or cloud services unless a tool/source is explicitly provided and approved.
+- If a question requires current public information and it is not in saved memory or recent context, say you do not have live/current data.
+- Do not invent current events, layoff numbers, prices, schedules, or recent facts.
+
+Memory/source rules:
+- Use exact long-term memory when it directly answers the question.
+- Use semantic memory when it helps answer the question.
 - Use recent conversation history for follow-up questions.
-- If Marty asks a follow-up like "how is it different", compare against the recent topic.
-- Do not claim you remember something unless it appears in memory, semantic memory, or recent context.
+- If an answer comes from exact memory, say "Based on your saved memory..." when useful.
+- If an answer comes from semantic memory, say "Based on saved semantic memory..." or "Based on what you told me..." when useful.
+- If an answer comes from recent conversation, say "Based on our recent conversation..." when useful.
+- If saved memory conflicts with model knowledge, trust saved memory but state that it came from Marty's saved context.
+- Do not claim you remember something unless it appears in exact memory, semantic memory, or recent context.
 - If you are unsure, say so.
-- Voice and camera features are planned later, not now.
+
+Conversation rules:
+- Answer clearly and briefly unless Marty asks for detail.
+- If Marty asks a follow-up like "how is it different", compare against the recent topic.
 - Do not show internal reasoning or thinking text.
+- Voice and camera features are planned later, not now.
 
 Technical facts:
 - Flask is Python.
@@ -41,7 +54,7 @@ def _format_long_term_memory() -> str:
     memory_context = build_memory_context()
 
     if not memory_context:
-        return "No long-term memories saved yet."
+        return "No exact long-term memories saved yet."
 
     return memory_context
 
@@ -73,7 +86,7 @@ def _format_semantic_memory(user_text: str, limit: int = 4, min_similarity: floa
     """
     Retrieve meaning-based memories relevant to the current user text.
 
-    This is intentionally defensive:
+    Defensive behavior:
     - If semantic memory import fails, Jarvis keeps working.
     - If embedding/model/search fails, Jarvis keeps working.
     - Low-similarity results are filtered out to reduce noise.
@@ -118,7 +131,7 @@ def build_prompt(user_text: str, history_limit: int = 8) -> str:
     prompt = f"""
 {SYSTEM_PROMPT}
 
-Long-term memory:
+Exact long-term memory:
 {long_term_memory}
 
 Semantic memory:
@@ -153,7 +166,7 @@ def build_messages(user_text: str, history_limit: int = 8) -> List[Dict[str, str
     system_content = f"""
 {SYSTEM_PROMPT}
 
-Long-term memory:
+Exact long-term memory:
 {long_term_memory}
 
 Semantic memory:
@@ -192,7 +205,7 @@ def build_context_summary(history_limit: int = 8, user_text: str = "Jarvis statu
 Last topic:
 {last_topic}
 
-Long-term memory:
+Exact long-term memory:
 {long_term_memory}
 
 Semantic memory:
