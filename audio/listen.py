@@ -1,104 +1,160 @@
+# audio/listen.py
+
+"""
+Jarvis speech-to-text using local Whisper.
+
+Thor audio note:
+- The Samson Q2U is managed by PipeWire/PulseAudio.
+- Direct ALSA arecord may fail with "Device or resource busy".
+- This listener uses parec against the configured/default Pulse source.
+
+Usage:
+
+    python3 audio/listen.py
+
+From Python:
+
+    from audio.listen import listen_command
+    text = listen_command(seconds=5)
+"""
+
+from __future__ import annotations
+
 import os
-import signal
 import subprocess
-import time
+import sys
+import tempfile
+from pathlib import Path
+from typing import Optional
+
 import whisper
 
-model = whisper.load_model("tiny")
 
-DEVICE = "alsa_input.usb-Samson_Technologies_Samson_Q2U_Microphone-00.analog-stereo"
+DEFAULT_SOURCE = os.getenv(
+    "JARVIS_MIC_SOURCE",
+    "alsa_input.usb-Samson_Technologies_Samson_Q2U_Microphone-00.analog-stereo",
+)
+
+DEFAULT_SECONDS = int(os.getenv("JARVIS_LISTEN_SECONDS", "5"))
+
+_MODEL = None
 
 
-def record_wav(filename: str, seconds: int = 5) -> bool:
-    print("🎤 Get ready...")
+def get_whisper_model():
+    global _MODEL
 
-    if os.path.exists(filename):
-        os.remove(filename)
+    if _MODEL is None:
+        model_name = os.getenv("JARVIS_WHISPER_MODEL", "tiny")
+        print(f"[LISTEN] Loading Whisper model: {model_name}")
+        _MODEL = whisper.load_model(model_name)
 
-    raw_file = "temp_audio.raw"
-    if os.path.exists(raw_file):
-        os.remove(raw_file)
+    return _MODEL
 
-    time.sleep(1)
-    print("🎤 SPEAK NOW")
 
+def record_wav(
+    output_path: Path,
+    seconds: int = DEFAULT_SECONDS,
+    source: Optional[str] = DEFAULT_SOURCE,
+) -> bool:
+    """
+    Record WAV audio using parec/PipeWire.
+
+    Returns True if the recording command exits cleanly.
+    """
     cmd = [
+        "timeout",
+        str(seconds),
         "parec",
-        "-d", DEVICE,
         "--format=s16le",
         "--rate=16000",
         "--channels=1",
+        "--file-format=wav",
+        str(output_path),
     ]
 
-    try:
-        with open(raw_file, "wb") as f:
-            proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.PIPE)
-            time.sleep(seconds)
-            proc.send_signal(signal.SIGINT)
-            _, stderr = proc.communicate(timeout=5)
+    if source:
+        cmd.insert(3, f"--device={source}")
 
-        if stderr:
-            err_text = stderr.decode(errors="ignore").strip()
-            if err_text:
-                print("parec stderr:", err_text)
+    print(f"[LISTEN] Recording {seconds} second(s)...")
 
-        if not os.path.exists(raw_file):
-            print("❌ Raw audio file was not created")
-            return False
+    result = subprocess.run(
+        cmd,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
 
-        raw_size = os.path.getsize(raw_file)
-        print(f"✅ Raw audio captured: {raw_size} bytes")
-
-        if raw_size < 1000:
-            print("❌ Raw audio file too small")
-            return False
-
-        convert_cmd = [
-            "ffmpeg",
-            "-y",
-            "-f", "s16le",
-            "-ar", "16000",
-            "-ac", "1",
-            "-i", raw_file,
-            filename,
-        ]
-
-        result = subprocess.run(convert_cmd, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            print("❌ ffmpeg conversion failed")
-            print(result.stderr)
-            return False
-
-        if not os.path.exists(filename):
-            print("❌ WAV file was not created")
-            return False
-
-        wav_size = os.path.getsize(filename)
-        print(f"✅ WAV created: {filename} ({wav_size} bytes)")
-        return wav_size >= 1000
-
-    except Exception as e:
-        print(f"❌ record_wav exception: {e}")
+    # timeout exits 124 when it stops parec after N seconds.
+    if result.returncode not in (0, 124):
+        print("[LISTEN] Recording failed:")
+        print(result.stderr.strip())
         return False
 
+    return output_path.exists() and output_path.stat().st_size > 0
+
+
+def transcribe_file(wav_path: Path) -> str:
+    """
+    Transcribe a WAV file using local Whisper.
+    """
+    model = get_whisper_model()
+
+    result = model.transcribe(
+        str(wav_path),
+        fp16=False,
+        language="en",
+    )
+
+    return result.get("text", "").strip()
+
+
+def listen_command(seconds: int = DEFAULT_SECONDS) -> str:
+    """
+    Record and transcribe one command.
+    """
+    with tempfile.NamedTemporaryFile(
+        prefix="jarvis_listen_",
+        suffix=".wav",
+        delete=False,
+    ) as tmp:
+        wav_path = Path(tmp.name)
+
+    try:
+        ok = record_wav(wav_path, seconds=seconds)
+
+        if not ok:
+            return ""
+
+        text = transcribe_file(wav_path)
+        print(f"[LISTEN] Heard: {text}")
+        return text
+
     finally:
-        if os.path.exists(raw_file):
-            os.remove(raw_file)
+        try:
+            wav_path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
-def transcribe_file(filename: str) -> str:
-    result = model.transcribe(filename, fp16=False, language="en")
-    return result["text"].strip().lower()
+def main() -> int:
+    seconds = DEFAULT_SECONDS
+
+    if len(sys.argv) > 1:
+        try:
+            seconds = int(sys.argv[1])
+        except ValueError:
+            print("Usage: python3 audio/listen.py [seconds]")
+            return 1
+
+    text = listen_command(seconds=seconds)
+
+    if text:
+        print(text)
+        return 0
+
+    print("[LISTEN] No speech detected.")
+    return 1
 
 
-def listen_command() -> str:
-    filename = "command.wav"
-
-    ok = record_wav(filename, 5)
-    if not ok:
-        return ""
-
-    text = transcribe_file(filename)
-    print(f"You said: {text}")
-    return text
+if __name__ == "__main__":
+    raise SystemExit(main())
