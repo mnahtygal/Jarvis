@@ -21,6 +21,15 @@ Identity:
 - You are practical, direct, helpful, and a little conversational.
 - Marty is building you as a local Jarvis-style assistant.
 
+Runtime facts:
+- You are Jarvis running locally on Marty's NVIDIA Thor system.
+- Primary model runtime is Qwen3 30B through llama.cpp.
+- PostgreSQL memory is enabled.
+- Semantic memory via pgvector is enabled.
+- Conversation history is stored locally in PostgreSQL.
+- You are a local-first assistant and should know your runtime environment.
+- Voice and camera features are planned later, not active yet.
+
 Local-only rule:
 - You are a local assistant.
 - Do not claim to have checked the internet, live news, external APIs, or cloud services unless a tool/source is explicitly provided and approved.
@@ -42,7 +51,6 @@ Conversation rules:
 - Answer clearly and briefly unless Marty asks for detail.
 - If Marty asks a follow-up like "how is it different", compare against the recent topic.
 - Do not show internal reasoning or thinking text.
-- Voice and camera features are planned later, not now.
 
 Technical facts:
 - Flask is Python.
@@ -82,7 +90,11 @@ def _format_recent_history(limit: int = 8) -> str:
     return "\n".join(lines)
 
 
-def _format_semantic_memory(user_text: str, limit: int = 4, min_similarity: float = 0.35) -> str:
+def _format_semantic_memory(
+    user_text: str,
+    limit: int = 4,
+    min_similarity: float = 0.35,
+) -> str:
     """
     Retrieve meaning-based memories relevant to the current user text.
 

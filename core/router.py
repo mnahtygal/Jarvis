@@ -53,11 +53,9 @@ def normalize_text_for_routing(command: str) -> str:
     """
     text = (command or "").lower().strip()
 
-    # Convert common punctuation to spaces so "hello, jarvis" matches "hello jarvis".
     translator = str.maketrans({char: " " for char in string.punctuation})
     text = text.translate(translator)
 
-    # Collapse repeated whitespace.
     text = " ".join(text.split())
 
     return text
@@ -216,6 +214,52 @@ def _try_natural_memory(command: str):
     return None
 
 
+def _is_runtime_identity_request(text: str) -> bool:
+    runtime_phrases = [
+        "what hardware are you running on",
+        "what are you running on",
+        "what system are you running on",
+        "what machine are you running on",
+        "what computer are you running on",
+        "what model are you using",
+        "what llm are you using",
+        "what ai model are you using",
+        "what is your runtime",
+        "what runtime are you using",
+        "where are you running",
+        "are you running on thor",
+        "are you on thor",
+        "what memory systems do you have",
+        "what memory system do you have",
+    ]
+
+    if text in runtime_phrases:
+        return True
+
+    if "hardware" in text and "running" in text:
+        return True
+
+    if "model" in text and ("using" in text or "running" in text):
+        return True
+
+    if "runtime" in text and ("using" in text or "running" in text):
+        return True
+
+    if "memory systems" in text or "memory system" in text:
+        return True
+
+    return False
+
+
+def get_runtime_identity_response() -> str:
+    return (
+        "I'm running locally on your NVIDIA Thor system using Qwen3 30B "
+        "through llama.cpp. My memory stack is PostgreSQL for exact memory "
+        "and conversation history, plus pgvector semantic memory for meaning-based recall. "
+        "Voice and camera are planned later, but not active yet."
+    )
+
+
 def _is_health_check_request(text: str) -> bool:
     health_phrases = [
         "jarvis health",
@@ -328,7 +372,6 @@ def _extract_after_prefix(command: str, prefix: str) -> str:
     if not normalized.startswith(normalized_prefix):
         return ""
 
-    # Best effort: remove common spoken/written prefix from original.
     candidates = [
         prefix,
         prefix.replace(":", ","),
@@ -342,7 +385,6 @@ def _extract_after_prefix(command: str, prefix: str) -> str:
         if lower_original.startswith(candidate_lower):
             return original[len(candidate):].strip(" :,.!?")
 
-    # Fallback using normalized word count.
     prefix_words = normalized_prefix.split()
     original_words = original.split()
     return " ".join(original_words[len(prefix_words):]).strip(" :,.!?")
@@ -353,6 +395,9 @@ def route(command: str) -> str:
 
     if not text:
         return "I didn't hear anything, Marty."
+
+    if _is_runtime_identity_request(text):
+        return get_runtime_identity_response()
 
     if text in ["semantic memory status", "semantic status", "pgvector status"]:
         return get_semantic_memory_status_response()
@@ -382,7 +427,6 @@ def route(command: str) -> str:
     if _is_docs_request(text):
         return get_docs_response()
 
-    # Freeform semantic memory commands.
     if text.startswith("remember this"):
         note = _extract_after_prefix(command, "remember this")
         return _store_semantic_note(note)
