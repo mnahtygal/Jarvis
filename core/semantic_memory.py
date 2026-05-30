@@ -8,6 +8,24 @@ Jarvis local-only rule:
 - Do not require Hugging Face tokens.
 - Load the embedding model from a local folder by default.
 - Run Hugging Face / Transformers libraries in offline mode.
+
+Current table expectation:
+
+    semantic_memories
+    - id integer primary key
+    - source_type text not null
+    - source_id text
+    - content text not null
+    - metadata jsonb default '{}'
+    - embedding vector(384)
+    - created_at timestamp
+    - updated_at timestamp
+
+Current local embedding model path:
+
+    ~/jarvis/models/embeddings/all-MiniLM-L6-v2
+
+This model produces 384-dimensional vectors, matching the current table.
 """
 
 from __future__ import annotations
@@ -46,14 +64,32 @@ SOURCE_TYPE_BOOSTS = {
     # Seed memories are curated/high-trust baseline facts.
     "seed": 0.15,
 
-    # Project/runtime facts are also high value for Jarvis identity and roadmap.
+    # Project/runtime facts are high-value Jarvis identity and roadmap memories.
     "project": 0.10,
     "project_note": 0.10,
     "runtime": 0.10,
 
-    # User notes are useful but often noisier/freeform.
+    # User notes are useful but can be noisy/freeform.
     "user_note": 0.00,
     "manual": 0.00,
+}
+
+
+CATEGORY_BOOSTS = {
+    # These categories are useful for reasoning and should get a small lift.
+    "preference": 0.08,
+    "project": 0.08,
+    "runtime": 0.08,
+    "hardware": 0.06,
+    "cruise": 0.06,
+    "work": 0.04,
+    "personal": 0.04,
+
+    # Test memories should be de-prioritized so they do not pollute answers.
+    "test": -0.05,
+
+    # Unknown is neutral.
+    "unknown": 0.00,
 }
 
 
@@ -147,6 +183,207 @@ def ensure_semantic_memory_schema() -> None:
         conn.commit()
 
 
+def infer_memory_category(content: str, source_type: str = "") -> str:
+    """
+    Infer a simple semantic memory category.
+
+    This is intentionally conservative and does not require a database schema change.
+    Categories are stored in metadata when new memories are added, but can also be
+    inferred at search time for older rows.
+    """
+    text = f"{source_type} {content}".lower()
+
+    # Test/dev notes should be easy to de-prioritize.
+    if any(
+        phrase in text
+        for phrase in [
+            "test",
+            "colon works",
+            "save colon works",
+            "note colon works",
+            "duplicate detection",
+        ]
+    ):
+        return "test"
+
+    # Runtime/hardware facts.
+    if any(
+        word in text
+        for word in [
+            "thor",
+            "cuda",
+            "llama.cpp",
+            "qwen",
+            "hardware",
+            "gpu",
+            "jetson",
+            "nvidia",
+        ]
+    ):
+        return "hardware"
+
+    # Jarvis project direction/capability facts.
+    if any(
+        phrase in text
+        for phrase in [
+            "jarvis",
+            "local ai assistant",
+            "local-first",
+            "voice",
+            "vision",
+            "semantic memory",
+            "pgvector",
+            "conversation history",
+            "manufacturing prototype",
+        ]
+    ):
+        return "project"
+
+    # Cruise/personal travel facts.
+    if any(
+        phrase in text
+        for phrase in [
+            "cruise",
+            "holland america",
+            "eurodam",
+            "ship",
+            "kelly",
+            "princess",
+            "norwegian",
+        ]
+    ):
+        return "cruise"
+
+    # Preferences / technical preferences.
+    if any(
+        phrase in text
+        for phrase in [
+            "sql server",
+            "databricks",
+            "database",
+            "reporting",
+            "prefer",
+            "preference",
+        ]
+    ):
+        return "preference"
+
+    # Work/manufacturing context.
+    if any(
+        phrase in text
+        for phrase in [
+            "gm",
+            "work",
+            "manufacturing",
+            "vlive",
+            "reporting workload",
+            "indexed relational",
+        ]
+    ):
+        return "work"
+
+    # Personal profile facts.
+    if any(
+        phrase in text
+        for phrase in [
+            "wife",
+            "favorite color",
+            "color",
+            "taco",
+            "drink",
+        ]
+    ):
+        return "personal"
+
+    return "unknown"
+
+
+def infer_memory_tags(content: str, source_type: str = "") -> List[str]:
+    """
+    Infer simple tags for semantic memory metadata.
+
+    Tags are intentionally lowercase/simple so they stay easy to inspect.
+    """
+    text = f"{source_type} {content}".lower()
+    tags: List[str] = []
+
+    tag_rules = {
+        "jarvis": ["jarvis"],
+        "thor": ["thor"],
+        "nvidia": ["nvidia"],
+        "cuda": ["cuda"],
+        "qwen": ["qwen"],
+        "llama.cpp": ["llama.cpp"],
+        "postgresql": ["postgresql"],
+        "postgres": ["postgresql"],
+        "pgvector": ["pgvector"],
+        "semantic memory": ["semantic-memory"],
+        "conversation history": ["conversation-history"],
+        "voice": ["voice"],
+        "vision": ["vision"],
+        "camera": ["camera"],
+        "manufacturing": ["manufacturing"],
+        "prototype": ["prototype"],
+        "sql server": ["sql-server"],
+        "databricks": ["databricks"],
+        "database": ["database"],
+        "reporting": ["reporting"],
+        "cruise": ["cruise"],
+        "holland america": ["holland-america"],
+        "eurodam": ["eurodam"],
+        "kelly": ["kelly"],
+        "gm": ["gm"],
+        "vlive": ["vlive"],
+        "test": ["test"],
+    }
+
+    for phrase, phrase_tags in tag_rules.items():
+        if phrase in text:
+            for tag in phrase_tags:
+                if tag not in tags:
+                    tags.append(tag)
+
+    return tags
+
+
+def get_source_boost(source_type: str) -> float:
+    """
+    Return the trust/quality boost for a semantic memory source type.
+    """
+    return float(SOURCE_TYPE_BOOSTS.get((source_type or "").strip(), 0.0))
+
+
+def get_category_boost(category: str) -> float:
+    """
+    Return the ranking boost/penalty for a memory category.
+    """
+    return float(CATEGORY_BOOSTS.get((category or "unknown").strip(), 0.0))
+
+
+def normalize_metadata(
+    content: str,
+    source_type: str,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Ensure semantic memory metadata has a category and tags list.
+
+    Existing caller-provided metadata wins, but missing fields are inferred.
+    """
+    metadata_dict: Dict[str, Any] = dict(metadata or {})
+
+    if "category" not in metadata_dict or not metadata_dict.get("category"):
+        metadata_dict["category"] = infer_memory_category(content, source_type)
+
+    if "tags" not in metadata_dict or metadata_dict.get("tags") is None:
+        metadata_dict["tags"] = infer_memory_tags(content, source_type)
+
+    if not isinstance(metadata_dict.get("tags"), list):
+        metadata_dict["tags"] = [str(metadata_dict["tags"])]
+
+    return metadata_dict
+
+
 def add_semantic_memory(
     content: str,
     source_type: str = "manual",
@@ -165,7 +402,13 @@ def add_semantic_memory(
 
     embedding = get_embedding(cleaned)
     embedding_text = vector_to_pgvector(embedding)
-    metadata_json = json.dumps(metadata or {})
+
+    metadata_dict = normalize_metadata(
+        content=cleaned,
+        source_type=source_type,
+        metadata=metadata,
+    )
+    metadata_json = json.dumps(metadata_dict)
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -199,13 +442,6 @@ def add_semantic_memory(
     return int(memory_id)
 
 
-def get_source_boost(source_type: str) -> float:
-    """
-    Return the trust/quality boost for a semantic memory source type.
-    """
-    return float(SOURCE_TYPE_BOOSTS.get((source_type or "").strip(), 0.0))
-
-
 def search_semantic_memories(
     query: str,
     limit: int = 5,
@@ -219,7 +455,8 @@ def search_semantic_memories(
     Returns:
     - similarity: raw vector similarity
     - source_boost: source trust boost
-    - weighted_similarity: similarity + source_boost
+    - category_boost: category relevance/trust boost
+    - weighted_similarity: similarity + source_boost + category_boost
 
     Results are returned in weighted_similarity order.
     """
@@ -233,7 +470,7 @@ def search_semantic_memories(
     query_embedding = get_embedding(cleaned)
     query_vector = vector_to_pgvector(query_embedding)
 
-    # Pull more than the final limit so source weighting has room to reorder.
+    # Pull more than final limit so weighting has room to reorder.
     search_limit = max(limit * 3, limit, 10)
 
     if source_type:
@@ -285,7 +522,21 @@ def search_semantic_memories(
 
                 similarity = 1.0 - distance
                 source_boost = get_source_boost(row_source_type)
-                weighted_similarity = similarity + source_boost
+
+                category = metadata.get("category") or infer_memory_category(
+                    content,
+                    row_source_type,
+                )
+                tags = metadata.get("tags") or infer_memory_tags(
+                    content,
+                    row_source_type,
+                )
+
+                if not isinstance(tags, list):
+                    tags = [str(tags)]
+
+                category_boost = get_category_boost(category)
+                weighted_similarity = similarity + source_boost + category_boost
 
                 results.append(
                     {
@@ -294,9 +545,12 @@ def search_semantic_memories(
                         "source_id": source_id,
                         "content": content,
                         "metadata": metadata,
+                        "category": category,
+                        "tags": tags,
                         "distance": distance,
                         "similarity": similarity,
                         "source_boost": source_boost,
+                        "category_boost": category_boost,
                         "weighted_similarity": weighted_similarity,
                         "created_at": created_at,
                     }
@@ -340,15 +594,26 @@ def format_semantic_results(results: List[Dict[str, Any]]) -> str:
         similarity = float(item.get("similarity", 0.0))
         weighted_similarity = float(item.get("weighted_similarity", similarity))
         source_boost = float(item.get("source_boost", 0.0))
+        category_boost = float(item.get("category_boost", 0.0))
+
         content = item.get("content", "").strip()
         source_type = item.get("source_type", "unknown")
+        category = item.get("category", "unknown")
+        tags = item.get("tags", [])
         memory_id = item.get("id", "?")
 
+        if not isinstance(tags, list):
+            tags = [str(tags)]
+
+        tags_text = ",".join(tags) if tags else "none"
+
         lines.append(
-            f"- #{memory_id} [{source_type}] "
+            f"- #{memory_id} [{source_type}/{category}] "
             f"similarity={similarity:.3f} "
-            f"boost={source_boost:.2f} "
-            f"weighted={weighted_similarity:.3f}: {content}"
+            f"source_boost={source_boost:.2f} "
+            f"category_boost={category_boost:.2f} "
+            f"weighted={weighted_similarity:.3f} "
+            f"tags={tags_text}: {content}"
         )
 
     return "\n".join(lines)
