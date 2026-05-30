@@ -93,7 +93,7 @@ def _format_recent_history(limit: int = 8) -> str:
 def _format_semantic_memory(
     user_text: str,
     limit: int = 4,
-    min_similarity: float = 0.35,
+    min_similarity: float = 0.50,
 ) -> str:
     """
     Retrieve meaning-based memories relevant to the current user text.
