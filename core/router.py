@@ -260,6 +260,44 @@ def get_runtime_identity_response() -> str:
     )
 
 
+def _is_jarvis_goal_request(text: str) -> bool:
+    goal_phrases = [
+        "what is the long term goal for jarvis",
+        "what is the long term goal of jarvis",
+        "what is jarvis long term goal",
+        "what is jarvis goal",
+        "what are jarvis goals",
+        "where is jarvis going",
+        "what are we building jarvis into",
+        "what are we building jarvis for",
+        "what is the goal for jarvis",
+        "what is the goal of jarvis",
+    ]
+
+    if text in goal_phrases:
+        return True
+
+    if "jarvis" in text and "goal" in text:
+        return True
+
+    if "jarvis" in text and "long term" in text:
+        return True
+
+    if "jarvis" in text and "building" in text:
+        return True
+
+    return False
+
+
+def get_jarvis_goal_response() -> str:
+    return (
+        "The long-term goal for Jarvis is to become your local-first AI assistant: "
+        "running on Thor, using local models through llama.cpp, backed by PostgreSQL "
+        "and pgvector memory, and eventually adding voice and camera support. "
+        "Longer term, Jarvis could grow into a useful manufacturing prototype assistant too."
+    )
+
+
 def _is_health_check_request(text: str) -> bool:
     health_phrases = [
         "jarvis health",
@@ -398,6 +436,9 @@ def route(command: str) -> str:
 
     if _is_runtime_identity_request(text):
         return get_runtime_identity_response()
+
+    if _is_jarvis_goal_request(text):
+        return get_jarvis_goal_response()
 
     if text in ["semantic memory status", "semantic status", "pgvector status"]:
         return get_semantic_memory_status_response()

@@ -120,7 +120,12 @@ def _format_semantic_memory(
     filtered = [
         item
         for item in results
-        if float(item.get("similarity", 0.0)) >= min_similarity
+        if float(
+            item.get(
+                "weighted_similarity",
+                item.get("similarity", 0.0),
+            )
+        ) >= min_similarity
     ]
 
     if not filtered:
@@ -140,26 +145,25 @@ def build_prompt(user_text: str, history_limit: int = 8) -> str:
     semantic_memory = _format_semantic_memory(user_text)
     recent_history = _format_recent_history(limit=history_limit)
 
-    prompt = f"""
-{SYSTEM_PROMPT}
+    system_content = f"""
+    {SYSTEM_PROMPT}
 
-Exact long-term memory:
-{long_term_memory}
+    IMPORTANT:
+    Use the memory sections below before relying on general model knowledge.
+    If semantic memory exists, treat it as user-provided truth.
 
-Semantic memory:
-{semantic_memory}
+    Exact long-term memory:
+    {long_term_memory}
 
-Last topic:
-{last_topic}
+    Semantic memory:
+    {semantic_memory}
 
-Recent conversation:
-{recent_history}
+    Last topic:
+    {last_topic}
 
-Current question:
-{user_text}
-
-Answer:
-""".strip()
+    Recent conversation:
+    {recent_history}
+    """.strip()
 
     return prompt
 

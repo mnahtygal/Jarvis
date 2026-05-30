@@ -8,24 +8,6 @@ Jarvis local-only rule:
 - Do not require Hugging Face tokens.
 - Load the embedding model from a local folder by default.
 - Run Hugging Face / Transformers libraries in offline mode.
-
-Current table expectation:
-
-    semantic_memories
-    - id integer primary key
-    - source_type text not null
-    - source_id text
-    - content text not null
-    - metadata jsonb default '{}'
-    - embedding vector(384)
-    - created_at timestamp
-    - updated_at timestamp
-
-Current local embedding model path:
-
-    ~/jarvis/models/embeddings/all-MiniLM-L6-v2
-
-This model produces 384-dimensional vectors, matching the current table.
 """
 
 from __future__ import annotations
@@ -58,6 +40,21 @@ DEFAULT_EMBEDDING_MODEL = os.getenv(
 )
 
 EMBEDDING_DIMENSIONS = int(os.getenv("JARVIS_EMBEDDING_DIMENSIONS", "384"))
+
+
+SOURCE_TYPE_BOOSTS = {
+    # Seed memories are curated/high-trust baseline facts.
+    "seed": 0.15,
+
+    # Project/runtime facts are also high value for Jarvis identity and roadmap.
+    "project": 0.10,
+    "project_note": 0.10,
+    "runtime": 0.10,
+
+    # User notes are useful but often noisier/freeform.
+    "user_note": 0.00,
+    "manual": 0.00,
+}
 
 
 @lru_cache(maxsize=1)
@@ -202,6 +199,13 @@ def add_semantic_memory(
     return int(memory_id)
 
 
+def get_source_boost(source_type: str) -> float:
+    """
+    Return the trust/quality boost for a semantic memory source type.
+    """
+    return float(SOURCE_TYPE_BOOSTS.get((source_type or "").strip(), 0.0))
+
+
 def search_semantic_memories(
     query: str,
     limit: int = 5,
@@ -210,7 +214,14 @@ def search_semantic_memories(
     """
     Search semantic memories by meaning.
 
-    Uses cosine distance because embeddings are normalized.
+    Uses pgvector cosine distance because embeddings are normalized.
+
+    Returns:
+    - similarity: raw vector similarity
+    - source_boost: source trust boost
+    - weighted_similarity: similarity + source_boost
+
+    Results are returned in weighted_similarity order.
     """
     cleaned = (query or "").strip()
 
@@ -221,6 +232,9 @@ def search_semantic_memories(
 
     query_embedding = get_embedding(cleaned)
     query_vector = vector_to_pgvector(query_embedding)
+
+    # Pull more than the final limit so source weighting has room to reorder.
+    search_limit = max(limit * 3, limit, 10)
 
     if source_type:
         sql = """
@@ -237,7 +251,7 @@ def search_semantic_memories(
             ORDER BY embedding <=> %s::vector
             LIMIT %s;
         """
-        query_params = [query_vector, source_type, query_vector, limit]
+        query_params = [query_vector, source_type, query_vector, search_limit]
     else:
         sql = """
             SELECT
@@ -252,7 +266,7 @@ def search_semantic_memories(
             ORDER BY embedding <=> %s::vector
             LIMIT %s;
         """
-        query_params = [query_vector, query_vector, limit]
+        query_params = [query_vector, query_vector, search_limit]
 
     results: List[Dict[str, Any]] = []
 
@@ -261,23 +275,42 @@ def search_semantic_memories(
             cur.execute(sql, query_params)
 
             for row in cur.fetchall():
+                memory_id = row[0]
+                row_source_type = row[1]
+                source_id = row[2]
+                content = row[3]
+                metadata = row[4] or {}
                 distance = float(row[5])
+                created_at = row[6]
+
                 similarity = 1.0 - distance
+                source_boost = get_source_boost(row_source_type)
+                weighted_similarity = similarity + source_boost
 
                 results.append(
                     {
-                        "id": row[0],
-                        "source_type": row[1],
-                        "source_id": row[2],
-                        "content": row[3],
-                        "metadata": row[4] or {},
+                        "id": memory_id,
+                        "source_type": row_source_type,
+                        "source_id": source_id,
+                        "content": content,
+                        "metadata": metadata,
                         "distance": distance,
                         "similarity": similarity,
-                        "created_at": row[6],
+                        "source_boost": source_boost,
+                        "weighted_similarity": weighted_similarity,
+                        "created_at": created_at,
                     }
                 )
 
-    return results
+    results.sort(
+        key=lambda item: item.get(
+            "weighted_similarity",
+            item.get("similarity", 0.0),
+        ),
+        reverse=True,
+    )
+
+    return results[:limit]
 
 
 def count_semantic_memories() -> int:
@@ -304,13 +337,18 @@ def format_semantic_results(results: List[Dict[str, Any]]) -> str:
     lines = []
 
     for item in results:
-        similarity = item.get("similarity", 0.0)
+        similarity = float(item.get("similarity", 0.0))
+        weighted_similarity = float(item.get("weighted_similarity", similarity))
+        source_boost = float(item.get("source_boost", 0.0))
         content = item.get("content", "").strip()
         source_type = item.get("source_type", "unknown")
         memory_id = item.get("id", "?")
 
         lines.append(
-            f"- #{memory_id} [{source_type}] similarity={similarity:.3f}: {content}"
+            f"- #{memory_id} [{source_type}] "
+            f"similarity={similarity:.3f} "
+            f"boost={source_boost:.2f} "
+            f"weighted={weighted_similarity:.3f}: {content}"
         )
 
     return "\n".join(lines)
