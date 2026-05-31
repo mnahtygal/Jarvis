@@ -17,6 +17,13 @@ from skills.semantic_memory_skill import (
     get_semantic_memory_status_response,
     get_semantic_search_response,
 )
+from skills.runtime_skill import (
+    get_jarvis_goal_response,
+    get_memory_stack_response,
+    get_model_response,
+    get_platform_response,
+    get_runtime_identity_response,
+)
 
 from core.memory import (
     remember,
@@ -218,6 +225,7 @@ def _is_runtime_identity_request(text: str) -> bool:
     runtime_phrases = [
         "what hardware are you running on",
         "what are you running on",
+        "what platform are you running on",
         "what system are you running on",
         "what machine are you running on",
         "what computer are you running on",
@@ -239,7 +247,13 @@ def _is_runtime_identity_request(text: str) -> bool:
     if "hardware" in text and "running" in text:
         return True
 
+    if "platform" in text and "running" in text:
+        return True
+
     if "model" in text and ("using" in text or "running" in text):
+        return True
+
+    if "llm" in text and ("using" in text or "running" in text):
         return True
 
     if "runtime" in text and ("using" in text or "running" in text):
@@ -249,15 +263,6 @@ def _is_runtime_identity_request(text: str) -> bool:
         return True
 
     return False
-
-
-def get_runtime_identity_response() -> str:
-    return (
-        "I'm running locally on your NVIDIA Thor system using Qwen3 30B "
-        "through llama.cpp. My memory stack is PostgreSQL for exact memory "
-        "and conversation history, plus pgvector semantic memory for meaning-based recall. "
-        "Voice and camera are planned later, but not active yet."
-    )
 
 
 def _is_jarvis_goal_request(text: str) -> bool:
@@ -287,15 +292,6 @@ def _is_jarvis_goal_request(text: str) -> bool:
         return True
 
     return False
-
-
-def get_jarvis_goal_response() -> str:
-    return (
-        "The long-term goal for Jarvis is to become your local-first AI assistant: "
-        "running on Thor, using local models through llama.cpp, backed by PostgreSQL "
-        "and pgvector memory, and eventually adding voice and camera support. "
-        "Longer term, Jarvis could grow into a useful manufacturing prototype assistant too."
-    )
 
 
 def _is_health_check_request(text: str) -> bool:
@@ -435,6 +431,21 @@ def route(command: str) -> str:
         return "I didn't hear anything, Marty."
 
     if _is_runtime_identity_request(text):
+        if "memory system" in text or "memory systems" in text:
+            return get_memory_stack_response()
+
+        if "model" in text or "llm" in text:
+            return get_model_response()
+
+        if (
+            "hardware" in text
+            or "system" in text
+            or "machine" in text
+            or "computer" in text
+            or "platform" in text
+        ):
+            return get_platform_response()
+
         return get_runtime_identity_response()
 
     if _is_jarvis_goal_request(text):
