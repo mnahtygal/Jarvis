@@ -14,6 +14,8 @@ from skills.docs_skill import get_docs_response
 from skills.brain_status_skill import get_brain_status_response
 from skills.semantic_memory_skill import (
     get_recent_semantic_memories_response,
+    get_semantic_categories_response,
+    get_semantic_memories_by_category_response,
     get_semantic_memory_status_response,
     get_semantic_search_response,
 )
@@ -509,6 +511,32 @@ def route(command: str) -> str:
 
     if text in ["show semantic memories", "show semantic memory", "list semantic memories"]:
         return get_recent_semantic_memories_response()
+        
+    if text in [
+        "show memory categories",
+        "show semantic categories",
+        "memory categories",
+        "semantic categories",
+    ]:
+        return get_semantic_categories_response()
+
+    category_commands = {
+        "show cruise memories": "cruise",
+        "show cruise memory": "cruise",
+        "show hardware memories": "hardware",
+        "show hardware memory": "hardware",
+        "show preference memories": "preference",
+        "show preference memory": "preference",
+        "show project memories": "project",
+        "show project memory": "project",
+        "show test memories": "test",
+        "show test memory": "test",
+        "show work memories": "work",
+        "show work memory": "work",
+    }
+
+    if text in category_commands:
+        return get_semantic_memories_by_category_response(category_commands[text])   
 
     if text.startswith("semantic search"):
         query = _extract_after_prefix(command, "semantic search")

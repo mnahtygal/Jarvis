@@ -23,6 +23,11 @@ TEST_PROMPTS = [
     "what do you remember",
     "semantic memory status",
     "brain status",
+    "show memory categories",
+    "show cruise memories",
+    "show project memories",
+    "show test memories",
+    "show work memories",
 ]
 
 
