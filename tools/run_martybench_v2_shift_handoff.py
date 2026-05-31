@@ -89,6 +89,19 @@ For the basic, messy, and conflict variants, memory/context should normally be l
 """.strip()
 
 
+BENCHMARK_MEMORY_CONTEXT = """
+Synthetic benchmark memory context:
+
+- FP-14 scanner issues should always be checked against missed traveler-label events after maintenance adjustments.
+- Moisture-seal rechecks should be highlighted as quality risks, not treated as normal downtime.
+- Missing firmware verification should remain open until a formal verification record is attached.
+
+Use this synthetic memory only as supporting benchmark context.
+Do not treat it as proof that anything occurred in the current shift notes.
+Do not mix this synthetic benchmark memory with real Jarvis personal memory or prior conversation.
+""".strip()
+
+
 RAW_SYSTEM_PROMPT = (
     "You are Jarvis, Marty's local manufacturing assistant prototype. "
     "Use only the benchmark prompt content. Do not use saved personal memory, "
@@ -112,9 +125,22 @@ def load_variant(variant: str) -> Path:
     return path
 
 
-def build_prompt(variant: str, notes_text: str) -> str:
+def build_prompt(
+    variant: str,
+    notes_text: str,
+    include_benchmark_memory: bool = False,
+) -> str:
+    memory_section = ""
+
+    if include_benchmark_memory:
+        memory_section = f"""
+
+{BENCHMARK_MEMORY_CONTEXT}
+"""
+
     return f"""
 {BENCHMARK_INSTRUCTIONS}
+{memory_section}
 
 Benchmark variant: {variant}
 
@@ -164,10 +190,17 @@ Notes:
     (run_dir / "human_scoring_template.md").write_text(template, encoding="utf-8")
 
 
-def run_benchmark(variant: str) -> Path:
+def run_benchmark(
+    variant: str,
+    include_benchmark_memory: bool = False,
+) -> Path:
     input_path = load_variant(variant)
     notes_text = input_path.read_text(encoding="utf-8")
-    prompt = build_prompt(variant, notes_text)
+    prompt = build_prompt(
+        variant=variant,
+        notes_text=notes_text,
+        include_benchmark_memory=include_benchmark_memory,
+    )
 
     run_id = make_run_id(variant)
     run_dir = RESULTS_DIR / run_id
@@ -195,6 +228,7 @@ def run_benchmark(variant: str) -> Path:
     metadata = {
         "run_id": run_id,
         "variant": variant,
+        "include_benchmark_memory": include_benchmark_memory,
         "input_file": str(input_path.relative_to(PROJECT_ROOT)),
         "output_file": str(output_path.relative_to(PROJECT_ROOT)),
         "started_at": started_at,
@@ -227,6 +261,12 @@ def parse_args() -> argparse.Namespace:
         help="Benchmark variant to run.",
     )
 
+    parser.add_argument(
+        "--include-benchmark-memory",
+        action="store_true",
+        help="Inject synthetic benchmark memory context into the prompt.",
+    )
+
     return parser.parse_args()
 
 
@@ -237,8 +277,12 @@ def main() -> None:
     print(" MartyBench v2 - Shift Handoff Runner")
     print("========================================")
     print(f"Variant: {args.variant}")
+    print(f"Include benchmark memory: {args.include_benchmark_memory}")
 
-    run_dir = run_benchmark(args.variant)
+    run_dir = run_benchmark(
+        variant=args.variant,
+        include_benchmark_memory=args.include_benchmark_memory,
+    )
 
     print()
     print("Run complete.")
