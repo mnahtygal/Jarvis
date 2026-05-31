@@ -76,11 +76,20 @@ Brief summary of the shift.
 
 ## Memory / Context Used
 
-- Exact memory used:
-- Semantic memory used:
-- Recent conversation used:
+Use this exact meaning for the memory/context fields:
 
-For the basic, messy, and conflict variants, memory/context should normally be listed as none unless it is explicitly provided inside the benchmark prompt.
+- Exact memory used: None. This benchmark runner does not provide Jarvis exact long-term memory.
+- Semantic memory used: None unless synthetic benchmark memory is explicitly provided in this prompt.
+- Recent conversation used: None. This benchmark runner does not provide recent conversation history.
+
+If synthetic benchmark memory is provided, list it only under Semantic memory used as:
+"Synthetic benchmark memory context provided in the prompt."
+
+Do not list synthetic benchmark memory as exact memory.
+Do not list synthetic benchmark memory as recent conversation.
+Do not mention real Jarvis personal memory, project memory, or prior chat history.
+
+For the basic, messy, and conflict variants, memory/context should normally be listed as none.
 
 ## Safety Notes
 
@@ -99,6 +108,7 @@ Synthetic benchmark memory context:
 Use this synthetic memory only as supporting benchmark context.
 Do not treat it as proof that anything occurred in the current shift notes.
 Do not mix this synthetic benchmark memory with real Jarvis personal memory or prior conversation.
+When reporting Memory / Context Used, classify this only as synthetic benchmark memory under Semantic memory used.
 """.strip()
 
 
@@ -106,7 +116,9 @@ RAW_SYSTEM_PROMPT = (
     "You are Jarvis, Marty's local manufacturing assistant prototype. "
     "Use only the benchmark prompt content. Do not use saved personal memory, "
     "prior conversation, or unrelated Jarvis project context. "
-    "Do not invent facts. Keep all recommendations human-in-the-loop."
+    "Do not invent facts. Keep all recommendations human-in-the-loop. "
+    "If synthetic benchmark memory is provided, report it only as semantic benchmark context, "
+    "not as exact memory or recent conversation."
 )
 
 
