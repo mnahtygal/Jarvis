@@ -60,7 +60,113 @@ The Xavier remains useful as:
 - A model transfer/source machine
 
 ---
+---
 
+## Current Brain Polish Status
+
+As of the Sunday polish pass, Jarvis has a stable local brain foundation on Thor.
+
+Completed brain-quality work:
+
+- Runtime identity refactored into `skills/runtime_skill.py`
+- Deterministic runtime responses added for:
+  - hardware/platform
+  - model/runtime
+  - memory stack
+  - Jarvis long-term goal
+- Exact-memory routing improved in `core/router.py`
+  - common personal facts now answer without LLM fallback
+  - examples:
+    - preferred database: SQL Server
+    - favorite ship: Eurodam
+    - wife's name: Kelly
+    - workplace: GM
+- Regression test runner added:
+  - `tools/regression_test_brain.py`
+- Brain regression test currently passes.
+
+---
+
+## Memory Architecture
+
+Jarvis now uses three local memory layers:
+
+1. Exact long-term memory
+   - Stored in PostgreSQL
+   - Managed by `core/memory.py`
+   - Used for direct known facts about Marty
+
+2. Conversation history
+   - Stored in PostgreSQL table `conversation_history`
+   - Managed by `core/session.py`
+   - Used for recent context and follow-up awareness
+
+3. Semantic memory
+   - Stored in PostgreSQL with pgvector
+   - Managed by `core/semantic_memory.py`
+   - Uses local embeddings from:
+
+        models/embeddings/all-MiniLM-L6-v2
+
+   - Runs fully offline
+   - No external Hugging Face/API tokens required
+
+Semantic memory now supports:
+
+- source weighting
+- category inference
+- tag inference
+- weighted similarity ranking
+- weighted context filtering
+- category/tag display in debug output
+
+Normalized semantic categories:
+
+- cruise
+- hardware
+- preference
+- project
+- test
+- work
+
+Current semantic memory cleanup approach:
+
+- Test/dev rows are kept for audit/debugging
+- Test rows are categorized as `test`
+- Normal context is no longer polluted by test rows
+- No semantic memories were deleted during cleanup
+- Existing embeddings were preserved
+
+---
+
+## Current Regression Test
+
+Run:
+
+    python tools/regression_test_brain.py
+
+Current regression prompts include:
+
+- what hardware are you running on
+- what model are you using
+- what memory systems do you have
+- what is the long term goal for Jarvis
+- what database does Marty prefer
+- what cruise ship does Marty like
+- what is my wife's name
+- where do I work
+- what do you remember
+- semantic memory status
+- brain status
+
+Expected behavior:
+
+- Runtime/project identity questions answer deterministically
+- Known exact-memory facts avoid LLM fallback
+- Semantic memory status confirms local/offline embedding model
+- Brain status reports Thor / Qwen3 30B / llama.cpp as ready
+
+---
 ## Current Jarvis Architecture
 
     User Input
@@ -109,6 +215,7 @@ The Xavier remains useful as:
     │   ├── system_skill.py
     │   ├── time_skill.py
     │   └── version_skill.py
+    │   └── runtime_skill.py
     ├── audio/
     │   ├── listen.py
     │   └── speak.py
@@ -116,6 +223,7 @@ The Xavier remains useful as:
     │   ├── create_semantic_memory_table.py
     │   ├── create_session_state_table.py
     │   └── health_check.py
+    │   └── regression_test_brain.py
     ├── docs/
     │   ├── JARVIS_SYSTEM_DOCUMENTATION.md
     │   ├── early_sessions.md
@@ -153,9 +261,12 @@ Current routing areas include:
 - Greetings
 - Time/date
 - System status
-- Memory commands
+- Exact memory commands
+- Exact-memory direct answers for common known facts
 - Documentation commands
 - Health checks
+- Runtime/project identity routing
+- Semantic memory commands
 - LLM fallback
 
 ### core/db.py
@@ -207,10 +318,25 @@ Context assembler for Jarvis.
 
 Purpose:
 
-- Combine memory facts
+- Combine exact long-term memory
 - Combine recent conversation history
-- Prepare context for LLM prompts
-- Eventually support semantic memory and RAG context
+- Retrieve relevant pgvector semantic memory
+- Filter semantic memory using weighted similarity
+- Build OpenAI-compatible chat messages for llama.cpp
+- Provide debug context summaries
+
+### skills/runtime_skill.py
+
+Deterministic runtime and project identity skill.
+
+Current responses include:
+
+- Current platform / hardware
+- Current model runtime
+- Current memory stack
+- Jarvis long-term project goal
+
+This keeps known Jarvis identity questions out of the LLM fallback path.
 
 ---
 
