@@ -62,7 +62,7 @@ def text():
     try:
         data = request.get_json(silent=True) or {}
         command = (data.get("command") or "").strip()
-        use_voice = bool(data.get("use_voice", True))
+        use_voice = bool(data.get("use_voice", False))
 
         if not command:
             return jsonify({

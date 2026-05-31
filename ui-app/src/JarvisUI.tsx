@@ -238,7 +238,7 @@ export default function JarvisUI() {
         },
         body: JSON.stringify({
           command: trimmed,
-          use_voice: voiceEnabled,
+          use_voice: false,
         }),
       });
 
