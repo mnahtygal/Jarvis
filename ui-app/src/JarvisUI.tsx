@@ -169,6 +169,43 @@ export default function JarvisUI() {
     setLogs((prev) => [...entries, ...prev]);
   };
 
+  const quickCommands = [
+    "brain status",
+    "semantic memory status",
+    "show memory categories",
+    "show cruise memories",
+    "show project memories",
+    "show work memories",
+  ];
+
+  const runQuickCommand = async (quickCommand: string) => {
+    if (listening || processing) return;
+
+    setProcessing(true);
+    prependLogs([`You: ${quickCommand}`]);
+
+    try {
+      const res = await fetch(`${apiBase}/text`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          command: quickCommand,
+          use_voice: false,
+        }),
+      });
+
+      const data: AskResponse = await res.json();
+      prependLogs([`Jarvis: ${data.response || "(no response)"}`]);
+    } catch (error) {
+      console.error(error);
+      prependLogs([`Failed to run quick command: ${quickCommand}`]);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const checkApi = async () => {
     try {
       const res = await fetch(`${apiBase}/health`);
@@ -346,6 +383,27 @@ export default function JarvisUI() {
                 label="Refresh"
                 icon={<RefreshCw size={16} />}
               />
+            </div>
+
+            <div style={{ marginTop: 24 }}>
+              <div style={{ marginBottom: 10, opacity: 0.85 }}>Dashboard quick commands</div>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 10,
+                }}
+              >
+                {quickCommands.map((quickCommand) => (
+                  <ControlButton
+                    key={quickCommand}
+                    onClick={() => runQuickCommand(quickCommand)}
+                    disabled={listening || processing}
+                    label={quickCommand}
+                    icon={<MessageSquare size={16} />}
+                  />
+                ))}
+              </div>
             </div>
 
             <div style={{ marginTop: 24 }}>
