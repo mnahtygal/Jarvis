@@ -20,3 +20,6 @@ ui-app/dist/
 
 # System
 .DS_Store
+
+# MartyBench generated outputs
+benchmarks/results/
