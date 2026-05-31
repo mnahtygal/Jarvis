@@ -1,290 +1,446 @@
-## 🚀 Quick Start
+# Jarvis
+
+Jarvis is Marty's local-first AI assistant project.
+
+It runs on local hardware, uses local model inference, stores memory in PostgreSQL, and is being built toward a modular Jarvis-style assistant with future voice and vision support.
+
+## Current Status
+
+Jarvis is currently running on the NVIDIA Jetson AGX Thor Developer Kit as the primary development and inference platform.
+
+Current brain foundation:
+
+- Local inference through `llama.cpp`
+- Primary model: `Qwen3-30B-A3B-Q4_K_M.gguf`
+- Ollama available as fallback
+- PostgreSQL exact long-term memory
+- PostgreSQL conversation history
+- pgvector semantic memory
+- Local/offline MiniLM embeddings
+- Runtime/project identity skill
+- Direct exact-memory routing for common known facts
+- Weighted semantic memory ranking
+- Brain regression test runner
+
+Voice and camera are intentionally later phases.
+
+---
+
+## Quick Start
 
 ```bash
 cd ~/jarvis
-python3 main.py
+source .venv/bin/activate
+python testbrain.py
+```
 
-# 🤖 Jarvis Project — Build Log & Architecture (Phase 1 Complete)
+Run the brain regression test:
 
-**Author:** Marty
-**Platform:** NVIDIA Jetson
-**Goal:** Build a local, modular, voice-capable AI assistant with persistent memory
+```bash
+python tools/regression_test_brain.py
+```
+
+Run health checks:
+
+```bash
+./scripts/health_check.sh
+```
+
+Start the llama.cpp server if needed:
+
+```bash
+./scripts/start_jarvis_llama_server.sh
+```
+
+Check Jarvis status:
+
+```bash
+./scripts/status_jarvis.sh
+```
 
 ---
 
-# 🧠 Core Architecture
+## Current Architecture
 
+```text
+User input
+  ↓
+testbrain.py / scripts / API / UI
+  ↓
+core.brain.think()
+  ↓
+core.router.route()
+  ↓
+Skill handler, exact-memory direct answer, or LLM fallback
+  ↓
+core.context.build_messages()
+  ↓
+llama.cpp / Qwen3 30B
+  ↓
+Jarvis response
 ```
-Input → Brain → Router → Skills → Memory → LLM → Response
-```
 
-### Components
+Not every request reaches the LLM.
 
-| Layer                                 | Description                                    |
-| ------------------------------------- | ---------------------------------------------- |
-| `core/brain.py`                       | Entry point, orchestrates thinking             |
-| `core/router.py`                      | Decision engine (rules + memory + fallback)    |
-| `skills/`                             | Modular capabilities (time, system, chat, LLM) |
-| `core/memory.py`                      | Persistent long-term memory (JSON)             |
-| `core/session.py`                     | Short-term conversation memory                 |
-| `core/llm.py` / `skills/llm_skill.py` | Local LLM integration (Ollama)                 |
+Jarvis handles known deterministic questions first:
+
+- Runtime/platform questions
+- Model/runtime questions
+- Memory stack questions
+- Jarvis long-term goal questions
+- Common exact-memory facts
+- Health/status/help/docs commands
+- Semantic memory commands
+
+Open-ended questions fall through to the local LLM.
 
 ---
 
-# ⚙️ Phase 0 — Initial System
+## Platform
 
-## ✅ Features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
+Current primary platform:
 
-* Command routing
-* Basic skills:
+```text
+Host: y-thor
+Hardware: NVIDIA Jetson AGX Thor Developer Kit
+OS: Ubuntu 24.04.4 LTS
+Architecture: ARM64
+Memory: 128 GB
+CUDA: 13.0
+Inference: llama.cpp
+Database: PostgreSQL 16
+Vector extension: pgvector
+```
 
-  * Time
-  * System stats
-  * Chat responses
-* LLM fallback (Ollama)
+Previous platform:
 
-## 🧠 Behavior
+```text
+NVIDIA Jetson AGX Xavier
+```
 
-* Deterministic first
-* LLM as fallback
+The Xavier proved the early local Jarvis architecture. Thor is now the active development and inference platform.
 
 ---
 
-# 🧠 Phase 1A — Persistent Memory
+## Core Components
 
-## ✅ Added
+| Component | Purpose |
+|---|---|
+| `core/brain.py` | Main thinking entry point. Stores user/assistant messages and calls the router. |
+| `core/router.py` | Intent routing, memory commands, deterministic known-fact answers, and LLM fallback. |
+| `core/context.py` | Builds the prompt/messages sent to llama.cpp using exact memory, semantic memory, and recent conversation. |
+| `core/memory.py` | PostgreSQL-backed exact long-term memory. |
+| `core/session.py` | PostgreSQL-backed conversation history and last-topic state. |
+| `core/semantic_memory.py` | pgvector semantic memory, local embeddings, source/category/tag ranking. |
+| `skills/llama_cpp_skill.py` | Calls the local llama.cpp OpenAI-compatible server. |
+| `skills/llm_skill.py` | LLM routing layer with llama.cpp primary and Ollama fallback. |
+| `skills/runtime_skill.py` | Deterministic runtime, model, memory stack, and Jarvis goal responses. |
+| `tools/regression_test_brain.py` | Brain regression test runner. |
 
-* `core/memory.py`
-* `data/memory.json`
+---
 
-## Features
+## Memory Architecture
 
+Jarvis uses three local memory layers.
+
+### 1. Exact Long-Term Memory
+
+Stored in PostgreSQL and managed by:
+
+```text
+core/memory.py
 ```
-remember that my favorite ship is Eurodam
+
+Examples:
+
+```text
+favorite_ship = Eurodam
+my wife's name = Kelly
+my workplace = GM
+my preferred database = SQL Server
+my taco tuesday drink = Diet Coke
 ```
 
-```
-what is my favorite ship
+Common exact-memory questions are answered directly without LLM fallback.
+
+Examples:
+
+```text
+what database does Marty prefer
+what cruise ship does Marty like
+what is my wife's name
+where do I work
 ```
 
+### 2. Conversation History
+
+Stored in PostgreSQL table:
+
+```text
+conversation_history
 ```
+
+Managed by:
+
+```text
+core/session.py
+```
+
+Used for recent context and follow-up awareness.
+
+### 3. Semantic Memory
+
+Stored in PostgreSQL with pgvector and managed by:
+
+```text
+core/semantic_memory.py
+```
+
+Embedding model:
+
+```text
+models/embeddings/all-MiniLM-L6-v2
+```
+
+The embedding model is local/offline. No Hugging Face token or external API is required.
+
+Semantic memory supports:
+
+- source weighting
+- category inference
+- tag inference
+- category boosts
+- weighted similarity ranking
+- weighted context filtering
+- debug formatting with category/tag details
+
+Current normalized categories:
+
+```text
+cruise
+hardware
+preference
+project
+test
+work
+```
+
+Ranking formula:
+
+```text
+weighted_similarity = similarity + source_boost + category_boost
+```
+
+---
+
+## Runtime Identity
+
+Runtime/project identity is handled by:
+
+```text
+skills/runtime_skill.py
+```
+
+Supported deterministic questions include:
+
+```text
+what hardware are you running on
+what model are you using
+what memory systems do you have
+what is the long term goal for Jarvis
+```
+
+These questions do not require LLM fallback.
+
+---
+
+## Regression Test
+
+Run:
+
+```bash
+python tools/regression_test_brain.py
+```
+
+Current regression prompts:
+
+```text
+what hardware are you running on
+what model are you using
+what memory systems do you have
+what is the long term goal for Jarvis
+what database does Marty prefer
+what cruise ship does Marty like
+what is my wife's name
+where do I work
 what do you remember
+semantic memory status
+brain status
 ```
 
-## Storage Format
+Expected behavior:
 
-```json
-{
-  "facts": {},
-  "history": []
-}
+- Runtime/project questions answer deterministically.
+- Common exact-memory facts avoid LLM fallback.
+- Semantic memory status confirms local/offline embedding model.
+- Brain status reports Thor / Qwen3 30B / llama.cpp as ready.
+
+---
+
+## Useful Commands
+
+Activate the Python environment:
+
+```bash
+cd ~/jarvis
+source .venv/bin/activate
+```
+
+Start CLI:
+
+```bash
+python testbrain.py
+```
+
+Run regression test:
+
+```bash
+python tools/regression_test_brain.py
+```
+
+Run semantic memory test:
+
+```bash
+python tools/test_semantic_memory.py
+```
+
+Check semantic memory status in Jarvis:
+
+```text
+semantic memory status
+```
+
+Check brain status in Jarvis:
+
+```text
+brain status
 ```
 
 ---
 
-# 🧠 Phase 1B — LLM + Memory Integration
+## Project Structure
 
-## ✅ Enhancement
-
-* Inject long-term memory into LLM prompt
-
-## Result
-
-```
-what ship do I like again
-```
-
-Jarvis can now answer naturally without exact phrasing.
-
----
-
-# 🧠 Phase 1C — Memory Management (CRUD)
-
-## Commands
-
-### Create
-
-```
-remember that my workplace is GM
-```
-
-### Read
-
-```
-what is my workplace
-what do you remember
-```
-
-### Update
-
-```
-update my workplace to Ford
-```
-
-### Delete
-
-```
-forget that my workplace
-```
-
----
-
-# 🧠 Phase 1D — Natural Language Memory Parsing
-
-## New Capability
-
-Jarvis understands:
-
-```
-I work at GM
-I prefer SQL Server
-my taco Tuesday drink is Diet Coke
-```
-
-No “remember that” required.
-
-## Implementation
-
-* `_try_natural_memory()` in router
-* Pattern-based extraction
-
----
-
-# 🧠 Phase 1E — Memory Normalization
-
-## Problem Solved
-
-```
-my preference
-my preferred database
-```
-
-## Solution
-
-### `normalize_key()`
-
-Maps:
-
-```
-preference → my preferred database
-job/work → my workplace
-wife → my wife's name
-```
-
-## Applied In:
-
-* Remember
-* Update
-* Recall
-
----
-
-# 🧠 Current Memory Capabilities
-
-* ✔️ Persistent JSON memory
-* ✔️ Natural language input → structured facts
-* ✔️ Intelligent recall (direct + LLM-assisted)
-* ✔️ Full lifecycle (Create / Read / Update / Delete)
-* ✔️ Normalized keys for consistency
-
----
-
-# 🧪 Example Session
-
-```
-You: I work at GM
-Jarvis: Got it, Marty. I'll remember that your workplace is GM.
-
-You: where is my job
-Jarvis: Your workplace is GM, Marty.
-
-You: I prefer SQL Server
-Jarvis: Got it, Marty. I'll remember that your preferred database is SQL Server.
-
-You: what database do I like
-Jarvis: Your preferred database is SQL Server.
-```
-
----
-
-# 📁 Project Structure
-
-```
+```text
 jarvis/
+├── api.py
+├── main.py
+├── testbrain.py
 ├── core/
 │   ├── brain.py
-│   ├── router.py
+│   ├── context.py
+│   ├── db.py
+│   ├── llm.py
 │   ├── memory.py
-│   ├── session.py
-│   └── llm.py
-│
+│   ├── router.py
+│   ├── semantic_memory.py
+│   └── session.py
 ├── skills/
-│   ├── time_skill.py
-│   ├── system_skill.py
+│   ├── brain_status_skill.py
 │   ├── chat_skill.py
+│   ├── docs_skill.py
+│   ├── health_skill.py
+│   ├── help_skill.py
+│   ├── llama_cpp_skill.py
 │   ├── llm_skill.py
-│   └── llm_stream_skill.py
-│
-├── data/
-│   └── memory.json
-│
-└── main.py
+│   ├── memory_summary_skill.py
+│   ├── ollama_skill.py
+│   ├── runtime_skill.py
+│   ├── semantic_memory_skill.py
+│   ├── system_skill.py
+│   ├── time_skill.py
+│   └── version_skill.py
+├── tools/
+│   ├── create_semantic_memory_table.py
+│   ├── create_session_state_table.py
+│   ├── health_check.py
+│   ├── regression_test_brain.py
+│   ├── test_semantic_memory.py
+│   └── voice_loop.py
+├── scripts/
+│   ├── health_check.sh
+│   ├── jarvis_cli.sh
+│   ├── jarvis_voice_cli.sh
+│   ├── start_jarvis_llama_server.sh
+│   ├── status_jarvis.sh
+│   └── stop_jarvis_llama_server.sh
+├── docs/
+│   ├── JARVIS_BRAIN_NEXT_STEPS.md
+│   ├── JARVIS_SYSTEM_DOCUMENTATION.md
+│   ├── MARTYBENCH_V2_SHIFT_HANDOFF.md
+│   └── jarvis_system_visual.html
+├── models/
+│   ├── embeddings/
+│   └── piper/
+├── benchmarks/
+├── audio/
+├── ui/
+└── ui-app/
 ```
 
 ---
 
-# 🚀 Next Phases
+## Current Roadmap
 
-## Phase 2 — Intelligence Layer
+Recommended next order:
 
-* Smarter recall (synonyms)
-* Context linking
-* Memory categorization
-
-## Phase 3 — Streaming
-
-* Token-by-token responses
-* Real-time feedback
-
-## Phase 4 — Voice
-
-* Wake word (“Hey Jarvis”)
-* Continuous listening
-* TTS streaming
-
-## Phase 5 — Vision
-
-* Camera integration
-* Face recognition
-* Object detection tied to memory
+1. Verify API/UI uses the same `core.brain.think()` path as CLI.
+2. Add memory review/category commands.
+3. Start MartyBench v2.
+4. Improve UI/API dashboard.
+5. Bring back voice pipeline.
+6. Add camera/vision pipeline last.
 
 ---
 
-# 💬 Design Principles
+## Later Phases
 
-* Local-first (no cloud dependency)
-* Modular architecture
-* Deterministic → AI fallback
-* Incremental builds
-* Git-backed evolution
+### Voice
+
+Target flow:
+
+```text
+microphone
+  ↓
+Whisper
+  ↓
+core.brain.think()
+  ↓
+Piper
+  ↓
+speaker
+```
+
+Initial voice approach:
+
+- push-to-talk or terminal voice loop first
+- no wake word yet
+- confirm transcription quality
+- keep voice actions conservative
+
+### Vision
+
+Vision comes after voice.
+
+Initial vision approach:
+
+- snapshot-based image understanding first
+- no live video loop at first
+- keep vision separate from core memory until capture behavior is clear
 
 ---
 
-# 🏁 Status
+## Notes
 
-✅ Phase 1 Complete
+Jarvis is intentionally local-first.
 
-Jarvis now has:
-
-* Persistent memory
-* Natural language understanding
-* Structured reasoning layer
-
----
-
-# 🧠 Final Note
-
-This is no longer a prototype.
-
-This is a **foundation for a real personal AI system**.
-
+The current goal is a reliable local assistant foundation before adding messy audio/video behavior. Voice and camera are still deliberately later phases.
