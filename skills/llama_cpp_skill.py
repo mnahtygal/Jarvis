@@ -76,7 +76,64 @@ def get_llama_cpp_response(prompt: str) -> str:
     except Exception as e:
         print(f"[LLM] llama.cpp error: {e}")
         return ""
+def get_llama_cpp_raw_response(
+    prompt: str,
+    system_prompt: str = "You are Jarvis, a local assistant. Follow the user's instructions exactly.",
+    temperature: float = 0.2,
+    max_tokens: int = 1800,
+) -> str:
+    """
+    Sends a prompt to llama.cpp without Jarvis memory/context injection.
 
+    Use this for benchmarks and isolated evaluations where the prompt itself
+    must be the only source of truth.
+    """
+
+    payload = {
+        "model": LLAMA_CPP_MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": system_prompt,
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": False,
+    }
+
+    try:
+        response = requests.post(
+            LLAMA_CPP_URL,
+            json=payload,
+            timeout=240,
+        )
+
+        response.raise_for_status()
+        data = response.json()
+
+        choice = data.get("choices", [{}])[0]
+        message = choice.get("message", {})
+
+        answer = message.get("content", "")
+
+        if not answer:
+            answer = message.get("reasoning_content", "")
+
+        answer = strip_thinking(answer)
+
+        if not answer:
+            return ""
+
+        return answer
+
+    except Exception as e:
+        print(f"[LLM] llama.cpp raw error: {e}")
+        return ""
 
 def ask_llama_cpp(prompt: str) -> str:
     """

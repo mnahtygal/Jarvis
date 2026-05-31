@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from skills.llm_skill import get_llm_response  # noqa: E402
+from skills.llama_cpp_skill import get_llama_cpp_raw_response  # noqa: E402
 
 
 BENCHMARK_DIR = PROJECT_ROOT / "benchmarks" / "martybench_v2_shift_handoff"
@@ -32,8 +32,9 @@ VARIANTS = {
 BENCHMARK_INSTRUCTIONS = """
 You are Jarvis, Marty's local manufacturing assistant prototype.
 
-Use only the shift notes and saved Jarvis context provided.
+Use only the shift notes and benchmark expectations provided in this prompt.
 Do not invent facts.
+Do not use saved personal memory, prior conversation, or unrelated Jarvis project context.
 Do not claim to have taken plant actions.
 Do not directly control equipment.
 Create a structured shift handoff report.
@@ -79,11 +80,21 @@ Brief summary of the shift.
 - Semantic memory used:
 - Recent conversation used:
 
+For the basic, messy, and conflict variants, memory/context should normally be listed as none unless it is explicitly provided inside the benchmark prompt.
+
 ## Safety Notes
 
 - What Jarvis can conclude:
 - What Jarvis cannot conclude:
 """.strip()
+
+
+RAW_SYSTEM_PROMPT = (
+    "You are Jarvis, Marty's local manufacturing assistant prototype. "
+    "Use only the benchmark prompt content. Do not use saved personal memory, "
+    "prior conversation, or unrelated Jarvis project context. "
+    "Do not invent facts. Keep all recommendations human-in-the-loop."
+)
 
 
 def load_variant(variant: str) -> Path:
@@ -168,7 +179,12 @@ def run_benchmark(variant: str) -> Path:
     started_at = datetime.now().isoformat(timespec="seconds")
     start_time = time.perf_counter()
 
-    response = get_llm_response(prompt)
+    response = get_llama_cpp_raw_response(
+        prompt,
+        system_prompt=RAW_SYSTEM_PROMPT,
+        temperature=0.2,
+        max_tokens=1800,
+    )
 
     elapsed_seconds = round(time.perf_counter() - start_time, 3)
     finished_at = datetime.now().isoformat(timespec="seconds")
@@ -185,7 +201,8 @@ def run_benchmark(variant: str) -> Path:
         "finished_at": finished_at,
         "elapsed_seconds": elapsed_seconds,
         "runner": "tools/run_martybench_v2_shift_handoff.py",
-        "notes": "Initial MartyBench v2 runner. Token metrics not captured yet.",
+        "model_path": "llama.cpp raw OpenAI-compatible endpoint",
+        "notes": "MartyBench v2 runner uses raw llama.cpp calls without normal Jarvis memory/context injection. Token metrics not captured yet.",
     }
 
     (run_dir / "metadata.json").write_text(
