@@ -98,6 +98,56 @@ def _clean_question_key(text: str) -> str:
 
     return "my " + key
 
+def _try_exact_memory_question(text: str):
+    """
+    Answer common exact-memory questions without using the LLM.
+
+    Handles first-person and third-person phrasing:
+    - what database do I prefer
+    - what database does Marty prefer
+    - what cruise ship does Marty like
+    - what is my wife's name
+    - where do I work
+    """
+
+    if "database" in text and (
+        "prefer" in text
+        or "preferred" in text
+        or "like" in text
+        or "marty" in text
+    ):
+        value = recall("my preferred database") or recall("my preference")
+        if value:
+            return f"Based on your saved memory, your preferred database is {value}, Marty."
+
+    if "ship" in text and (
+        "like" in text
+        or "favorite" in text
+        or "cruise" in text
+        or "marty" in text
+    ):
+        value = recall("my favorite ship") or recall("favorite_ship")
+        if value:
+            return f"Based on your saved memory, your favorite ship is {value}, Marty."
+
+    if "wife" in text:
+        value = recall("my wife's name")
+        if value:
+            return f"Based on your saved memory, your wife's name is {value}, Marty."
+
+    if (
+        "where do i work" in text
+        or "where does marty work" in text
+        or "who do i work for" in text
+        or "who does marty work for" in text
+        or "workplace" in text
+        or ("work" in text and ("where" in text or "who" in text or "marty" in text))
+    ):
+        value = recall("my workplace")
+        if value:
+            return f"Based on your saved memory, you work at {value}, Marty."
+
+    return None
 
 def _remember_is_fact(fact: str):
     lowered = fact.lower()
@@ -450,6 +500,9 @@ def route(command: str) -> str:
 
     if _is_jarvis_goal_request(text):
         return get_jarvis_goal_response()
+    exact_memory_response = _try_exact_memory_question(text)
+    if exact_memory_response:
+        return exact_memory_response        
 
     if text in ["semantic memory status", "semantic status", "pgvector status"]:
         return get_semantic_memory_status_response()
