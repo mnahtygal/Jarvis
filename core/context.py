@@ -1,5 +1,7 @@
 # core/context.py
 
+from __future__ import annotations
+
 from typing import Dict, List
 
 from core.memory import build_memory_context
@@ -24,15 +26,15 @@ Identity:
 Runtime facts:
 - You are Jarvis running locally on Marty's NVIDIA Thor system.
 - Primary model runtime is Qwen3 30B through llama.cpp.
-- PostgreSQL memory is enabled.
+- PostgreSQL exact memory is enabled.
+- PostgreSQL conversation history is enabled.
 - Semantic memory via pgvector is enabled.
-- Conversation history is stored locally in PostgreSQL.
 - You are a local-first assistant and should know your runtime environment.
 - Voice and camera features are planned later, not active yet.
 
 Local-only rule:
 - You are a local assistant.
-- Do not claim to have checked the internet, live news, external APIs, or cloud services unless a tool/source is explicitly provided and approved.
+- Do not claim to have checked the internet, live news, external APIs, cloud services, email, calendar, files, or private systems unless a tool/source is explicitly provided and approved.
 - If a question requires current public information and it is not in saved memory or recent context, say you do not have live/current data.
 - Do not invent current events, layoff numbers, prices, schedules, or recent facts.
 
@@ -58,26 +60,43 @@ Technical facts:
 """.strip()
 
 
+SEMANTIC_MEMORY_UNAVAILABLE = "Semantic memory unavailable."
+NO_EXACT_MEMORY = "No exact long-term memories saved yet."
+NO_RECENT_HISTORY = "No recent conversation history yet."
+NO_RELEVANT_SEMANTIC_MEMORY = "No relevant semantic memories found."
+
+
+def _safe_text(value: object, fallback: str = "") -> str:
+    text = str(value or "").strip()
+    return text if text else fallback
+
+
 def _format_long_term_memory() -> str:
-    memory_context = build_memory_context()
+    try:
+        memory_context = build_memory_context()
+    except Exception as error:
+        return f"Exact long-term memory unavailable: {error}"
 
     if not memory_context:
-        return "No exact long-term memories saved yet."
+        return NO_EXACT_MEMORY
 
     return memory_context
 
 
 def _format_recent_history(limit: int = 8) -> str:
-    history = get_recent_history(limit=limit)
+    try:
+        history = get_recent_history(limit=limit)
+    except Exception as error:
+        return f"Recent conversation history unavailable: {error}"
 
     if not history:
-        return "No recent conversation history yet."
+        return NO_RECENT_HISTORY
 
     lines = []
 
     for item in history:
-        role = item.get("role", "unknown")
-        content = item.get("content", "").strip()
+        role = _safe_text(item.get("role"), "unknown")
+        content = _safe_text(item.get("content"))
 
         if not content:
             continue
@@ -85,7 +104,7 @@ def _format_recent_history(limit: int = 8) -> str:
         lines.append(f"{role}: {content}")
 
     if not lines:
-        return "No recent conversation history yet."
+        return NO_RECENT_HISTORY
 
     return "\n".join(lines)
 
@@ -105,7 +124,7 @@ def _format_semantic_memory(
     """
 
     if not search_semantic_memories or not format_semantic_results:
-        return "Semantic memory unavailable."
+        return SEMANTIC_MEMORY_UNAVAILABLE
 
     cleaned = (user_text or "").strip()
 
@@ -129,9 +148,55 @@ def _format_semantic_memory(
     ]
 
     if not filtered:
-        return "No relevant semantic memories found."
+        return NO_RELEVANT_SEMANTIC_MEMORY
 
     return format_semantic_results(filtered)
+
+
+def _get_last_topic() -> str:
+    try:
+        return get_last_topic() or "None"
+    except Exception as error:
+        return f"Unavailable: {error}"
+
+
+def build_context_sections(user_text: str, history_limit: int = 8) -> Dict[str, str]:
+    """
+    Build the reusable context sections used by prompt, chat messages,
+    and debugging summaries.
+    """
+
+    return {
+        "last_topic": _get_last_topic(),
+        "exact_memory": _format_long_term_memory(),
+        "semantic_memory": _format_semantic_memory(user_text),
+        "recent_history": _format_recent_history(limit=history_limit),
+    }
+
+
+def _build_system_content(user_text: str, history_limit: int = 8) -> str:
+    sections = build_context_sections(user_text=user_text, history_limit=history_limit)
+
+    return f"""
+{SYSTEM_PROMPT}
+
+IMPORTANT:
+Use the memory/context sections below before relying on general model knowledge.
+If semantic memory exists, treat it as user-provided saved context.
+If a section says it is unavailable or no relevant memory was found, do not invent details for that section.
+
+Exact long-term memory:
+{sections["exact_memory"]}
+
+Semantic memory:
+{sections["semantic_memory"]}
+
+Last topic:
+{sections["last_topic"]}
+
+Recent conversation:
+{sections["recent_history"]}
+""".strip()
 
 
 def build_prompt(user_text: str, history_limit: int = 8) -> str:
@@ -140,32 +205,19 @@ def build_prompt(user_text: str, history_limit: int = 8) -> str:
     such as Ollama /api/generate.
     """
 
-    last_topic = get_last_topic() or "None"
-    long_term_memory = _format_long_term_memory()
-    semantic_memory = _format_semantic_memory(user_text)
-    recent_history = _format_recent_history(limit=history_limit)
+    system_content = _build_system_content(
+        user_text=user_text,
+        history_limit=history_limit,
+    )
 
-    system_content = f"""
-    {SYSTEM_PROMPT}
+    return f"""
+{system_content}
 
-    IMPORTANT:
-    Use the memory sections below before relying on general model knowledge.
-    If semantic memory exists, treat it as user-provided truth.
+Current user message:
+{user_text}
 
-    Exact long-term memory:
-    {long_term_memory}
-
-    Semantic memory:
-    {semantic_memory}
-
-    Last topic:
-    {last_topic}
-
-    Recent conversation:
-    {recent_history}
-    """.strip()
-
-    return prompt
+Jarvis response:
+""".strip()
 
 
 def build_messages(user_text: str, history_limit: int = 8) -> List[Dict[str, str]]:
@@ -174,26 +226,10 @@ def build_messages(user_text: str, history_limit: int = 8) -> List[Dict[str, str
     other /v1/chat/completions style APIs.
     """
 
-    last_topic = get_last_topic() or "None"
-    long_term_memory = _format_long_term_memory()
-    semantic_memory = _format_semantic_memory(user_text)
-    recent_history = _format_recent_history(limit=history_limit)
-
-    system_content = f"""
-{SYSTEM_PROMPT}
-
-Exact long-term memory:
-{long_term_memory}
-
-Semantic memory:
-{semantic_memory}
-
-Last topic:
-{last_topic}
-
-Recent conversation:
-{recent_history}
-""".strip()
+    system_content = _build_system_content(
+        user_text=user_text,
+        history_limit=history_limit,
+    )
 
     return [
         {
@@ -212,21 +248,18 @@ def build_context_summary(history_limit: int = 8, user_text: str = "Jarvis statu
     Human-readable context summary for debugging.
     """
 
-    last_topic = get_last_topic() or "None"
-    long_term_memory = _format_long_term_memory()
-    semantic_memory = _format_semantic_memory(user_text)
-    recent_history = _format_recent_history(limit=history_limit)
+    sections = build_context_sections(user_text=user_text, history_limit=history_limit)
 
     return f"""
 Last topic:
-{last_topic}
+{sections["last_topic"]}
 
 Exact long-term memory:
-{long_term_memory}
+{sections["exact_memory"]}
 
 Semantic memory:
-{semantic_memory}
+{sections["semantic_memory"]}
 
 Recent conversation:
-{recent_history}
+{sections["recent_history"]}
 """.strip()
