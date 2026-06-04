@@ -4,7 +4,7 @@
 
 This file is the working roadmap for getting the Jarvis brain where it needs to be without losing track of progress.
 
-Jarvis is now running on the NVIDIA Jetson AGX Thor with Qwen3 30B, PostgreSQL, pgvector semantic memory, local/offline embeddings, startup services, health checks, deterministic runtime identity responses, exact-memory routing, MartyBench v2, context regression testing, brain regression testing, and a combined regression check script.
+Jarvis is now running on the NVIDIA Jetson AGX Thor with Qwen3 30B, PostgreSQL, pgvector semantic memory, local/offline embeddings, startup services, health checks, deterministic runtime identity responses, exact-memory routing, MartyBench v2, context regression testing, brain regression testing, a combined regression check script, and MartyBench score reporting.
 
 The current phase is reliability, repeatable evaluation, UI/API polish, and preparing for the next major capabilities.
 
@@ -46,6 +46,7 @@ Completed and working:
 - MartyBench v2 benchmark runner works.
 - MartyBench latest report tool works.
 - MartyBench score summary template generation works.
+- MartyBench score report parsing works.
 - Generated benchmark result outputs are ignored by Git.
 - Jarvis CLI launcher works:
 
@@ -433,6 +434,15 @@ MartyBench v2 includes:
 - Metadata output for each run.
 - Generated result output ignored by Git.
 
+Current Qwen3 30B / llama.cpp / Thor baseline scores:
+
+```text
+basic    33/35 Pass
+messy    33/35 Pass
+conflict 34/35 Pass
+memory   34/35 Pass
+```
+
 Runner:
 
 ```bash
@@ -446,7 +456,7 @@ python tools/run_martybench_v2_shift_handoff.py --variant memory --include-bench
 
 ### 9. MartyBench Reporting Tools
 
-Status: Partially complete
+Status: Complete
 
 Completed reporting work:
 
@@ -454,35 +464,40 @@ Completed reporting work:
 - Variant filter works.
 - `latest_report.md` generation works.
 - `score_summary.md` template generation works.
+- Score report parser added.
+- Score report rollup works.
 - Report extracts:
   - run metadata
   - executive summary
   - memory/context used
   - safety notes
+- Score report shows:
+  - total runs
+  - scored vs unscored runs
+  - latest run by variant
+  - best scored run by variant
+  - all runs with score/verdict/status
 - Report points to:
   - `jarvis_output.md`
   - `metadata.json`
   - `human_scoring_template.md`
   - `score_summary.md`
 
-Tool:
+Tools:
 
 ```bash
 python tools/martybench_latest_report.py
 python tools/martybench_latest_report.py --variant memory
 python tools/martybench_latest_report.py --variant memory --write --score-template
+python tools/martybench_score_report.py
+python tools/martybench_score_report.py --write
 ```
-
-Next reporting step:
-
-- Parse completed `score_summary.md` files.
-- Create score trend summaries by run and variant.
-- Compare benchmark variants across model/runtime changes.
 
 Implementation:
 
 ```text
 tools/martybench_latest_report.py
+tools/martybench_score_report.py
 benchmarks/results/
 ```
 
@@ -568,33 +583,7 @@ Combined regression check passed
 
 ## Immediate Next Build Items
 
-### 1. MartyBench Score Parsing / Trend Report
-
-Status: Next
-
-Goal:
-
-Turn completed score summaries into comparable benchmark history.
-
-Potential features:
-
-- Parse `score_summary.md` files.
-- Extract run ID, variant, total score, and verdict.
-- Generate a summary table by variant.
-- Show latest score per variant.
-- Show best score per variant.
-- Prepare future model/runtime comparison.
-
-Implementation target:
-
-```text
-tools/martybench_score_report.py
-benchmarks/results/
-```
-
----
-
-### 2. API/UI Dashboard Pass
+### 1. API/UI Dashboard Pass
 
 Status: Next
 
@@ -627,7 +616,7 @@ ui/JarvisUI.tsx
 
 ---
 
-### 3. Memory Review Commands Expansion
+### 2. Memory Review Commands Expansion
 
 Status: Later
 
@@ -651,7 +640,7 @@ core/router.py
 
 ---
 
-### 4. Voice Pipeline
+### 3. Voice Pipeline
 
 Status: Later
 
@@ -681,7 +670,7 @@ Initial approach:
 
 ---
 
-### 5. Camera / Vision Pipeline
+### 4. Camera / Vision Pipeline
 
 Status: Last
 
@@ -701,11 +690,10 @@ Initial approach:
 Recommended next order:
 
 ```text
-1. MartyBench score parsing / trend report
-2. API/UI dashboard pass
-3. Memory review command expansion
-4. Voice pipeline
-5. Camera/vision pipeline
+1. API/UI dashboard pass
+2. Memory review command expansion
+3. Voice pipeline
+4. Camera/vision pipeline
 ```
 
 ---
