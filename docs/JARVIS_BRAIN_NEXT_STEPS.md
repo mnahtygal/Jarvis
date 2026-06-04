@@ -4,9 +4,9 @@
 
 This file is the working roadmap for getting the Jarvis brain where it needs to be without losing track of progress.
 
-Jarvis is now running on the NVIDIA Jetson AGX Thor with Qwen3 30B, PostgreSQL, pgvector semantic memory, local/offline embeddings, startup services, health checks, deterministic runtime identity responses, exact-memory routing, MartyBench v2, a context regression test, and a combined regression check script.
+Jarvis is now running on the NVIDIA Jetson AGX Thor with Qwen3 30B, PostgreSQL, pgvector semantic memory, local/offline embeddings, startup services, health checks, deterministic runtime identity responses, exact-memory routing, MartyBench v2, context regression testing, brain regression testing, and a combined regression check script.
 
-The current phase is no longer basic brain bring-up. The current phase is reliability, repeatable evaluation, UI/API polish, and preparing for the next major capabilities.
+The current phase is reliability, repeatable evaluation, UI/API polish, and preparing for the next major capabilities.
 
 ---
 
@@ -43,6 +43,10 @@ Completed and working:
 ./scripts/regression_check.sh
 ```
 
+- MartyBench v2 benchmark runner works.
+- MartyBench latest report tool works.
+- MartyBench score summary template generation works.
+- Generated benchmark result outputs are ignored by Git.
 - Jarvis CLI launcher works:
 
 ```bash
@@ -61,8 +65,6 @@ Completed and working:
 ---
 
 ## Current Brain Flow
-
-Current high-level flow:
 
 ```text
 User input
@@ -142,8 +144,6 @@ Important rule:
 ```text
 Memory commands and deterministic known-fact commands should be handled before the LLM fallback.
 ```
-
-This prevents Qwen3 from saying it remembered something without Jarvis actually saving it, and it keeps known facts fast and deterministic.
 
 ---
 
@@ -245,31 +245,7 @@ Qwen3-30B-A3B-Q4_K_M.gguf
 
 ---
 
-### `skills/runtime_skill.py`
-
-Runtime skill owns deterministic runtime and project identity responses.
-
-Current responses include:
-
-- Current platform / hardware.
-- Current model runtime.
-- Current memory stack.
-- Jarvis long-term project goal.
-
-This keeps known Jarvis identity questions out of the LLM fallback path.
-
-Examples:
-
-```text
-what hardware are you running on
-what model are you using
-what memory systems do you have
-what is the long term goal for Jarvis
-```
-
----
-
-## Completed Brain Build Items
+## Completed Build Items
 
 ### 1. Brain Status Command
 
@@ -279,21 +255,6 @@ Command:
 
 ```text
 brain status
-```
-
-Current output includes:
-
-```text
-Jarvis Brain Status:
-- Overall: READY
-- Runtime: Thor / Qwen3 30B / llama.cpp
-- PostgreSQL: online
-- Exact memory: online, X facts
-- Semantic memory: online, X rows
-- Last topic: X
-- Recent history rows checked: X
-- LLM endpoint: online
-- Local embeddings: online/offline-only local model present
 ```
 
 Implementation:
@@ -321,13 +282,6 @@ show project memories
 show test memories
 show work memories
 ```
-
-Current behavior:
-
-- `show semantic memories` lists recent semantic notes.
-- `semantic memory status` shows row count and embedding status.
-- `semantic search: <query>` searches pgvector directly and shows top matches.
-- Category commands show normalized semantic memory categories and filtered category rows.
 
 Implementation:
 
@@ -369,7 +323,7 @@ core/semantic_memory.py
 
 Status: Complete
 
-Jarvis now follows these memory-answer rules:
+Jarvis follows these memory-answer rules:
 
 - If an answer comes from exact memory, Jarvis says it is based on saved memory when useful.
 - If an answer comes from semantic memory, Jarvis says it is based on saved semantic memory or what Marty told it when useful.
@@ -461,6 +415,79 @@ tools/regression_test_brain.py
 
 ---
 
+### 8. MartyBench v2 Baseline
+
+Status: Complete
+
+MartyBench v2 includes:
+
+- Basic shift notes variant.
+- Messy shift notes variant.
+- Conflict/uncertainty variant.
+- Memory-aware variant.
+- Scoring rubric.
+- Expected output guide.
+- Raw llama.cpp runner.
+- Synthetic benchmark memory flag.
+- Human scoring template generation.
+- Metadata output for each run.
+- Generated result output ignored by Git.
+
+Runner:
+
+```bash
+python tools/run_martybench_v2_shift_handoff.py --variant basic
+python tools/run_martybench_v2_shift_handoff.py --variant messy
+python tools/run_martybench_v2_shift_handoff.py --variant conflict
+python tools/run_martybench_v2_shift_handoff.py --variant memory --include-benchmark-memory
+```
+
+---
+
+### 9. MartyBench Reporting Tools
+
+Status: Partially complete
+
+Completed reporting work:
+
+- Latest-run report tool added.
+- Variant filter works.
+- `latest_report.md` generation works.
+- `score_summary.md` template generation works.
+- Report extracts:
+  - run metadata
+  - executive summary
+  - memory/context used
+  - safety notes
+- Report points to:
+  - `jarvis_output.md`
+  - `metadata.json`
+  - `human_scoring_template.md`
+  - `score_summary.md`
+
+Tool:
+
+```bash
+python tools/martybench_latest_report.py
+python tools/martybench_latest_report.py --variant memory
+python tools/martybench_latest_report.py --variant memory --write --score-template
+```
+
+Next reporting step:
+
+- Parse completed `score_summary.md` files.
+- Create score trend summaries by run and variant.
+- Compare benchmark variants across model/runtime changes.
+
+Implementation:
+
+```text
+tools/martybench_latest_report.py
+benchmarks/results/
+```
+
+---
+
 ## Current Regression Tests
 
 ### Context Regression
@@ -539,102 +566,30 @@ Combined regression check passed
 
 ---
 
-## MartyBench v2 Status
-
-Status: Working baseline complete
-
-MartyBench v2 now includes:
-
-- Basic shift notes variant.
-- Messy shift notes variant.
-- Conflict/uncertainty variant.
-- Memory-aware variant.
-- Scoring rubric.
-- Expected output guide.
-- Raw llama.cpp runner.
-- Synthetic benchmark memory flag.
-- Human scoring template generation.
-- Metadata output for each run.
-- Generated result output ignored by Git.
-
-Runner:
-
-```bash
-python tools/run_martybench_v2_shift_handoff.py --variant basic
-python tools/run_martybench_v2_shift_handoff.py --variant messy
-python tools/run_martybench_v2_shift_handoff.py --variant conflict
-python tools/run_martybench_v2_shift_handoff.py --variant memory --include-benchmark-memory
-```
-
-Why raw llama.cpp is used:
-
-- Normal Jarvis LLM calls inject exact memory, semantic memory, and recent conversation.
-- Benchmark prompts need isolation from normal personal/project memory.
-- The raw llama.cpp path sends only benchmark prompt content unless synthetic benchmark memory is explicitly included.
-
----
-
-## Sunday Polish Completed
-
-Completed polish work:
-
-- Runtime identity refactored into `skills/runtime_skill.py`.
-- Deterministic answers added for:
-  - hardware/platform
-  - model/runtime
-  - memory stack
-  - Jarvis long-term goal
-- Exact-memory direct routing added for common personal facts:
-  - preferred database
-  - favorite ship
-  - wife's name
-  - workplace
-- Semantic memory ranking improved:
-  - source weighting
-  - category boost
-  - weighted similarity
-  - weighted context filtering
-- Semantic metadata normalized:
-  - cruise
-  - hardware
-  - preference
-  - project
-  - test
-  - work
-- Test/dev semantic memories kept but categorized as `test`.
-- Brain regression test runner added.
-- Context regression test runner added.
-- Combined regression script added.
-
-Regression tests currently pass.
-
----
-
 ## Immediate Next Build Items
 
-### 1. MartyBench Scoring / Report Generation
+### 1. MartyBench Score Parsing / Trend Report
 
 Status: Next
 
 Goal:
 
-Turn MartyBench outputs into repeatable score/report artifacts.
+Turn completed score summaries into comparable benchmark history.
 
 Potential features:
 
-- Human scoring template prefilled with run metadata.
-- Score summary markdown.
-- Latest-run report command.
-- Basic model/runtime metadata capture.
-- Optional self-check prompt.
-- Compare runs by variant.
+- Parse `score_summary.md` files.
+- Extract run ID, variant, total score, and verdict.
+- Generate a summary table by variant.
+- Show latest score per variant.
+- Show best score per variant.
+- Prepare future model/runtime comparison.
 
 Implementation target:
 
 ```text
-tools/run_martybench_v2_shift_handoff.py
+tools/martybench_score_report.py
 benchmarks/results/
-benchmarks/martybench_v2_shift_handoff/
 ```
 
 ---
@@ -746,7 +701,7 @@ Initial approach:
 Recommended next order:
 
 ```text
-1. MartyBench scoring / report generation
+1. MartyBench score parsing / trend report
 2. API/UI dashboard pass
 3. Memory review command expansion
 4. Voice pipeline
@@ -759,4 +714,4 @@ Recommended next order:
 
 Voice and camera are still deliberately last.
 
-Jarvis is now in a stable local-first brain foundation state with repeatable context/brain regression checks and a working MartyBench v2 evaluation harness.
+Jarvis is now in a stable local-first brain foundation state with repeatable context/brain regression checks and a working MartyBench v2 evaluation/reporting harness.
