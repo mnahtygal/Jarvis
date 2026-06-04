@@ -4,9 +4,9 @@
 
 This file is the working roadmap for getting the Jarvis brain where it needs to be without losing track of progress.
 
-Jarvis is now running on the NVIDIA Jetson AGX Thor with Qwen3 30B, PostgreSQL, pgvector semantic memory, local/offline embeddings, startup services, health checks, deterministic runtime identity responses, exact-memory routing, and a regression test runner.
+Jarvis is now running on the NVIDIA Jetson AGX Thor with Qwen3 30B, PostgreSQL, pgvector semantic memory, local/offline embeddings, startup services, health checks, deterministic runtime identity responses, exact-memory routing, MartyBench v2, a context regression test, and a combined regression check script.
 
-The current phase is no longer basic brain bring-up. The current phase is polish, documentation, UI/API verification, and preparing for the next major capabilities.
+The current phase is no longer basic brain bring-up. The current phase is reliability, repeatable evaluation, UI/API polish, and preparing for the next major capabilities.
 
 ---
 
@@ -16,7 +16,7 @@ Completed and working:
 
 - Thor is the primary Jarvis platform.
 - Qwen3 30B runs locally through llama.cpp.
-- Ollama remains available as a fallback path.
+- Ollama remains available as a fallback path if installed/configured later.
 - `jarvis-llama.service` auto-starts after reboot.
 - PostgreSQL is active after reboot.
 - Exact key/value memory works.
@@ -35,6 +35,14 @@ Completed and working:
 - Semantic memory now uses weighted ranking.
 - Runtime/project identity responses are deterministic.
 - Common exact-memory questions avoid LLM fallback.
+- Context assembly has a dedicated regression test.
+- Brain behavior has a dedicated regression test.
+- Combined regression check works:
+
+```bash
+./scripts/regression_check.sh
+```
+
 - Jarvis CLI launcher works:
 
 ```bash
@@ -45,12 +53,6 @@ Completed and working:
 
 ```bash
 ./scripts/health_check.sh
-```
-
-- Brain regression test works:
-
-```bash
-python tools/regression_test_brain.py
 ```
 
 - UI runs after Node 22 update.
@@ -89,7 +91,13 @@ Examples:
 - Runtime/platform questions route to `skills/runtime_skill.py`.
 - Jarvis long-term goal routes to `skills/runtime_skill.py`.
 - Common known facts route directly through exact memory.
+- Semantic memory inspection routes to `skills/semantic_memory_skill.py`.
 - Only open-ended questions fall through to llama.cpp.
+
+Benchmark exception:
+
+- MartyBench v2 uses a raw llama.cpp path without normal Jarvis memory/context injection.
+- This keeps benchmark evaluation isolated from personal Jarvis memory unless synthetic benchmark memory is explicitly injected.
 
 ---
 
@@ -152,8 +160,11 @@ Responsibilities:
 - Last topic.
 - Recent conversation history.
 - Current user question.
-- OpenAI-compatible chat messages for llama.cpp.
-- Human-readable context summaries for debugging.
+- Completion-style prompt building through `build_prompt()`.
+- OpenAI-compatible chat messages through `build_messages()`.
+- Human-readable context summaries through `build_context_summary()`.
+- Reusable context sections through `build_context_sections()`.
+- Defensive behavior when memory/history/semantic retrieval is unavailable.
 
 Current behavior:
 
@@ -162,6 +173,7 @@ Current behavior:
 - Filters semantic memory using weighted similarity.
 - Includes source/category/tag information in formatted semantic memory results.
 - Tells Qwen3 to trust saved memory/context over general model knowledge.
+- Keeps context construction testable through `tools/regression_test_context.py`.
 
 ---
 
@@ -208,12 +220,13 @@ Current cleanup approach:
 
 ### `skills/llama_cpp_skill.py`
 
-The llama.cpp skill should only talk to the local model server.
+The llama.cpp skill talks to the local model server.
 
 Responsibilities:
 
 - Build/send OpenAI-compatible request.
-- Use `core.context.build_messages()`.
+- Use `core.context.build_messages()` for normal Jarvis LLM fallback.
+- Provide a raw llama.cpp path for isolated benchmark/evaluation prompts.
 - Strip Qwen3 thinking blocks from visible output.
 - Return clean text.
 - Fail gracefully if the server is offline.
@@ -302,6 +315,11 @@ Commands:
 show semantic memories
 semantic memory status
 semantic search: <query>
+show memory categories
+show cruise memories
+show project memories
+show test memories
+show work memories
 ```
 
 Current behavior:
@@ -309,6 +327,7 @@ Current behavior:
 - `show semantic memories` lists recent semantic notes.
 - `semantic memory status` shows row count and embedding status.
 - `semantic search: <query>` searches pgvector directly and shows top matches.
+- Category commands show normalized semantic memory categories and filtered category rows.
 
 Implementation:
 
@@ -392,6 +411,169 @@ skills/brain_status_skill.py
 
 ---
 
+### 6. Context Assembler Cleanup
+
+Status: Complete
+
+Completed work:
+
+- Fixed `build_prompt()` undefined return bug.
+- Added reusable `build_context_sections()`.
+- Centralized context/system-message construction.
+- Preserved `build_messages()` for llama.cpp.
+- Preserved `build_context_summary()` for debugging.
+- Added defensive wrappers around exact memory, semantic memory, recent history, and last-topic retrieval.
+- Added dedicated context regression test.
+
+Implementation:
+
+```text
+core/context.py
+tools/regression_test_context.py
+```
+
+---
+
+### 7. Combined Regression Check
+
+Status: Complete
+
+Run:
+
+```bash
+./scripts/regression_check.sh
+```
+
+Current behavior:
+
+- Runs context regression first.
+- Runs brain regression second.
+- Stops on failure.
+- Uses `.venv` automatically when present.
+
+Implementation:
+
+```text
+scripts/regression_check.sh
+tools/regression_test_context.py
+tools/regression_test_brain.py
+```
+
+---
+
+## Current Regression Tests
+
+### Context Regression
+
+Run:
+
+```bash
+python tools/regression_test_context.py
+```
+
+Checks:
+
+```text
+build_context_sections
+build_prompt
+build_messages
+build_context_summary
+```
+
+Expected result:
+
+```text
+Context regression complete: 4/4 passed
+```
+
+### Brain Regression
+
+Run:
+
+```bash
+python tools/regression_test_brain.py
+```
+
+Current regression prompts:
+
+```text
+what hardware are you running on
+what model are you using
+what memory systems do you have
+what is the long term goal for Jarvis
+what database does Marty prefer
+what cruise ship does Marty like
+what is my wife's name
+where do I work
+what do you remember
+semantic memory status
+brain status
+show memory categories
+show cruise memories
+show project memories
+show test memories
+show work memories
+```
+
+Expected behavior:
+
+- Runtime/project questions answer deterministically.
+- Common exact-memory facts avoid LLM fallback.
+- Semantic memory status confirms local/offline embedding model.
+- Brain status reports Thor / Qwen3 30B / llama.cpp as ready.
+- Memory category commands return normalized category results.
+
+### Combined Regression
+
+Run:
+
+```bash
+./scripts/regression_check.sh
+```
+
+Expected result:
+
+```text
+Combined regression check passed
+```
+
+---
+
+## MartyBench v2 Status
+
+Status: Working baseline complete
+
+MartyBench v2 now includes:
+
+- Basic shift notes variant.
+- Messy shift notes variant.
+- Conflict/uncertainty variant.
+- Memory-aware variant.
+- Scoring rubric.
+- Expected output guide.
+- Raw llama.cpp runner.
+- Synthetic benchmark memory flag.
+- Human scoring template generation.
+- Metadata output for each run.
+- Generated result output ignored by Git.
+
+Runner:
+
+```bash
+python tools/run_martybench_v2_shift_handoff.py --variant basic
+python tools/run_martybench_v2_shift_handoff.py --variant messy
+python tools/run_martybench_v2_shift_handoff.py --variant conflict
+python tools/run_martybench_v2_shift_handoff.py --variant memory --include-benchmark-memory
+```
+
+Why raw llama.cpp is used:
+
+- Normal Jarvis LLM calls inject exact memory, semantic memory, and recent conversation.
+- Benchmark prompts need isolation from normal personal/project memory.
+- The raw llama.cpp path sends only benchmark prompt content unless synthetic benchmark memory is explicitly included.
+
+---
+
 ## Sunday Polish Completed
 
 Completed polish work:
@@ -420,171 +602,54 @@ Completed polish work:
   - test
   - work
 - Test/dev semantic memories kept but categorized as `test`.
-- Regression test runner added:
+- Brain regression test runner added.
+- Context regression test runner added.
+- Combined regression script added.
 
-```text
-tools/regression_test_brain.py
-```
-
-Regression test currently passes.
-
----
-
-## Current Regression Test
-
-Run:
-
-```bash
-python tools/regression_test_brain.py
-```
-
-Current regression prompts:
-
-```text
-what hardware are you running on
-what model are you using
-what memory systems do you have
-what is the long term goal for Jarvis
-what database does Marty prefer
-what cruise ship does Marty like
-what is my wife's name
-where do I work
-what do you remember
-semantic memory status
-brain status
-```
-
-Expected behavior:
-
-- Runtime/project questions answer deterministically.
-- Common exact-memory facts avoid LLM fallback.
-- Semantic memory status confirms local/offline embedding model.
-- Brain status reports Thor / Qwen3 30B / llama.cpp as ready.
+Regression tests currently pass.
 
 ---
 
 ## Immediate Next Build Items
 
-### 1. Documentation Refresh
-
-Status: In progress
-
-Update:
-
-```text
-docs/JARVIS_SYSTEM_DOCUMENTATION.md
-docs/JARVIS_BRAIN_NEXT_STEPS.md
-README.md
-```
-
-Purpose:
-
-- Keep repo documentation aligned with the current Thor brain architecture.
-- Document runtime skill, exact-memory routing, weighted semantic ranking, semantic categories/tags, and regression testing.
-
----
-
-### 2. API/UI Brain Path Verification
+### 1. MartyBench Scoring / Report Generation
 
 Status: Next
 
 Goal:
 
-Confirm that `api.py` and the UI use the same `core.brain.think()` path as CLI testing.
-
-Why:
-
-- CLI behavior is now strong.
-- UI/API should reflect the same memory, context, runtime, and routing behavior.
-
-Test targets:
-
-```text
-api.py
-ui-app/
-ui/JarvisUI.tsx
-```
-
-Expected result:
-
-- Asking Jarvis through the UI/API should produce the same answers as `tools/regression_test_brain.py`.
-- Exact-memory direct routing should work through API/UI.
-- Runtime/project identity routing should work through API/UI.
-- Open-ended questions should still fall through to llama.cpp.
-
----
-
-### 3. Memory Review Commands
-
-Status: Next
-
-Goal:
-
-Add richer memory review commands.
-
-Potential commands:
-
-```text
-show memory categories
-show memories by category
-show cruise memories
-show project memories
-show test memories
-show work memories
-```
-
-Implementation target:
-
-```text
-skills/memory_summary_skill.py
-skills/semantic_memory_skill.py
-core/router.py
-```
-
-Potential behavior:
-
-- Exact memory summary remains separate from semantic memory.
-- Semantic memory can be inspected by category/tag.
-- Test/debug memories can be reviewed without polluting normal answers.
-
----
-
-### 4. MartyBench v2
-
-Status: Next major capability
-
-Goal:
-
-Build a repeatable local benchmark workflow for Jarvis and local models.
+Turn MartyBench outputs into repeatable score/report artifacts.
 
 Potential features:
 
-- Prompt library.
-- Benchmark runner.
-- Model/runtime metadata capture.
-- Output folder structure.
-- Markdown report generator.
-- Model comparison notes.
-- Pass/fail observations.
-- Tokens/sec capture if available.
+- Human scoring template prefilled with run metadata.
+- Score summary markdown.
+- Latest-run report command.
+- Basic model/runtime metadata capture.
+- Optional self-check prompt.
+- Compare runs by variant.
 
 Implementation target:
 
 ```text
-benchmarks/
-tools/
-docs/MARTYBENCH_V2_SHIFT_HANDOFF.md
+tools/run_martybench_v2_shift_handoff.py
+benchmarks/results/
+benchmarks/martybench_v2_shift_handoff/
 ```
 
 ---
 
-### 5. UI/API Dashboard Pass
+### 2. API/UI Dashboard Pass
 
 Status: Next
 
 Goal:
 
 Make the frontend/API useful as a real Jarvis dashboard.
+
+Current UI improvement complete:
+
+- Quick command buttons for brain status, semantic memory status, memory categories, cruise memories, project memories, and work memories.
 
 Potential dashboard sections:
 
@@ -595,6 +660,7 @@ Potential dashboard sections:
 - Recent conversation.
 - Semantic search.
 - Model/runtime metadata.
+- MartyBench run status.
 
 Implementation target:
 
@@ -606,7 +672,31 @@ ui/JarvisUI.tsx
 
 ---
 
-### 6. Voice Pipeline
+### 3. Memory Review Commands Expansion
+
+Status: Later
+
+Potential commands:
+
+```text
+show memories by category
+show hardware memories
+show preference memories
+show memories tagged <tag>
+show recent semantic memories
+```
+
+Implementation target:
+
+```text
+skills/memory_summary_skill.py
+skills/semantic_memory_skill.py
+core/router.py
+```
+
+---
+
+### 4. Voice Pipeline
 
 Status: Later
 
@@ -636,7 +726,7 @@ Initial approach:
 
 ---
 
-### 7. Camera / Vision Pipeline
+### 5. Camera / Vision Pipeline
 
 Status: Last
 
@@ -656,13 +746,11 @@ Initial approach:
 Recommended next order:
 
 ```text
-1. Finish documentation refresh
-2. Verify API/UI uses the same brain path
-3. Add memory review/category commands
-4. Start MartyBench v2
-5. UI/API dashboard pass
-6. Voice pipeline
-7. Camera/vision pipeline
+1. MartyBench scoring / report generation
+2. API/UI dashboard pass
+3. Memory review command expansion
+4. Voice pipeline
+5. Camera/vision pipeline
 ```
 
 ---
@@ -671,4 +759,4 @@ Recommended next order:
 
 Voice and camera are still deliberately last.
 
-Jarvis is now in a stable local-first brain foundation state. The next work should build on that foundation rather than reworking it unless a regression appears.
+Jarvis is now in a stable local-first brain foundation state with repeatable context/brain regression checks and a working MartyBench v2 evaluation harness.
