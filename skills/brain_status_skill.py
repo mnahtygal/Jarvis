@@ -1,39 +1,17 @@
 # skills/brain_status_skill.py
 
-"""
-Jarvis brain status skill.
-
-Provides a quick in-Jarvis status report for the brain layer:
-- runtime/model endpoint
-- PostgreSQL
-- exact memory
-- semantic memory
-- local embedding model
-- last topic
-- recent history
-"""
-
 from __future__ import annotations
 
 import os
 from pathlib import Path
 from typing import Tuple
 
-import requests
-
 from core.db import get_connection
 from core.memory import get_all_memories
 from core.session import get_last_topic, get_recent_history
-
-
-LLAMA_MODELS_URL = os.getenv(
-    "LLAMA_MODELS_URL",
-    "http://127.0.0.1:8080/v1/models",
-)
-
-EXPECTED_MODEL = os.getenv(
-    "LLAMA_CPP_MODEL",
-    "Qwen3-30B-A3B-Q4_K_M.gguf",
+from skills.model_runtime import (
+    get_active_model_friendly_name,
+    get_model_runtime_status,
 )
 
 LOCAL_EMBEDDING_PATH = Path(
@@ -69,24 +47,8 @@ def _count_semantic_memories() -> Tuple[bool, str]:
 
 
 def _check_llm_endpoint() -> Tuple[bool, str]:
-    try:
-        response = requests.get(LLAMA_MODELS_URL, timeout=5)
-        response.raise_for_status()
-
-        data = response.json()
-        models = data.get("data", [])
-        model_names = [model.get("id", "unknown") for model in models]
-
-        if EXPECTED_MODEL in model_names:
-            return True, f"online, model={EXPECTED_MODEL}"
-
-        if model_names:
-            return True, f"online, model(s)={', '.join(model_names)}"
-
-        return False, "online but no model listed"
-
-    except Exception as error:
-        return False, f"offline ({error})"
+    status = get_model_runtime_status()
+    return status.online, status.detail
 
 
 def _check_embedding_model() -> Tuple[bool, str]:
@@ -120,6 +82,8 @@ def get_brain_status_response() -> str:
     llm_ok, llm_detail = _check_llm_endpoint()
     embedding_ok, embedding_detail = _check_embedding_model()
 
+    active_model = get_active_model_friendly_name()
+
     memories = get_all_memories()
     exact_count = len(memories)
 
@@ -128,22 +92,20 @@ def get_brain_status_response() -> str:
 
     last_topic = get_last_topic() or "None"
 
-    overall_ready = all(
-        [
-            postgres_ok,
-            semantic_ok,
-            llm_ok,
-            embedding_ok,
-            exact_count >= 0,
-        ]
-    )
+    overall_ready = all([
+        postgres_ok,
+        semantic_ok,
+        llm_ok,
+        embedding_ok,
+        exact_count >= 0,
+    ])
 
     status = "READY" if overall_ready else "NEEDS ATTENTION"
 
     lines = [
         "Jarvis Brain Status:",
         f"- Overall: {status}",
-        "- Runtime: Thor / Qwen3 30B / llama.cpp",
+        f"- Runtime: Thor / {active_model} / llama.cpp",
         f"- PostgreSQL: {postgres_detail}",
         f"- Exact memory: online, {exact_count} facts",
         f"- Semantic memory: {semantic_detail}",
