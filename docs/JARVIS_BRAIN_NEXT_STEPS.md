@@ -4,9 +4,9 @@
 
 This file is the working roadmap for getting the Jarvis brain where it needs to be without losing track of progress.
 
-Jarvis is now running on the NVIDIA Jetson AGX Thor with Qwen3 30B, PostgreSQL, pgvector semantic memory, local/offline embeddings, startup services, health checks, deterministic runtime identity responses, exact-memory routing, MartyBench v2, context regression testing, brain regression testing, a combined regression check script, and MartyBench score reporting.
+Jarvis is now running on the NVIDIA Jetson AGX Thor with local llama.cpp model serving, PostgreSQL, pgvector semantic memory, local/offline embeddings, startup services, health checks, deterministic routing, exact-memory routing, MartyBench v2, context regression testing, brain regression testing, a combined regression check script, and MartyBench score reporting.
 
-The current phase is reliability, repeatable evaluation, UI/API polish, and preparing for the next major capabilities.
+The current phase is reliability, repeatable evaluation, dynamic runtime awareness, UI/API polish, and preparing for the next major capabilities.
 
 ---
 
@@ -16,6 +16,7 @@ Completed and working:
 
 - Thor is the primary Jarvis platform.
 - Qwen3 30B runs locally through llama.cpp.
+- DeepSeek-R1-Distill-Qwen-7B also runs locally through llama.cpp for testing/comparison.
 - Ollama remains available as a fallback path if installed/configured later.
 - `jarvis-llama.service` auto-starts after reboot.
 - PostgreSQL is active after reboot.
@@ -31,9 +32,9 @@ Completed and working:
 - Semantic embeddings are local/offline with no Hugging Face token required.
 - Freeform remember/note/save commands save semantic memories.
 - Duplicate detection is active for semantic notes.
-- Semantic memory is injected into Qwen3 context.
-- Semantic memory now uses weighted ranking.
-- Runtime/project identity responses are deterministic.
+- Semantic memory is injected into normal Jarvis context.
+- Semantic memory uses weighted ranking.
+- Runtime/project identity responses are deterministic, but current model identity still needs to become dynamic.
 - Common exact-memory questions avoid LLM fallback.
 - Context assembly has a dedicated regression test.
 - Brain behavior has a dedicated regression test.
@@ -48,18 +49,8 @@ Completed and working:
 - MartyBench score summary template generation works.
 - MartyBench score report parsing works.
 - Generated benchmark result outputs are ignored by Git.
-- Jarvis CLI launcher works:
-
-```bash
-./scripts/jarvis_cli.sh
-```
-
-- Health check works:
-
-```bash
-./scripts/health_check.sh
-```
-
+- Jarvis CLI launcher works.
+- Health check works.
 - UI runs after Node 22 update.
 - GitHub SSH works from Thor.
 
@@ -80,7 +71,7 @@ Skill handler, exact-memory direct answer, or LLM fallback
   ↓
 core.context.build_messages()
   ↓
-llama.cpp / Qwen3 30B
+llama.cpp / active local model
   ↓
 Jarvis response
 ```
@@ -89,160 +80,10 @@ Important note:
 
 Not every command reaches the LLM. Known deterministic questions are handled by router/skills first.
 
-Examples:
-
-- Runtime/platform questions route to `skills/runtime_skill.py`.
-- Jarvis long-term goal routes to `skills/runtime_skill.py`.
-- Common known facts route directly through exact memory.
-- Semantic memory inspection routes to `skills/semantic_memory_skill.py`.
-- Only open-ended questions fall through to llama.cpp.
-
 Benchmark exception:
 
 - MartyBench v2 uses a raw llama.cpp path without normal Jarvis memory/context injection.
 - This keeps benchmark evaluation isolated from personal Jarvis memory unless synthetic benchmark memory is explicitly injected.
-
----
-
-## Desired Brain Responsibilities
-
-### `core/brain.py`
-
-The brain should stay thin and reliable.
-
-Responsibilities:
-
-- Receive command.
-- Clean input.
-- Save user message to session history.
-- Call router.
-- Save Jarvis response to session history.
-- Handle errors gracefully.
-
-The brain should not own detailed memory parsing, semantic retrieval, or LLM API logic.
-
----
-
-### `core/router.py`
-
-The router should own intent detection.
-
-Responsibilities:
-
-- Exact memory commands.
-- Exact-memory direct answers for common known facts.
-- Freeform semantic memory commands.
-- Recall commands.
-- Runtime/project identity routing.
-- Health/status commands.
-- Help/version/docs commands.
-- System/time/chat commands.
-- Semantic memory commands.
-- LLM fallback.
-
-Important rule:
-
-```text
-Memory commands and deterministic known-fact commands should be handled before the LLM fallback.
-```
-
----
-
-### `core/context.py`
-
-The context builder owns what Qwen3 sees.
-
-Responsibilities:
-
-- System prompt.
-- Exact long-term memory.
-- Relevant semantic memories.
-- Weighted semantic memory filtering.
-- Last topic.
-- Recent conversation history.
-- Current user question.
-- Completion-style prompt building through `build_prompt()`.
-- OpenAI-compatible chat messages through `build_messages()`.
-- Human-readable context summaries through `build_context_summary()`.
-- Reusable context sections through `build_context_sections()`.
-- Defensive behavior when memory/history/semantic retrieval is unavailable.
-
-Current behavior:
-
-- Uses exact memory when available.
-- Retrieves semantic memory with pgvector.
-- Filters semantic memory using weighted similarity.
-- Includes source/category/tag information in formatted semantic memory results.
-- Tells Qwen3 to trust saved memory/context over general model knowledge.
-- Keeps context construction testable through `tools/regression_test_context.py`.
-
----
-
-### `core/semantic_memory.py`
-
-Semantic memory owns meaning-based recall.
-
-Current responsibilities:
-
-- Load local/offline embedding model.
-- Generate embeddings using local MiniLM.
-- Store semantic memories in PostgreSQL with pgvector.
-- Search semantic memories by vector similarity.
-- Apply source weighting.
-- Apply category boosts.
-- Infer categories and tags.
-- Format results for debug output and prompt context.
-
-Current semantic memory categories:
-
-```text
-cruise
-hardware
-preference
-project
-test
-work
-```
-
-Current semantic memory ranking uses:
-
-```text
-weighted_similarity = similarity + source_boost + category_boost
-```
-
-Current cleanup approach:
-
-- Test/dev semantic memories are not deleted.
-- Test/dev rows are categorized as `test`.
-- Normal context is no longer polluted by test rows.
-- Existing embeddings are preserved.
-
----
-
-### `skills/llama_cpp_skill.py`
-
-The llama.cpp skill talks to the local model server.
-
-Responsibilities:
-
-- Build/send OpenAI-compatible request.
-- Use `core.context.build_messages()` for normal Jarvis LLM fallback.
-- Provide a raw llama.cpp path for isolated benchmark/evaluation prompts.
-- Strip Qwen3 thinking blocks from visible output.
-- Return clean text.
-- Fail gracefully if the server is offline.
-
-Primary endpoint:
-
-```text
-http://127.0.0.1:8080/v1/chat/completions
-```
-
-Primary model:
-
-```text
-Qwen3-30B-A3B-Q4_K_M.gguf
-```
 
 ---
 
@@ -311,13 +152,6 @@ save ...
 
 Duplicate detection is active so repeated semantic notes do not create unnecessary noise.
 
-Implementation:
-
-```text
-core/router.py
-core/semantic_memory.py
-```
-
 ---
 
 ### 4. Better Memory Answer Rules
@@ -331,14 +165,6 @@ Jarvis follows these memory-answer rules:
 - If no saved memory exists and no approved external source exists, Jarvis avoids inventing current facts.
 - Runtime/project identity questions are deterministic and do not require LLM fallback.
 - Common exact-memory questions answer directly without LLM fallback.
-
-Implementation:
-
-```text
-core/context.py
-core/router.py
-skills/runtime_skill.py
-```
 
 ---
 
@@ -356,14 +182,6 @@ Current checks include:
 - llama.cpp endpoint online.
 - Runtime/model state.
 
-Implementation:
-
-```text
-tools/health_check.py
-scripts/health_check.sh
-skills/brain_status_skill.py
-```
-
 ---
 
 ### 6. Context Assembler Cleanup
@@ -379,13 +197,6 @@ Completed work:
 - Preserved `build_context_summary()` for debugging.
 - Added defensive wrappers around exact memory, semantic memory, recent history, and last-topic retrieval.
 - Added dedicated context regression test.
-
-Implementation:
-
-```text
-core/context.py
-tools/regression_test_context.py
-```
 
 ---
 
@@ -405,14 +216,6 @@ Current behavior:
 - Runs brain regression second.
 - Stops on failure.
 - Uses `.venv` automatically when present.
-
-Implementation:
-
-```text
-scripts/regression_check.sh
-tools/regression_test_context.py
-tools/regression_test_brain.py
-```
 
 ---
 
@@ -443,15 +246,6 @@ conflict 34/35 Pass
 memory   34/35 Pass
 ```
 
-Runner:
-
-```bash
-python tools/run_martybench_v2_shift_handoff.py --variant basic
-python tools/run_martybench_v2_shift_handoff.py --variant messy
-python tools/run_martybench_v2_shift_handoff.py --variant conflict
-python tools/run_martybench_v2_shift_handoff.py --variant memory --include-benchmark-memory
-```
-
 ---
 
 ### 9. MartyBench Reporting Tools
@@ -466,134 +260,69 @@ Completed reporting work:
 - `score_summary.md` template generation works.
 - Score report parser added.
 - Score report rollup works.
-- Report extracts:
-  - run metadata
-  - executive summary
-  - memory/context used
-  - safety notes
-- Score report shows:
-  - total runs
-  - scored vs unscored runs
-  - latest run by variant
-  - best scored run by variant
-  - all runs with score/verdict/status
-- Report points to:
-  - `jarvis_output.md`
-  - `metadata.json`
-  - `human_scoring_template.md`
-  - `score_summary.md`
-
-Tools:
-
-```bash
-python tools/martybench_latest_report.py
-python tools/martybench_latest_report.py --variant memory
-python tools/martybench_latest_report.py --variant memory --write --score-template
-python tools/martybench_score_report.py
-python tools/martybench_score_report.py --write
-```
-
-Implementation:
-
-```text
-tools/martybench_latest_report.py
-tools/martybench_score_report.py
-benchmarks/results/
-```
-
----
-
-## Current Regression Tests
-
-### Context Regression
-
-Run:
-
-```bash
-python tools/regression_test_context.py
-```
-
-Checks:
-
-```text
-build_context_sections
-build_prompt
-build_messages
-build_context_summary
-```
-
-Expected result:
-
-```text
-Context regression complete: 4/4 passed
-```
-
-### Brain Regression
-
-Run:
-
-```bash
-python tools/regression_test_brain.py
-```
-
-Current regression prompts:
-
-```text
-what hardware are you running on
-what model are you using
-what memory systems do you have
-what is the long term goal for Jarvis
-what database does Marty prefer
-what cruise ship does Marty like
-what is my wife's name
-where do I work
-what do you remember
-semantic memory status
-brain status
-show memory categories
-show cruise memories
-show project memories
-show test memories
-show work memories
-```
-
-Expected behavior:
-
-- Runtime/project questions answer deterministically.
-- Common exact-memory facts avoid LLM fallback.
-- Semantic memory status confirms local/offline embedding model.
-- Brain status reports Thor / Qwen3 30B / llama.cpp as ready.
-- Memory category commands return normalized category results.
-
-### Combined Regression
-
-Run:
-
-```bash
-./scripts/regression_check.sh
-```
-
-Expected result:
-
-```text
-Combined regression check passed
-```
+- Latest and best scored runs are shown by variant.
+- All scored/unscored runs are listed.
 
 ---
 
 ## Immediate Next Build Items
 
-### 1. API/UI Dashboard Pass
+### 1. Dynamic Model Identity and Safe Model Switching
 
 Status: Next
 
 Goal:
 
+Keep Qwen3 30B as the default Jarvis model, preserve DeepSeek as a selectable secondary model, and ensure Jarvis reports the model actually loaded by llama.cpp.
+
+Checklist:
+
+```text
+[ ] Read active model dynamically from llama.cpp /v1/models
+[ ] Remove hard-coded Qwen3-only identity from runtime responses
+[ ] Make brain status and runtime identity use the same active-model source
+[ ] Add a model registry/config for Qwen3 and DeepSeek
+[ ] Keep Qwen3 30B as default Jarvis model
+[ ] Keep DeepSeek-R1-Distill-Qwen-7B as selectable comparison/test model
+[ ] Add safe model switch command/script
+[ ] Prevent two llama.cpp servers from colliding on port 8080
+[ ] Verify service startup still defaults to Qwen3
+[ ] Add regression coverage for dynamic model identity
+[ ] Re-run MartyBench against DeepSeek for comparison later
+```
+
+Implementation targets:
+
+```text
+skills/runtime_skill.py
+skills/brain_status_skill.py
+skills/llama_cpp_skill.py
+scripts/
+systemd service/config
+```
+
+Expected result:
+
+```text
+what model are you using
+brain status
+```
+
+must always agree with the model returned by:
+
+```text
+http://127.0.0.1:8080/v1/models
+```
+
+---
+
+### 2. API/UI Dashboard Pass
+
+Status: Next after model switching
+
+Goal:
+
 Make the frontend/API useful as a real Jarvis dashboard.
-
-Current UI improvement complete:
-
-- Quick command buttons for brain status, semantic memory status, memory categories, cruise memories, project memories, and work memories.
 
 Potential dashboard sections:
 
@@ -605,18 +334,11 @@ Potential dashboard sections:
 - Semantic search.
 - Model/runtime metadata.
 - MartyBench run status.
-
-Implementation target:
-
-```text
-api.py
-ui-app/
-ui/JarvisUI.tsx
-```
+- Active model and model-switch status.
 
 ---
 
-### 2. Memory Review Commands Expansion
+### 3. Memory Review Commands Expansion
 
 Status: Later
 
@@ -630,70 +352,32 @@ show memories tagged <tag>
 show recent semantic memories
 ```
 
-Implementation target:
-
-```text
-skills/memory_summary_skill.py
-skills/semantic_memory_skill.py
-core/router.py
-```
-
 ---
 
-### 3. Voice Pipeline
+### 4. Voice Pipeline
 
 Status: Later
 
 Voice remains intentionally later.
 
-Target flow:
-
-```text
-microphone
-  ↓
-Whisper
-  ↓
-core.brain.think()
-  ↓
-Piper
-  ↓
-speaker
-```
-
-Initial approach:
-
-- Push-to-talk or terminal voice loop first.
-- No wake word yet.
-- Confirm transcription quality.
-- Keep voice actions conservative.
-- Only enable voice after brain/API behavior is stable.
-
 ---
 
-### 4. Camera / Vision Pipeline
+### 5. Camera / Vision Pipeline
 
 Status: Last
 
 Vision remains after voice.
 
-Initial approach:
-
-- Snapshot-based image understanding first.
-- No live video loop at first.
-- Use vision only after brain and voice flows are stable.
-- Keep vision separate from core memory until the capture/consent behavior is clear.
-
 ---
 
 ## Current Priority Order
 
-Recommended next order:
-
 ```text
-1. API/UI dashboard pass
-2. Memory review command expansion
-3. Voice pipeline
-4. Camera/vision pipeline
+1. Dynamic model identity and safe model switching
+2. API/UI dashboard pass
+3. Memory review command expansion
+4. Voice pipeline
+5. Camera/vision pipeline
 ```
 
 ---
@@ -702,4 +386,4 @@ Recommended next order:
 
 Voice and camera are still deliberately last.
 
-Jarvis is now in a stable local-first brain foundation state with repeatable context/brain regression checks and a working MartyBench v2 evaluation/reporting harness.
+Jarvis is now in a stable local-first brain foundation state with repeatable context/brain regression checks, a working MartyBench v2 evaluation/reporting harness, and a new multi-model runtime direction.
