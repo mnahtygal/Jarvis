@@ -1,0 +1,29 @@
+{
+  "default_model": "qwen3",
+  "active_model_file": "config/active_model",
+  "service_name": "jarvis-llama.service",
+  "host": "0.0.0.0",
+  "port": 8080,
+  "health_url": "http://127.0.0.1:8080/health",
+  "models_url": "http://127.0.0.1:8080/v1/models",
+  "models": {
+    "qwen3": {
+      "display_name": "Qwen3 30B",
+      "model_id": "Qwen3-30B-A3B-Q4_K_M.gguf",
+      "path": "/home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "role": "default"
+    },
+    "deepseek": {
+      "display_name": "DeepSeek R1 Distill Qwen 7B",
+      "model_id": "DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
+      "path": "/home/mnahtygal/models/gguf/DeepSeek-R1-Distill-Qwen-7B-Q4_K_M.gguf",
+      "role": "comparison"
+    },
+    "qwen25coder": {
+      "display_name": "Qwen2.5 Coder 7B",
+      "model_id": "qwen2.5-coder-7b-instruct.Q4_K_M.gguf",
+      "path": "/home/mnahtygal/models/qwen2.5-coder-7b/qwen2.5-coder-7b-instruct.Q4_K_M.gguf",
+      "role": "fallback"
+    }
+  }
+}
