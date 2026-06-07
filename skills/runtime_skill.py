@@ -6,15 +6,16 @@ Runtime and project identity responses for Jarvis.
 These responses are deterministic on purpose. They describe what Jarvis is,
 where it is running, what local model stack it uses, and what the project is
 being built toward.
-
-Keeping this in a skill keeps core/router.py cleaner and avoids sending
-identity questions through the LLM when Jarvis already knows the answer.
 """
+
+from skills.model_runtime import get_active_model_friendly_name
 
 
 def get_runtime_identity_response() -> str:
+    active_model = get_active_model_friendly_name()
+
     return (
-        "I'm running locally on your NVIDIA Thor system using Qwen3 30B "
+        f"I'm running locally on your NVIDIA Thor system using {active_model} "
         "through llama.cpp. My memory stack is PostgreSQL for exact memory "
         "and conversation history, plus pgvector semantic memory for meaning-based recall. "
         "Voice and camera are planned later, but not active yet."
@@ -29,9 +30,11 @@ def get_platform_response() -> str:
 
 
 def get_model_response() -> str:
+    active_model = get_active_model_friendly_name()
+
     return (
-        "I'm using Qwen3 30B through llama.cpp as the primary local model runtime. "
-        "Ollama remains available as a fallback path."
+        f"I'm currently using {active_model} through llama.cpp as the active local runtime. "
+        "Qwen3 remains the default Jarvis model and additional local models can be used for testing."
     )
 
 
