@@ -18,4 +18,14 @@ fi
 QUESTION="$*"
 
 cd "$ROOT_DIR"
-"$VENV_PYTHON" -c "from core.brain import think; print(think('$QUESTION'))"
+JARVIS_QUESTION="$QUESTION" "$VENV_PYTHON" - <<'PY'
+import os
+
+from core.brain import think
+
+question = os.environ.get("JARVIS_QUESTION", "").strip()
+if not question:
+    raise SystemExit("No Jarvis question provided.")
+
+print(think(question))
+PY
