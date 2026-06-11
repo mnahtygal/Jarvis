@@ -4,6 +4,13 @@ from flask_cors import CORS
 from audio.listen import listen_command
 from audio.speak import speak
 from core.brain import think
+from skills.dashboard_status_skill import (
+    get_brain_dashboard_status,
+    get_dashboard_status,
+    get_martybench_dashboard_status,
+    get_memory_dashboard_status,
+    get_model_dashboard_status,
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -17,6 +24,31 @@ def home():
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.route("/api/status/dashboard", methods=["GET"])
+def api_status_dashboard():
+    return jsonify(get_dashboard_status())
+
+
+@app.route("/api/status/brain", methods=["GET"])
+def api_status_brain():
+    return jsonify(get_brain_dashboard_status())
+
+
+@app.route("/api/status/model", methods=["GET"])
+def api_status_model():
+    return jsonify(get_model_dashboard_status())
+
+
+@app.route("/api/status/memory", methods=["GET"])
+def api_status_memory():
+    return jsonify(get_memory_dashboard_status())
+
+
+@app.route("/api/status/martybench", methods=["GET"])
+def api_status_martybench():
+    return jsonify(get_martybench_dashboard_status())
 
 
 @app.route("/listen", methods=["GET"])
