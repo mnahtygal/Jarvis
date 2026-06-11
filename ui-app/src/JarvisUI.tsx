@@ -10,11 +10,80 @@ import {
   Volume2,
   VolumeX,
   RefreshCw,
+  Brain,
+  Database,
+  Cpu,
+  Gauge,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 
 type AskResponse = {
   heard: string;
   response: string;
+};
+
+type DashboardStatus = {
+  brain?: {
+    overall?: string;
+    ready?: boolean;
+    runtime?: {
+      host?: string;
+      model?: string;
+      engine?: string;
+    };
+    postgres?: string;
+    exact_memory?: string;
+    semantic_memory?: string;
+    last_topic?: string;
+    recent_history_rows_checked?: number;
+    llm_endpoint?: string;
+    local_embeddings?: string;
+  };
+  model?: {
+    online?: boolean;
+    active_model_id?: string;
+    active_model_name?: string;
+    runtime?: string;
+    host?: string;
+    detail?: string;
+  };
+  memory?: {
+    exact_memory?: {
+      fact_count?: number;
+      keys?: string[];
+      online?: boolean;
+    };
+    semantic_memory?: {
+      online?: boolean;
+      detail?: string;
+    };
+    postgres?: {
+      online?: boolean;
+      detail?: string;
+    };
+    local_embeddings?: {
+      online?: boolean;
+      detail?: string;
+    };
+    recent_history?: {
+      rows_checked?: number;
+    };
+    last_topic?: string;
+  };
+  martybench?: {
+    available?: boolean;
+    run_id?: string;
+    variant?: string;
+    elapsed_seconds?: number | string;
+    started_at?: string;
+    run_folder?: string;
+    score?: {
+      total?: number | null;
+      max_total?: number;
+      verdict?: string;
+    };
+  };
 };
 
 function GlowRing({
@@ -131,6 +200,43 @@ function ControlButton({
   );
 }
 
+function StatusCard({
+  title,
+  value,
+  detail,
+  icon,
+  ok = true,
+}: {
+  title: string;
+  value: string;
+  detail?: string;
+  icon: React.ReactNode;
+  ok?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.05)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 16,
+        padding: 16,
+        minHeight: 125,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ opacity: 0.75, fontSize: 13 }}>{title}</div>
+        <div style={{ color: ok ? "#22c55e" : "#f97316" }}>{icon}</div>
+      </div>
+      <div style={{ marginTop: 10, fontSize: 22, fontWeight: 800 }}>{value}</div>
+      {detail && (
+        <div style={{ marginTop: 8, opacity: 0.75, fontSize: 13, lineHeight: 1.35 }}>
+          {detail}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function JarvisUI() {
   const apiBase = useMemo(() => "http://127.0.0.1:5000", []);
   const [listening, setListening] = useState(false);
@@ -138,6 +244,8 @@ export default function JarvisUI() {
   const [command, setCommand] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [apiStatus, setApiStatus] = useState("Checking API...");
+  const [dashboard, setDashboard] = useState<DashboardStatus | null>(null);
+  const [dashboardStatus, setDashboardStatus] = useState("Checking dashboard...");
   const [logs, setLogs] = useState<string[]>([
     "Jarvis UI online",
     "Ready for voice or typed commands",
@@ -166,7 +274,7 @@ export default function JarvisUI() {
   }, []);
 
   const prependLogs = (entries: string[]) => {
-    setLogs((prev) => [...entries, ...prev]);
+    setLogs((prev) => [...entries, ...prev].slice(0, 80));
   };
 
   const quickCommands = [
@@ -177,6 +285,29 @@ export default function JarvisUI() {
     "show project memories",
     "show work memories",
   ];
+
+  const refreshDashboard = async (logResult = false) => {
+    try {
+      const res = await fetch(`${apiBase}/api/status/dashboard`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const data: DashboardStatus = await res.json();
+      setDashboard(data);
+      setDashboardStatus("Dashboard connected");
+
+      if (logResult) {
+        prependLogs(["Dashboard status refreshed"]);
+      }
+    } catch (error) {
+      console.error(error);
+      setDashboardStatus("Dashboard offline");
+      if (logResult) {
+        prependLogs(["Dashboard status refresh failed"]);
+      }
+    }
+  };
 
   const runQuickCommand = async (quickCommand: string) => {
     if (listening || processing) return;
@@ -198,6 +329,7 @@ export default function JarvisUI() {
 
       const data: AskResponse = await res.json();
       prependLogs([`Jarvis: ${data.response || "(no response)"}`]);
+      refreshDashboard(false);
     } catch (error) {
       console.error(error);
       prependLogs([`Failed to run quick command: ${quickCommand}`]);
@@ -219,10 +351,14 @@ export default function JarvisUI() {
       setApiStatus("API offline");
       prependLogs(["Backend health check failed"]);
     }
+
+    refreshDashboard(true);
   };
 
   useEffect(() => {
     checkApi();
+    const dashboardTimer = setInterval(() => refreshDashboard(false), 30000);
+    return () => clearInterval(dashboardTimer);
   }, []);
 
   const runVoiceAsk = async () => {
@@ -251,6 +387,7 @@ export default function JarvisUI() {
         `You: ${data.heard || "(nothing heard)"}`,
         `Jarvis: ${data.response || "(no response)"}`,
       ]);
+      refreshDashboard(false);
     } catch (error) {
       console.error(error);
       setListening(false);
@@ -282,6 +419,7 @@ export default function JarvisUI() {
       const data: AskResponse = await res.json();
       prependLogs([`Jarvis: ${data.response || "(no response)"}`]);
       setCommand("");
+      refreshDashboard(false);
     } catch (error) {
       console.error(error);
       prependLogs(["Failed to send typed command"]);
@@ -289,6 +427,12 @@ export default function JarvisUI() {
       setProcessing(false);
     }
   };
+
+  const brainReady = dashboard?.brain?.ready ?? false;
+  const modelOnline = dashboard?.model?.online ?? false;
+  const postgresOnline = dashboard?.memory?.postgres?.online ?? false;
+  const semanticOnline = dashboard?.memory?.semantic_memory?.online ?? false;
+  const martybenchScore = dashboard?.martybench?.score;
 
   return (
     <div
@@ -303,7 +447,7 @@ export default function JarvisUI() {
     >
       <div
         style={{
-          maxWidth: 1100,
+          maxWidth: 1220,
           margin: "0 auto",
         }}
       >
@@ -323,6 +467,7 @@ export default function JarvisUI() {
               {time}
             </div>
             <div>API: {apiStatus}</div>
+            <div>Dashboard: {dashboardStatus}</div>
             <div>Voice: {voiceEnabled ? "On" : "Off"}</div>
           </div>
         </div>
@@ -330,7 +475,49 @@ export default function JarvisUI() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1.4fr 1fr",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gap: 14,
+            marginBottom: 20,
+          }}
+        >
+          <StatusCard
+            title="Brain"
+            value={dashboard?.brain?.overall || "Unknown"}
+            detail={`${dashboard?.brain?.runtime?.host || "Thor"} / ${dashboard?.brain?.runtime?.model || "unknown"} / ${dashboard?.brain?.runtime?.engine || "llama.cpp"}`}
+            icon={brainReady ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+            ok={brainReady}
+          />
+          <StatusCard
+            title="Active Model"
+            value={dashboard?.model?.active_model_name || "Unknown"}
+            detail={dashboard?.model?.active_model_id || dashboard?.model?.detail || "No model data yet"}
+            icon={<Cpu size={20} />}
+            ok={modelOnline}
+          />
+          <StatusCard
+            title="Memory"
+            value={`${dashboard?.memory?.exact_memory?.fact_count ?? "?"} facts / ${dashboard?.brain?.semantic_memory || "semantic ?"}`}
+            detail={`PostgreSQL: ${dashboard?.memory?.postgres?.detail || "unknown"} · Embeddings: ${dashboard?.memory?.local_embeddings?.online ? "online" : "unknown"}`}
+            icon={<Database size={20} />}
+            ok={postgresOnline && semanticOnline}
+          />
+          <StatusCard
+            title="MartyBench"
+            value={
+              martybenchScore?.total != null
+                ? `${martybenchScore.total}/${martybenchScore.max_total || 35}`
+                : "No score"
+            }
+            detail={`${dashboard?.martybench?.variant || "unknown"} · ${martybenchScore?.verdict || "unknown"}`}
+            icon={<Gauge size={20} />}
+            ok={(martybenchScore?.total ?? 0) >= 28}
+          />
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1.25fr 1fr",
             gap: 20,
           }}
         >
@@ -379,8 +566,8 @@ export default function JarvisUI() {
                 icon={voiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
               />
               <ControlButton
-                onClick={() => window.location.reload()}
-                label="Refresh"
+                onClick={() => refreshDashboard(true)}
+                label="Refresh Dashboard"
                 icon={<RefreshCw size={16} />}
               />
             </div>
@@ -413,7 +600,7 @@ export default function JarvisUI() {
                   value={command}
                   onChange={(e) => setCommand(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendTypedCommand()}
-                  placeholder="Type command... try: what time is it"
+                  placeholder="Type command... try: what model are you using"
                   style={{
                     flex: 1,
                     padding: 12,
@@ -445,6 +632,28 @@ export default function JarvisUI() {
                 </button>
               </div>
             </div>
+
+            <div style={{ marginTop: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: 0.85 }}>
+                <Brain size={16} />
+                Live details
+              </div>
+              <div
+                style={{
+                  marginTop: 10,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                  gap: 10,
+                  fontSize: 13,
+                  opacity: 0.82,
+                }}
+              >
+                <div>Last topic: {dashboard?.brain?.last_topic || "unknown"}</div>
+                <div>History rows: {dashboard?.brain?.recent_history_rows_checked ?? "?"}</div>
+                <div>LLM: {dashboard?.brain?.llm_endpoint || "unknown"}</div>
+                <div>MartyBench run: {dashboard?.martybench?.run_id || "unknown"}</div>
+              </div>
+            </div>
           </div>
 
           <div
@@ -453,7 +662,7 @@ export default function JarvisUI() {
               border: "1px solid rgba(255,255,255,0.08)",
               borderRadius: 20,
               padding: 20,
-              minHeight: 520,
+              minHeight: 610,
             }}
           >
             <h3 style={{ marginTop: 0, marginBottom: 16 }}>Activity Log</h3>
@@ -462,7 +671,7 @@ export default function JarvisUI() {
                 display: "flex",
                 flexDirection: "column",
                 gap: 10,
-                maxHeight: 470,
+                maxHeight: 560,
                 overflowY: "auto",
               }}
             >
@@ -476,6 +685,7 @@ export default function JarvisUI() {
                     border: "1px solid rgba(255,255,255,0.06)",
                     opacity: 0.92,
                     lineHeight: 1.4,
+                    whiteSpace: "pre-wrap",
                   }}
                 >
                   {log}
