@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-from core.db import get_connection
 from core.memory import get_all_memories
 from core.session import get_last_topic, get_recent_history
 from skills.brain_status_skill import (
@@ -15,6 +14,7 @@ from skills.brain_status_skill import (
     _check_postgres,
     _count_semantic_memories,
 )
+from skills.device_status_skill import get_device_dashboard_status
 from skills.model_runtime import get_active_model_friendly_name, get_model_runtime_status
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -206,4 +206,5 @@ def get_dashboard_status() -> Dict[str, Any]:
         "model": get_model_dashboard_status(),
         "memory": get_memory_dashboard_status(),
         "martybench": get_martybench_dashboard_status(),
+        "devices": get_device_dashboard_status(),
     }
