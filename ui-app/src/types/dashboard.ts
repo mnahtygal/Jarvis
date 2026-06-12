@@ -3,6 +3,30 @@ export type AskResponse = {
   response: string;
 };
 
+export type DeviceStatus = {
+  overall?: string;
+  ready?: boolean;
+  audio_backend?: string;
+  dock_note?: string;
+  microphone?: {
+    name?: string;
+    detected?: boolean;
+    usb_lines?: string[];
+    audio_source_lines?: string[];
+    wpctl_lines?: string[];
+    test_command?: string;
+  };
+  camera?: {
+    name?: string;
+    detected?: boolean;
+    expected_device?: string;
+    expected_device_present?: boolean;
+    video_devices?: string[];
+    usb_lines?: string[];
+    test_command?: string;
+  };
+};
+
 export type DashboardStatus = {
   brain?: {
     overall?: string;
@@ -64,4 +88,5 @@ export type DashboardStatus = {
       verdict?: string;
     };
   };
+  devices?: DeviceStatus;
 };
