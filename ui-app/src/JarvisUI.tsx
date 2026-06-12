@@ -15,6 +15,7 @@ import {
   Gauge,
   CheckCircle2,
   AlertTriangle,
+  Usb,
 } from "lucide-react";
 import ActivityLog from "./components/ActivityLog";
 import ControlButton from "./components/ControlButton";
@@ -217,6 +218,7 @@ export default function JarvisUI() {
   const modelOnline = dashboard?.model?.online ?? false;
   const postgresOnline = dashboard?.memory?.postgres?.online ?? false;
   const semanticOnline = dashboard?.memory?.semantic_memory?.online ?? false;
+  const devicesReady = dashboard?.devices?.ready ?? false;
   const martybenchScore = dashboard?.martybench?.score;
 
   return (
@@ -260,7 +262,7 @@ export default function JarvisUI() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+            gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
             gap: 14,
             marginBottom: 20,
           }}
@@ -285,6 +287,13 @@ export default function JarvisUI() {
             detail={`PostgreSQL: ${dashboard?.memory?.postgres?.detail || "unknown"} · Embeddings: ${dashboard?.memory?.local_embeddings?.online ? "online" : "unknown"}`}
             icon={<Database size={20} />}
             ok={postgresOnline && semanticOnline}
+          />
+          <StatusCard
+            title="Devices"
+            value={dashboard?.devices?.overall || "Unknown"}
+            detail={`Mic: ${dashboard?.devices?.microphone?.detected ? dashboard?.devices?.microphone?.name || "detected" : "missing"} · Camera: ${dashboard?.devices?.camera?.detected ? dashboard?.devices?.camera?.name || dashboard?.devices?.camera?.expected_device || "detected" : "missing"} · ${dashboard?.devices?.audio_backend || "audio ?"}`}
+            icon={<Usb size={20} />}
+            ok={devicesReady}
           />
           <StatusCard
             title="MartyBench"
@@ -437,6 +446,8 @@ export default function JarvisUI() {
                 <div>History rows: {dashboard?.brain?.recent_history_rows_checked ?? "?"}</div>
                 <div>LLM: {dashboard?.brain?.llm_endpoint || "unknown"}</div>
                 <div>MartyBench run: {dashboard?.martybench?.run_id || "unknown"}</div>
+                <div>Mic: {dashboard?.devices?.microphone?.detected ? dashboard?.devices?.microphone?.name || "detected" : "unknown"}</div>
+                <div>Camera: {dashboard?.devices?.camera?.expected_device || "unknown"}</div>
               </div>
             </div>
           </div>
