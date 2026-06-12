@@ -11,6 +11,7 @@ from skills.dashboard_status_skill import (
     get_memory_dashboard_status,
     get_model_dashboard_status,
 )
+from skills.device_status_skill import get_device_dashboard_status
 
 app = Flask(__name__)
 CORS(app)
@@ -49,6 +50,11 @@ def api_status_memory():
 @app.route("/api/status/martybench", methods=["GET"])
 def api_status_martybench():
     return jsonify(get_martybench_dashboard_status())
+
+
+@app.route("/api/status/devices", methods=["GET"])
+def api_status_devices():
+    return jsonify(get_device_dashboard_status())
 
 
 @app.route("/listen", methods=["GET"])
