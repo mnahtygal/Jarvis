@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-
+from skills.camera_skill import capture_snapshot
 from audio.listen import listen_command
 from audio.speak import speak
 from core.brain import think
@@ -16,6 +16,10 @@ from skills.device_status_skill import get_device_dashboard_status
 app = Flask(__name__)
 CORS(app)
 
+
+@app.route("/api/camera/snapshot", methods=["POST"])
+def api_camera_snapshot():
+    return jsonify(capture_snapshot())
 
 @app.route("/")
 def home():
