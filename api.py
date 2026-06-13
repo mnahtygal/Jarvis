@@ -15,6 +15,7 @@ from skills.dashboard_status_skill import (
     get_model_dashboard_status,
 )
 from skills.device_status_skill import get_device_dashboard_status
+from skills.vision_skill import DEFAULT_PROMPT, analyze_image
 
 app = Flask(__name__)
 CORS(app)
@@ -55,6 +56,22 @@ def api_camera_latest():
         conditional=True,
         max_age=0,
     )
+
+
+@app.route("/api/camera/analyze", methods=["POST"])
+def api_camera_analyze():
+    snapshot_path = _latest_snapshot_path()
+    if snapshot_path is None:
+        return jsonify({
+            "ok": False,
+            "error": "No camera snapshot is available yet."
+        }), 404
+
+    data = request.get_json(silent=True) or {}
+    prompt = (data.get("prompt") or DEFAULT_PROMPT).strip()
+    result = analyze_image(snapshot_path, prompt=prompt)
+    status_code = 200 if result.get("ok") else 503
+    return jsonify(result), status_code
 
 
 @app.route("/")
