@@ -1,9 +1,12 @@
-from flask import Flask, jsonify, request
+from pathlib import Path
+
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
-from skills.camera_skill import capture_snapshot
+
 from audio.listen import listen_command
 from audio.speak import speak
 from core.brain import think
+from skills.camera_skill import CAPTURE_DIR, capture_snapshot
 from skills.dashboard_status_skill import (
     get_brain_dashboard_status,
     get_dashboard_status,
@@ -17,9 +20,42 @@ app = Flask(__name__)
 CORS(app)
 
 
+def _latest_snapshot_path() -> Path | None:
+    if not CAPTURE_DIR.exists():
+        return None
+
+    snapshots = [
+        path
+        for path in CAPTURE_DIR.glob("snapshot_*.jpg")
+        if path.is_file()
+    ]
+    if not snapshots:
+        return None
+
+    return max(snapshots, key=lambda path: path.stat().st_mtime)
+
+
 @app.route("/api/camera/snapshot", methods=["POST"])
 def api_camera_snapshot():
     return jsonify(capture_snapshot())
+
+
+@app.route("/api/camera/latest", methods=["GET"])
+def api_camera_latest():
+    snapshot_path = _latest_snapshot_path()
+    if snapshot_path is None:
+        return jsonify({
+            "ok": False,
+            "error": "No camera snapshot is available yet."
+        }), 404
+
+    return send_file(
+        snapshot_path,
+        mimetype="image/jpeg",
+        conditional=True,
+        max_age=0,
+    )
+
 
 @app.route("/")
 def home():
