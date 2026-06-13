@@ -42,6 +42,8 @@ export default function JarvisUI() {
   const [apiStatus, setApiStatus] = useState("Checking API...");
   const [dashboard, setDashboard] = useState<DashboardStatus | null>(null);
   const [dashboardStatus, setDashboardStatus] = useState("Checking dashboard...");
+  const [snapshotVersion, setSnapshotVersion] = useState(0);
+  const [snapshotAvailable, setSnapshotAvailable] = useState(false);
   const [logs, setLogs] = useState<string[]>([
     "Jarvis UI online",
     "Ready for voice or typed commands",
@@ -105,6 +107,22 @@ export default function JarvisUI() {
     }
   };
 
+  const checkLatestSnapshot = async () => {
+    try {
+      const res = await fetch(`${apiBase}/api/camera/latest`, {
+        method: "HEAD",
+        cache: "no-store",
+      });
+      setSnapshotAvailable(res.ok);
+      if (res.ok) {
+        setSnapshotVersion(Date.now());
+      }
+    } catch (error) {
+      console.error(error);
+      setSnapshotAvailable(false);
+    }
+  };
+
   const runQuickCommand = async (quickCommand: string) => {
     if (listening || processing || capturing) return;
 
@@ -149,6 +167,7 @@ export default function JarvisUI() {
     }
 
     refreshDashboard(true);
+    checkLatestSnapshot();
   };
 
   useEffect(() => {
@@ -214,6 +233,8 @@ export default function JarvisUI() {
         `Camera snapshot saved: ${data.relative_path || "runtime/camera"}`,
         `Camera: ${data.device || "/dev/video0"} · ${data.size_bytes ?? 0} bytes · ${data.elapsed_seconds ?? "?"}s`,
       ]);
+      setSnapshotAvailable(true);
+      setSnapshotVersion(Date.now());
       refreshDashboard(false);
     } catch (error) {
       console.error(error);
@@ -408,6 +429,25 @@ export default function JarvisUI() {
                 icon={<RefreshCw size={16} />}
               />
             </div>
+
+            {snapshotAvailable && (
+              <div style={{ marginTop: 24 }}>
+                <div style={{ marginBottom: 10, opacity: 0.85 }}>Latest snapshot</div>
+                <img
+                  src={`${apiBase}/api/camera/latest?v=${snapshotVersion}`}
+                  alt="Latest Jarvis camera snapshot"
+                  style={{
+                    width: "100%",
+                    maxHeight: 360,
+                    objectFit: "cover",
+                    borderRadius: 16,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(0,0,0,0.22)",
+                  }}
+                  onError={() => setSnapshotAvailable(false)}
+                />
+              </div>
+            )}
 
             <div style={{ marginTop: 24 }}>
               <div style={{ marginBottom: 10, opacity: 0.85 }}>Dashboard quick commands</div>
