@@ -15,7 +15,7 @@ Usage:
 From Python:
 
     from audio.listen import listen_command
-    text = listen_command(seconds=5)
+    text = listen_command(seconds=7)
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -35,7 +36,7 @@ DEFAULT_SOURCE = os.getenv(
     "alsa_input.usb-Samson_Technologies_Samson_Q2U_Microphone-00.analog-stereo",
 )
 
-DEFAULT_SECONDS = int(os.getenv("JARVIS_LISTEN_SECONDS", "5"))
+DEFAULT_SECONDS = int(os.getenv("JARVIS_LISTEN_SECONDS", "7"))
 
 _MODEL = None
 
@@ -59,7 +60,7 @@ def record_wav(
     """
     Record WAV audio using parec/PipeWire.
 
-    Returns True if the recording command exits cleanly.
+    Returns True if the recording command exits cleanly and writes audio.
     """
     cmd = [
         "timeout",
@@ -76,6 +77,7 @@ def record_wav(
         cmd.insert(3, f"--device={source}")
 
     print(f"[LISTEN] Recording {seconds} second(s)...")
+    started_at = time.perf_counter()
 
     result = subprocess.run(
         cmd,
@@ -84,13 +86,21 @@ def record_wav(
         check=False,
     )
 
+    elapsed = time.perf_counter() - started_at
+
     # timeout exits 124 when it stops parec after N seconds.
     if result.returncode not in (0, 124):
-        print("[LISTEN] Recording failed:")
+        print(f"[LISTEN] Recording failed after {elapsed:.2f}s:")
         print(result.stderr.strip())
         return False
 
-    return output_path.exists() and output_path.stat().st_size > 0
+    size_bytes = output_path.stat().st_size if output_path.exists() else 0
+    print(
+        f"[LISTEN] Recording complete: elapsed={elapsed:.2f}s "
+        f"size={size_bytes} bytes returncode={result.returncode}"
+    )
+
+    return size_bytes > 0
 
 
 def transcribe_file(wav_path: Path) -> str:
@@ -98,6 +108,7 @@ def transcribe_file(wav_path: Path) -> str:
     Transcribe a WAV file using local Whisper.
     """
     model = get_whisper_model()
+    started_at = time.perf_counter()
 
     result = model.transcribe(
         str(wav_path),
@@ -105,7 +116,10 @@ def transcribe_file(wav_path: Path) -> str:
         language="en",
     )
 
-    return result.get("text", "").strip()
+    elapsed = time.perf_counter() - started_at
+    text = result.get("text", "").strip()
+    print(f"[LISTEN] Transcription complete: elapsed={elapsed:.2f}s chars={len(text)}")
+    return text
 
 
 def listen_command(seconds: int = DEFAULT_SECONDS) -> str:
@@ -123,6 +137,7 @@ def listen_command(seconds: int = DEFAULT_SECONDS) -> str:
         ok = record_wav(wav_path, seconds=seconds)
 
         if not ok:
+            print("[LISTEN] No usable audio file was recorded.")
             return ""
 
         text = transcribe_file(wav_path)
