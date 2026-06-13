@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Usb,
+  ScanEye,
 } from "lucide-react";
 import ActivityLog from "./components/ActivityLog";
 import ControlButton from "./components/ControlButton";
@@ -32,11 +33,20 @@ type CameraSnapshotResponse = {
   error?: string;
 };
 
+type VisionAnalysisResponse = {
+  ok?: boolean;
+  model?: string;
+  description?: string;
+  image_name?: string;
+  error?: string;
+};
+
 export default function JarvisUI() {
   const apiBase = useMemo(() => "http://127.0.0.1:5000", []);
   const [listening, setListening] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [command, setCommand] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [apiStatus, setApiStatus] = useState("Checking API...");
@@ -74,6 +84,8 @@ export default function JarvisUI() {
   const prependLogs = (entries: string[]) => {
     setLogs((prev) => [...entries, ...prev].slice(0, 80));
   };
+
+  const busy = listening || processing || capturing || analyzing;
 
   const quickCommands = [
     "brain status",
@@ -124,7 +136,7 @@ export default function JarvisUI() {
   };
 
   const runQuickCommand = async (quickCommand: string) => {
-    if (listening || processing || capturing) return;
+    if (busy) return;
 
     setProcessing(true);
     prependLogs([`You: ${quickCommand}`]);
@@ -177,7 +189,7 @@ export default function JarvisUI() {
   }, []);
 
   const runVoiceAsk = async () => {
-    if (listening || processing || capturing) return;
+    if (busy) return;
 
     setListening(true);
     prependLogs(["Listening requested from UI"]);
@@ -213,7 +225,7 @@ export default function JarvisUI() {
   };
 
   const captureCameraSnapshot = async () => {
-    if (listening || processing || capturing) return;
+    if (busy) return;
 
     setCapturing(true);
     prependLogs(["Camera snapshot requested"]);
@@ -245,9 +257,43 @@ export default function JarvisUI() {
     }
   };
 
+  const analyzeLatestSnapshot = async () => {
+    if (busy || !snapshotAvailable) return;
+
+    setAnalyzing(true);
+    prependLogs(["Vision analysis requested"]);
+
+    try {
+      const res = await fetch(`${apiBase}/api/camera/analyze`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      const data: VisionAnalysisResponse = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      prependLogs([
+        `Vision (${data.model || "local model"}): ${data.description || "No description returned."}`,
+        `Analyzed snapshot: ${data.image_name || "latest"}`,
+      ]);
+    } catch (error) {
+      console.error(error);
+      const message = error instanceof Error ? error.message : "Unknown vision error";
+      prependLogs([`Vision analysis failed: ${message}`]);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const sendTypedCommand = async () => {
     const trimmed = command.trim();
-    if (!trimmed || listening || processing || capturing) return;
+    if (!trimmed || busy) return;
 
     setProcessing(true);
     prependLogs([`You: ${trimmed}`]);
@@ -386,7 +432,7 @@ export default function JarvisUI() {
               padding: 24,
             }}
           >
-            <GlowRing listening={listening} processing={processing || capturing} />
+            <GlowRing listening={listening} processing={processing || capturing || analyzing} />
 
             <div
               style={{
@@ -398,7 +444,7 @@ export default function JarvisUI() {
             >
               <ControlButton
                 onClick={runVoiceAsk}
-                disabled={listening || processing || capturing}
+                disabled={busy}
                 label={listening ? "Listening..." : processing ? "Working..." : "Listen"}
                 icon={<Mic size={16} />}
               />
@@ -406,7 +452,13 @@ export default function JarvisUI() {
                 onClick={captureCameraSnapshot}
                 label={capturing ? "Capturing..." : "Camera"}
                 icon={<Camera size={16} />}
-                disabled={!cameraDetected || listening || processing || capturing}
+                disabled={!cameraDetected || busy}
+              />
+              <ControlButton
+                onClick={analyzeLatestSnapshot}
+                label={analyzing ? "Analyzing..." : "Analyze Snapshot"}
+                icon={<ScanEye size={16} />}
+                disabled={!snapshotAvailable || busy}
               />
               <ControlButton
                 onClick={checkApi}
@@ -462,7 +514,7 @@ export default function JarvisUI() {
                   <ControlButton
                     key={quickCommand}
                     onClick={() => runQuickCommand(quickCommand)}
-                    disabled={listening || processing || capturing}
+                    disabled={busy}
                     label={quickCommand}
                     icon={<MessageSquare size={16} />}
                   />
@@ -490,7 +542,7 @@ export default function JarvisUI() {
                 />
                 <button
                   onClick={sendTypedCommand}
-                  disabled={processing || listening || capturing}
+                  disabled={busy}
                   style={{
                     padding: "12px 16px",
                     borderRadius: 12,
@@ -498,7 +550,7 @@ export default function JarvisUI() {
                     background: "white",
                     color: "#020617",
                     fontWeight: 700,
-                    cursor: processing || listening || capturing ? "not-allowed" : "pointer",
+                    cursor: busy ? "not-allowed" : "pointer",
                     display: "flex",
                     alignItems: "center",
                     gap: 8,
