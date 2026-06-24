@@ -14,6 +14,7 @@ from skills.brain_status_skill import (
     _check_embedding_model,
     _check_llm_endpoint,
     _check_postgres,
+    _count_semantic_memories,
 )
 from skills.device_status_skill import get_device_dashboard_status
 from skills.model_runtime import get_active_model_friendly_name, get_model_runtime_status
