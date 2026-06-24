@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any, Dict
+from urllib.error import URLError
+from urllib.request import urlopen
 
 from core.memory import get_all_memories
 from core.session import get_last_topic, get_recent_history
@@ -12,15 +14,17 @@ from skills.brain_status_skill import (
     _check_embedding_model,
     _check_llm_endpoint,
     _check_postgres,
-    _count_semantic_memories,
 )
 from skills.device_status_skill import get_device_dashboard_status
 from skills.model_runtime import get_active_model_friendly_name, get_model_runtime_status
+from skills.vision_skill import VISION_MODEL
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MARTYBENCH_RESULTS_DIR = (
     PROJECT_ROOT / "benchmarks" / "results" / "martybench_v2_shift_handoff"
 )
+VISION_HEALTH_URL = "http://127.0.0.1:8081/health"
+VISION_MODELS_URL = "http://127.0.0.1:8081/v1/models"
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
@@ -38,6 +42,14 @@ def _read_text(path: Path) -> str:
         return ""
 
     return path.read_text(encoding="utf-8", errors="replace")
+
+
+def _fetch_json(url: str, timeout: int = 3) -> Dict[str, Any]:
+    try:
+        with urlopen(url, timeout=timeout) as response:
+            return json.load(response)
+    except (URLError, TimeoutError, Exception):
+        return {}
 
 
 def _latest_martybench_run_dir() -> Path | None:
@@ -95,6 +107,31 @@ def get_model_dashboard_status() -> Dict[str, Any]:
         "detail": runtime_status.detail,
         "runtime": "llama.cpp",
         "host": "Thor",
+    }
+
+
+def get_vision_dashboard_status() -> Dict[str, Any]:
+    health = _fetch_json(VISION_HEALTH_URL)
+    models = _fetch_json(VISION_MODELS_URL)
+    model_ids = [item.get("id") for item in models.get("data", []) if item.get("id")]
+    active_model = model_ids[0] if model_ids else VISION_MODEL
+    online = health.get("status") == "ok"
+
+    return {
+        "online": online,
+        "overall": "READY" if online else "OFFLINE",
+        "runtime": "llama.cpp",
+        "host": "Thor",
+        "port": 8081,
+        "active_model_id": active_model,
+        "active_model_name": "Gemma 3 4B Vision",
+        "model_ids": model_ids,
+        "detail": "Vision server online" if online else "Vision server offline on port 8081",
+        "capabilities": [
+            capability
+            for item in models.get("data", [])
+            for capability in item.get("capabilities", [])
+        ],
     }
 
 
@@ -204,6 +241,7 @@ def get_dashboard_status() -> Dict[str, Any]:
     return {
         "brain": get_brain_dashboard_status(),
         "model": get_model_dashboard_status(),
+        "vision": get_vision_dashboard_status(),
         "memory": get_memory_dashboard_status(),
         "martybench": get_martybench_dashboard_status(),
         "devices": get_device_dashboard_status(),
