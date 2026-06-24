@@ -324,6 +324,7 @@ export default function JarvisUI() {
 
   const brainReady = dashboard?.brain?.ready ?? false;
   const modelOnline = dashboard?.model?.online ?? false;
+  const visionOnline = dashboard?.vision?.online ?? false;
   const postgresOnline = dashboard?.memory?.postgres?.online ?? false;
   const semanticOnline = dashboard?.memory?.semantic_memory?.online ?? false;
   const devicesReady = dashboard?.devices?.ready ?? false;
@@ -371,7 +372,7 @@ export default function JarvisUI() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+            gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
             gap: 14,
             marginBottom: 20,
           }}
@@ -389,6 +390,13 @@ export default function JarvisUI() {
             detail={dashboard?.model?.active_model_id || dashboard?.model?.detail || "No model data yet"}
             icon={<Cpu size={20} />}
             ok={modelOnline}
+          />
+          <StatusCard
+            title="Vision"
+            value={dashboard?.vision?.overall || "Unknown"}
+            detail={`${dashboard?.vision?.active_model_name || "Gemma Vision"} · port ${dashboard?.vision?.port || 8081}`}
+            icon={<ScanEye size={20} />}
+            ok={visionOnline}
           />
           <StatusCard
             title="Memory"
@@ -580,6 +588,7 @@ export default function JarvisUI() {
                 <div>Last topic: {dashboard?.brain?.last_topic || "unknown"}</div>
                 <div>History rows: {dashboard?.brain?.recent_history_rows_checked ?? "?"}</div>
                 <div>LLM: {dashboard?.brain?.llm_endpoint || "unknown"}</div>
+                <div>Vision: {dashboard?.vision?.detail || "unknown"}</div>
                 <div>MartyBench run: {dashboard?.martybench?.run_id || "unknown"}</div>
                 <div>Mic: {dashboard?.devices?.microphone?.detected ? dashboard?.devices?.microphone?.name || "detected" : "unknown"}</div>
                 <div>Camera: {dashboard?.devices?.camera?.expected_device || "unknown"}</div>
