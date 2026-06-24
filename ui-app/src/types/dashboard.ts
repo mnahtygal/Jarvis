@@ -52,6 +52,17 @@ export type DashboardStatus = {
     host?: string;
     detail?: string;
   };
+  vision?: {
+    online?: boolean;
+    overall?: string;
+    runtime?: string;
+    host?: string;
+    port?: number;
+    active_model_id?: string;
+    active_model_name?: string;
+    detail?: string;
+    capabilities?: string[];
+  };
   memory?: {
     exact_memory?: {
       fact_count?: number;
