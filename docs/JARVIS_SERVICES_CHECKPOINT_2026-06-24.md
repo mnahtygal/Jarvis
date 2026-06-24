@@ -3,13 +3,13 @@
 Date: 2026-06-24
 Project: Jarvis Local AI Assistant
 Host: NVIDIA Thor
-Status: service cleanup in progress
+Status: service cleanup complete, dashboard polish complete
 
 ## Summary
 
 This checkpoint captures the cleanup step after local voice, camera, and vision were proven working.
 
-The goal is to reduce the number of manually opened terminals and make the Jarvis stack easier to start, restart, and validate.
+The goal was to reduce the number of manually opened terminals and make the Jarvis stack easier to start, restart, validate, and read from the dashboard.
 
 ## Current Service Layout
 
@@ -20,7 +20,7 @@ The goal is to reduce the number of manually opened terminals and make the Jarvi
 5173  React UI             manual npm run dev for now
 ```
 
-The main brain, local vision model, and Flask API are now intended to run as systemd services.
+The main brain, local vision model, and Flask API now run as systemd services.
 
 ## Service Responsibilities
 
@@ -156,6 +156,68 @@ jarvis-restart
 jarvis-smoke-test
 ```
 
+## Dashboard Updates
+
+The dashboard now includes a dedicated Vision status card.
+
+Expected top cards:
+
+```text
+Brain        READY
+Active Model Qwen3 30B
+Vision       READY
+Memory       online
+Devices      READY
+MartyBench   passing
+```
+
+Vision dashboard data is supplied by:
+
+```text
+skills/dashboard_status_skill.py
+```
+
+The Vision card shows:
+
+```text
+- online/offline status
+- Gemma vision model label
+- llama.cpp runtime
+- Thor host
+- port 8081
+```
+
+## Activity Log Polish
+
+The Activity Log was updated to make long entries easier to read.
+
+Updated file:
+
+```text
+ui-app/src/components/ActivityLog.tsx
+```
+
+The log now formats entries by type:
+
+```text
+- Vision
+- Camera
+- You
+- Jarvis
+- System
+```
+
+Improvements:
+
+```text
+[x] Colored left border by log type
+[x] Clear uppercase section labels
+[x] Better wrapping for long vision responses
+[x] Slightly larger vision text
+[x] Long model names no longer blow out the card width
+[x] Camera and snapshot entries are easier to scan
+```
+
 ## Known Good Validation Commands
 
 ```bash
@@ -166,6 +228,20 @@ systemctl status jarvis-api.service --no-pager
 curl -m 3 -s http://127.0.0.1:8080/health
 curl -m 3 -s http://127.0.0.1:8081/health
 curl -m 3 -s http://127.0.0.1:5000/health
+```
+
+## Current Known Good UI Validation
+
+```text
+[x] Brain READY
+[x] Active Model Qwen3 30B
+[x] Vision READY on port 8081
+[x] Memory online
+[x] Devices READY
+[x] MartyBench 34/35
+[x] Camera preview working
+[x] Analyze Snapshot working
+[x] Activity Log receiving cleanly formatted vision output
 ```
 
 ## Remaining Manual Step
@@ -187,9 +263,22 @@ Future improvement:
 
 ```text
 1. Pull this checkpoint and scripts.
-2. chmod the scripts executable.
+2. chmod the scripts executable if needed.
 3. Run jarvis-status.
 4. Run jarvis-smoke-test.
-5. Add vision status to the dashboard.
-6. Later, convert React UI to a service.
+5. Later, convert React UI to a service.
+```
+
+## Commit Trail
+
+```text
+43a45e4  Add Jarvis status helper script
+286b9f6  Add Jarvis restart helper script
+7464cdf  Add Jarvis smoke test script
+5989826  Add Jarvis services checkpoint doc
+82128ac  Add vision status to dashboard data
+bb4b0d5  Add vision dashboard type
+a85bec8  Fix dashboard semantic memory import
+d1e210c  Add vision status card to UI
+d9254e1  Improve activity log formatting
 ```
