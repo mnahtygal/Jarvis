@@ -15,6 +15,7 @@ from skills.dashboard_status_skill import (
     get_model_dashboard_status,
 )
 from skills.device_status_skill import get_device_dashboard_status
+from skills.scan_mat_skill import analyze_scan_mat
 from skills.vision_skill import DEFAULT_PROMPT, analyze_image
 
 app = Flask(__name__)
@@ -120,6 +121,49 @@ def api_camera_capture_analyze():
         "image_name": analysis_result.get("image_name", snapshot_path.name),
         "model": analysis_result.get("model"),
     })
+
+
+@app.route("/api/vision/scan-mat", methods=["POST"])
+def api_vision_scan_mat():
+    snapshot_path = _latest_snapshot_path()
+    if snapshot_path is None:
+        return jsonify({
+            "ok": False,
+            "error": "No camera snapshot is available yet."
+        }), 404
+
+    return jsonify(analyze_scan_mat(snapshot_path))
+
+
+@app.route("/api/vision/capture-scan-mat", methods=["POST"])
+def api_vision_capture_scan_mat():
+    capture_result = capture_snapshot()
+    if not capture_result.get("ok"):
+        return jsonify({
+            "ok": False,
+            "capture": capture_result,
+            "error": capture_result.get("error", "Camera capture failed."),
+        }), 503
+
+    snapshot_path = Path(capture_result.get("file_path", ""))
+    if not snapshot_path.exists():
+        latest_snapshot = _latest_snapshot_path()
+        if latest_snapshot is None:
+            return jsonify({
+                "ok": False,
+                "capture": capture_result,
+                "error": "Camera capture succeeded but no snapshot file was found.",
+            }), 503
+        snapshot_path = latest_snapshot
+
+    mat_result = analyze_scan_mat(snapshot_path)
+    status_code = 200 if mat_result.get("ok") else 422
+    return jsonify({
+        "ok": bool(mat_result.get("ok")),
+        "capture": capture_result,
+        "mat_analysis": mat_result,
+        "image_name": snapshot_path.name,
+    }), status_code
 
 
 @app.route("/")
