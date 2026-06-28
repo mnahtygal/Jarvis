@@ -718,6 +718,7 @@ export default function JarvisUI() {
             <h2 style={{ margin: 0 }}>Vision Lab</h2>
             <div style={{ opacity: 0.74, marginTop: 6 }}>
               Scan mat mode for objects, parts, OCR, measurements, and workshop inspection.
+              Capture Mat uses the current camera angle — point the Insta360 down first.
             </div>
           </div>
           <div
@@ -770,15 +771,21 @@ export default function JarvisUI() {
               opacity: 0.88,
             }}
           >
-            <strong>Scan mat checklist</strong>
-            <div style={{ marginTop: 6 }}>Camera tilted down, mat square in view, object centered, glare reduced.</div>
+            <strong>Workbench position checklist</strong>
+            <div style={{ marginTop: 6 }}>
+              1. Use Insta360 Link Controller / DeskView to point camera down.
+              <br />
+              2. Confirm the mat fills most of the preview.
+              <br />
+              3. Center the object on the grid before Capture Mat.
+            </div>
           </div>
         </div>
 
         <div style={{ marginTop: 22, display: "flex", flexWrap: "wrap", gap: 10 }}>
           <ControlButton
             onClick={captureCameraSnapshot}
-            label={capturing ? "Capturing..." : "Capture Mat"}
+            label={capturing ? "Capturing..." : "Capture Current View"}
             icon={<Camera size={16} />}
             disabled={!cameraDetected || busy}
           />
