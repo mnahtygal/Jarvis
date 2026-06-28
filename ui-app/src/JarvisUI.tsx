@@ -24,6 +24,9 @@ import GlowRing from "./components/GlowRing";
 import StatusCard from "./components/StatusCard";
 import type { AskResponse, DashboardStatus } from "./types/dashboard";
 
+type AppPage = "home" | "vision" | "maker" | "memory" | "system";
+type ScanMode = "general" | "object" | "measurement" | "ocr" | "print" | "jetski" | "workbench";
+
 type CameraSnapshotResponse = {
   ok?: boolean;
   device?: string;
@@ -41,8 +44,78 @@ type VisionAnalysisResponse = {
   error?: string;
 };
 
+const scanModes: Array<{ id: ScanMode; label: string; detail: string }> = [
+  {
+    id: "general",
+    label: "General Scan",
+    detail: "Describe the scene and important visible details.",
+  },
+  {
+    id: "object",
+    label: "Object on Mat",
+    detail: "Describe the main object on the measurement mat.",
+  },
+  {
+    id: "measurement",
+    label: "Measurement Helper",
+    detail: "Estimate size and orientation using visible grid lines.",
+  },
+  {
+    id: "ocr",
+    label: "Read Text / Label",
+    detail: "Focus on visible words, numbers, labels, and markings.",
+  },
+  {
+    id: "print",
+    label: "3D Print Inspect",
+    detail: "Look for print quality issues and geometry problems.",
+  },
+  {
+    id: "jetski",
+    label: "Jet Ski Part Scan",
+    detail: "Inspect marine parts, covers, plugs, fittings, and damage.",
+  },
+  {
+    id: "workbench",
+    label: "Workbench Status",
+    detail: "Summarize what is on the bench and what looks important.",
+  },
+];
+
+function getScanPrompt(mode: ScanMode) {
+  const safety = "Do not identify people. If people appear, describe only non-identifying visible details.";
+
+  if (mode === "object") {
+    return `${safety} The image is from a fixed workbench scan mat. Describe the main object on the mat. Focus on shape, material, color, holes, edges, markings, orientation, and anything useful for repair, fabrication, or 3D modeling. Mention uncertainty.`;
+  }
+
+  if (mode === "measurement") {
+    return `${safety} The image is from a fixed 18 by 24 inch measurement mat. Estimate the visible object's approximate length, width, orientation, and position using the grid only if the grid is readable. Be clear that estimates are approximate and mention when the grid is not clear enough.`;
+  }
+
+  if (mode === "ocr") {
+    return `${safety} Read any visible text, labels, serial numbers, markings, symbols, or measurements. Preserve line breaks when useful. If text is unclear, say what is uncertain instead of guessing too strongly.`;
+  }
+
+  if (mode === "print") {
+    return `${safety} Inspect the visible 3D printed part or prototype. Look for warping, layer shifts, stringing, elephant foot, missing walls, rough edges, poor bridging, holes, and dimensional clues from the mat. Give practical next-step advice.`;
+  }
+
+  if (mode === "jetski") {
+    return `${safety} Inspect the visible jet ski or marine part. Describe shape, material, mounting points, plugs, covers, seals, cracks, corrosion, wear, markings, and likely orientation. Do not guess exact dimensions unless the grid is visible and readable.`;
+  }
+
+  if (mode === "workbench") {
+    return `${safety} Summarize what is visible on the workbench. Identify tools, parts, documents, cables, and anything that looks important for the current project. Keep it practical and concise.`;
+  }
+
+  return `${safety} Briefly describe what you see in this image. Mention important objects, visible text, lighting, and anything useful for a workshop assistant. Mention uncertainty when needed.`;
+}
+
 export default function JarvisUI() {
   const apiBase = useMemo(() => "http://127.0.0.1:5000", []);
+  const [activePage, setActivePage] = useState<AppPage>("home");
+  const [scanMode, setScanMode] = useState<ScanMode>("object");
   const [listening, setListening] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -257,11 +330,12 @@ export default function JarvisUI() {
     }
   };
 
-  const analyzeLatestSnapshot = async () => {
+  const analyzeLatestSnapshot = async (mode: ScanMode = "general") => {
     if (busy || !snapshotAvailable) return;
 
+    const selectedMode = scanModes.find((item) => item.id === mode);
     setAnalyzing(true);
-    prependLogs(["Vision analysis requested"]);
+    prependLogs([`Vision analysis requested: ${selectedMode?.label || "General Scan"}`]);
 
     try {
       const res = await fetch(`${apiBase}/api/camera/analyze`, {
@@ -269,7 +343,9 @@ export default function JarvisUI() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          prompt: getScanPrompt(mode),
+        }),
       });
 
       const data: VisionAnalysisResponse = await res.json();
@@ -279,7 +355,7 @@ export default function JarvisUI() {
       }
 
       prependLogs([
-        `Vision (${data.model || "local model"}): ${data.description || "No description returned."}`,
+        `Vision (${selectedMode?.label || "General Scan"} / ${data.model || "local model"}): ${data.description || "No description returned."}`,
         `Analyzed snapshot: ${data.image_name || "latest"}`,
       ]);
     } catch (error) {
@@ -330,6 +406,446 @@ export default function JarvisUI() {
   const devicesReady = dashboard?.devices?.ready ?? false;
   const cameraDetected = dashboard?.devices?.camera?.detected ?? false;
   const martybenchScore = dashboard?.martybench?.score;
+  const selectedScanMode = scanModes.find((item) => item.id === scanMode) || scanModes[0];
+
+  const snapshotPanel = (
+    <div style={{ marginTop: 24 }}>
+      <div style={{ marginBottom: 10, opacity: 0.85 }}>Latest snapshot</div>
+      {snapshotAvailable ? (
+        <img
+          src={`${apiBase}/api/camera/latest?v=${snapshotVersion}`}
+          alt="Latest Jarvis camera snapshot"
+          style={{
+            width: "100%",
+            maxHeight: 460,
+            objectFit: "cover",
+            borderRadius: 16,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(0,0,0,0.22)",
+          }}
+          onError={() => setSnapshotAvailable(false)}
+        />
+      ) : (
+        <div
+          style={{
+            minHeight: 260,
+            borderRadius: 16,
+            border: "1px dashed rgba(255,255,255,0.18)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: 0.72,
+          }}
+        >
+          No snapshot yet. Capture one from Camera.
+        </div>
+      )}
+    </div>
+  );
+
+  const topCards = (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+        gap: 14,
+        marginBottom: 20,
+      }}
+    >
+      <StatusCard
+        title="Brain"
+        value={dashboard?.brain?.overall || "Unknown"}
+        detail={`${dashboard?.brain?.runtime?.host || "Thor"} / ${dashboard?.brain?.runtime?.model || "unknown"} / ${dashboard?.brain?.runtime?.engine || "llama.cpp"}`}
+        icon={brainReady ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+        ok={brainReady}
+      />
+      <StatusCard
+        title="Active Model"
+        value={dashboard?.model?.active_model_name || "Unknown"}
+        detail={dashboard?.model?.active_model_id || dashboard?.model?.detail || "No model data yet"}
+        icon={<Cpu size={20} />}
+        ok={modelOnline}
+      />
+      <StatusCard
+        title="Vision"
+        value={dashboard?.vision?.overall || "Unknown"}
+        detail={`${dashboard?.vision?.active_model_name || "Gemma Vision"} · port ${dashboard?.vision?.port || 8081}`}
+        icon={<ScanEye size={20} />}
+        ok={visionOnline}
+      />
+      <StatusCard
+        title="Memory"
+        value={`${dashboard?.memory?.exact_memory?.fact_count ?? "?"} facts / ${dashboard?.brain?.semantic_memory || "semantic ?"}`}
+        detail={`PostgreSQL: ${dashboard?.memory?.postgres?.detail || "unknown"} · Embeddings: ${dashboard?.memory?.local_embeddings?.online ? "online" : "unknown"}`}
+        icon={<Database size={20} />}
+        ok={postgresOnline && semanticOnline}
+      />
+      <StatusCard
+        title="Devices"
+        value={dashboard?.devices?.overall || "Unknown"}
+        detail={`Mic: ${dashboard?.devices?.microphone?.detected ? dashboard?.devices?.microphone?.name || "detected" : "missing"} · Camera: ${dashboard?.devices?.camera?.detected ? dashboard?.devices?.camera?.name || dashboard?.devices?.camera?.expected_device || "detected" : "missing"} · ${dashboard?.devices?.audio_backend || "audio ?"}`}
+        icon={<Usb size={20} />}
+        ok={devicesReady}
+      />
+      <StatusCard
+        title="MartyBench"
+        value={
+          martybenchScore?.total != null
+            ? `${martybenchScore.total}/${martybenchScore.max_total || 35}`
+            : "No score"
+        }
+        detail={`${dashboard?.martybench?.variant || "unknown"} · ${martybenchScore?.verdict || "unknown"}`}
+        icon={<Gauge size={20} />}
+        ok={(martybenchScore?.total ?? 0) >= 28}
+      />
+    </div>
+  );
+
+  const navItems: Array<{ id: AppPage; label: string }> = [
+    { id: "home", label: "Home" },
+    { id: "vision", label: "Vision Lab" },
+    { id: "maker", label: "Maker Lab" },
+    { id: "memory", label: "Memory" },
+    { id: "system", label: "System" },
+  ];
+
+  const placeholderPage = (title: string, description: string, items: string[]) => (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.05)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 20,
+        padding: 24,
+      }}
+    >
+      <h2 style={{ marginTop: 0 }}>{title}</h2>
+      <p style={{ opacity: 0.78, lineHeight: 1.5 }}>{description}</p>
+      <div style={{ display: "grid", gap: 10, marginTop: 20 }}>
+        {items.map((item) => (
+          <div
+            key={item}
+            style={{
+              padding: 12,
+              borderRadius: 12,
+              background: "rgba(0,0,0,0.22)",
+              border: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const homePage = (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1.25fr 1fr",
+        gap: 20,
+      }}
+    >
+      <div
+        style={{
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 20,
+          padding: 24,
+        }}
+      >
+        <GlowRing listening={listening} processing={processing || capturing || analyzing} />
+
+        <div
+          style={{
+            marginTop: 24,
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 10,
+          }}
+        >
+          <ControlButton
+            onClick={runVoiceAsk}
+            disabled={busy}
+            label={listening ? "Listening..." : processing ? "Working..." : "Listen"}
+            icon={<Mic size={16} />}
+          />
+          <ControlButton
+            onClick={captureCameraSnapshot}
+            label={capturing ? "Capturing..." : "Camera"}
+            icon={<Camera size={16} />}
+            disabled={!cameraDetected || busy}
+          />
+          <ControlButton
+            onClick={() => analyzeLatestSnapshot("general")}
+            label={analyzing ? "Analyzing..." : "Analyze Snapshot"}
+            icon={<ScanEye size={16} />}
+            disabled={!snapshotAvailable || busy}
+          />
+          <ControlButton
+            onClick={checkApi}
+            label="Status"
+            icon={<Activity size={16} />}
+          />
+          <ControlButton
+            label="Power"
+            icon={<Power size={16} />}
+            disabled
+          />
+          <ControlButton
+            onClick={() => setVoiceEnabled((v) => !v)}
+            label={voiceEnabled ? "Voice On" : "Voice Off"}
+            icon={voiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          />
+          <ControlButton
+            onClick={() => refreshDashboard(true)}
+            label="Refresh Dashboard"
+            icon={<RefreshCw size={16} />}
+          />
+        </div>
+
+        {snapshotAvailable && snapshotPanel}
+
+        <div style={{ marginTop: 24 }}>
+          <div style={{ marginBottom: 10, opacity: 0.85 }}>Dashboard quick commands</div>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 10,
+            }}
+          >
+            {quickCommands.map((quickCommand) => (
+              <ControlButton
+                key={quickCommand}
+                onClick={() => runQuickCommand(quickCommand)}
+                disabled={busy}
+                label={quickCommand}
+                icon={<MessageSquare size={16} />}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginTop: 24 }}>
+          <div style={{ marginBottom: 10, opacity: 0.85 }}>Typed command</div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <input
+              value={command}
+              onChange={(e) => setCommand(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendTypedCommand()}
+              placeholder="Type command... try: what model are you using"
+              style={{
+                flex: 1,
+                padding: 12,
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(0,0,0,0.22)",
+                color: "white",
+                outline: "none",
+              }}
+            />
+            <button
+              onClick={sendTypedCommand}
+              disabled={busy}
+              style={{
+                padding: "12px 16px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "white",
+                color: "#020617",
+                fontWeight: 700,
+                cursor: busy ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <MessageSquare size={16} />
+              Send
+            </button>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: 0.85 }}>
+            <Brain size={16} />
+            Live details
+          </div>
+          <div
+            style={{
+              marginTop: 10,
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: 10,
+              fontSize: 13,
+              opacity: 0.82,
+            }}
+          >
+            <div>Last topic: {dashboard?.brain?.last_topic || "unknown"}</div>
+            <div>History rows: {dashboard?.brain?.recent_history_rows_checked ?? "?"}</div>
+            <div>LLM: {dashboard?.brain?.llm_endpoint || "unknown"}</div>
+            <div>Vision: {dashboard?.vision?.detail || "unknown"}</div>
+            <div>MartyBench run: {dashboard?.martybench?.run_id || "unknown"}</div>
+            <div>Mic: {dashboard?.devices?.microphone?.detected ? dashboard?.devices?.microphone?.name || "detected" : "unknown"}</div>
+            <div>Camera: {dashboard?.devices?.camera?.expected_device || "unknown"}</div>
+          </div>
+        </div>
+      </div>
+
+      <ActivityLog logs={logs} />
+    </div>
+  );
+
+  const visionPage = (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1.3fr 1fr",
+        gap: 20,
+      }}
+    >
+      <div
+        style={{
+          background: "rgba(255,255,255,0.05)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          borderRadius: 20,
+          padding: 24,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+          <div>
+            <h2 style={{ margin: 0 }}>Vision Lab</h2>
+            <div style={{ opacity: 0.74, marginTop: 6 }}>
+              Scan mat mode for objects, parts, OCR, measurements, and workshop inspection.
+            </div>
+          </div>
+          <div
+            style={{
+              padding: "8px 12px",
+              borderRadius: 999,
+              background: visionOnline ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              fontWeight: 700,
+              fontSize: 13,
+            }}
+          >
+            Vision {dashboard?.vision?.overall || "Unknown"}
+          </div>
+        </div>
+
+        <div style={{ marginTop: 22, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div>
+            <div style={{ marginBottom: 8, opacity: 0.85 }}>Scan mode</div>
+            <select
+              value={scanMode}
+              onChange={(e) => setScanMode(e.target.value as ScanMode)}
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(0,0,0,0.34)",
+                color: "white",
+                outline: "none",
+              }}
+            >
+              {scanModes.map((mode) => (
+                <option key={mode.id} value={mode.id} style={{ color: "black" }}>
+                  {mode.label}
+                </option>
+              ))}
+            </select>
+            <div style={{ marginTop: 8, opacity: 0.72, fontSize: 13 }}>{selectedScanMode.detail}</div>
+          </div>
+
+          <div
+            style={{
+              padding: 14,
+              borderRadius: 14,
+              background: "rgba(0,0,0,0.22)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              fontSize: 13,
+              lineHeight: 1.45,
+              opacity: 0.88,
+            }}
+          >
+            <strong>Scan mat checklist</strong>
+            <div style={{ marginTop: 6 }}>Camera tilted down, mat square in view, object centered, glare reduced.</div>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 22, display: "flex", flexWrap: "wrap", gap: 10 }}>
+          <ControlButton
+            onClick={captureCameraSnapshot}
+            label={capturing ? "Capturing..." : "Capture Mat"}
+            icon={<Camera size={16} />}
+            disabled={!cameraDetected || busy}
+          />
+          <ControlButton
+            onClick={() => analyzeLatestSnapshot(scanMode)}
+            label={analyzing ? "Analyzing..." : `Analyze: ${selectedScanMode.label}`}
+            icon={<ScanEye size={16} />}
+            disabled={!snapshotAvailable || busy}
+          />
+          <ControlButton
+            onClick={checkLatestSnapshot}
+            label="Refresh Snapshot"
+            icon={<RefreshCw size={16} />}
+            disabled={busy}
+          />
+        </div>
+
+        {snapshotPanel}
+
+        <div style={{ marginTop: 22 }}>
+          <div style={{ marginBottom: 10, opacity: 0.85 }}>Prompt preview</div>
+          <div
+            style={{
+              padding: 14,
+              borderRadius: 14,
+              background: "rgba(0,0,0,0.22)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              whiteSpace: "pre-wrap",
+              lineHeight: 1.45,
+              fontSize: 13,
+              opacity: 0.82,
+            }}
+          >
+            {getScanPrompt(scanMode)}
+          </div>
+        </div>
+      </div>
+
+      <ActivityLog logs={logs} />
+    </div>
+  );
+
+  const currentPage =
+    activePage === "vision"
+      ? visionPage
+      : activePage === "maker"
+        ? placeholderPage("Maker Lab", "Future home for OpenSCAD, 3D printing, laser engraving, jet ski parts, and workshop projects.", [
+            "OpenSCAD generation",
+            "3D print inspection",
+            "Laser engraving review",
+            "Jet ski part reverse engineering",
+          ])
+        : activePage === "memory"
+          ? placeholderPage("Memory", "Future home for exact facts, semantic memory, project notes, and scanned-object history.", [
+              "Exact memory facts",
+              "Semantic memory search",
+              "Project memory categories",
+              "Vision scan history",
+            ])
+          : activePage === "system"
+            ? placeholderPage("System", "Future home for services, models, smoke tests, logs, and runtime controls.", [
+                "jarvis-status",
+                "jarvis-smoke-test",
+                "Model health",
+                "Service logs",
+              ])
+            : homePage;
 
   return (
     <div
@@ -344,11 +860,11 @@ export default function JarvisUI() {
     >
       <div
         style={{
-          maxWidth: 1220,
+          maxWidth: 1280,
           margin: "0 auto",
         }}
       >
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 18 }}>
           <h1 style={{ fontSize: 34, marginBottom: 8 }}>Jarvis Command Center</h1>
           <div
             style={{
@@ -371,233 +887,36 @@ export default function JarvisUI() {
 
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
-            gap: 14,
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 10,
             marginBottom: 20,
           }}
         >
-          <StatusCard
-            title="Brain"
-            value={dashboard?.brain?.overall || "Unknown"}
-            detail={`${dashboard?.brain?.runtime?.host || "Thor"} / ${dashboard?.brain?.runtime?.model || "unknown"} / ${dashboard?.brain?.runtime?.engine || "llama.cpp"}`}
-            icon={brainReady ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
-            ok={brainReady}
-          />
-          <StatusCard
-            title="Active Model"
-            value={dashboard?.model?.active_model_name || "Unknown"}
-            detail={dashboard?.model?.active_model_id || dashboard?.model?.detail || "No model data yet"}
-            icon={<Cpu size={20} />}
-            ok={modelOnline}
-          />
-          <StatusCard
-            title="Vision"
-            value={dashboard?.vision?.overall || "Unknown"}
-            detail={`${dashboard?.vision?.active_model_name || "Gemma Vision"} · port ${dashboard?.vision?.port || 8081}`}
-            icon={<ScanEye size={20} />}
-            ok={visionOnline}
-          />
-          <StatusCard
-            title="Memory"
-            value={`${dashboard?.memory?.exact_memory?.fact_count ?? "?"} facts / ${dashboard?.brain?.semantic_memory || "semantic ?"}`}
-            detail={`PostgreSQL: ${dashboard?.memory?.postgres?.detail || "unknown"} · Embeddings: ${dashboard?.memory?.local_embeddings?.online ? "online" : "unknown"}`}
-            icon={<Database size={20} />}
-            ok={postgresOnline && semanticOnline}
-          />
-          <StatusCard
-            title="Devices"
-            value={dashboard?.devices?.overall || "Unknown"}
-            detail={`Mic: ${dashboard?.devices?.microphone?.detected ? dashboard?.devices?.microphone?.name || "detected" : "missing"} · Camera: ${dashboard?.devices?.camera?.detected ? dashboard?.devices?.camera?.name || dashboard?.devices?.camera?.expected_device || "detected" : "missing"} · ${dashboard?.devices?.audio_backend || "audio ?"}`}
-            icon={<Usb size={20} />}
-            ok={devicesReady}
-          />
-          <StatusCard
-            title="MartyBench"
-            value={
-              martybenchScore?.total != null
-                ? `${martybenchScore.total}/${martybenchScore.max_total || 35}`
-                : "No score"
-            }
-            detail={`${dashboard?.martybench?.variant || "unknown"} · ${martybenchScore?.verdict || "unknown"}`}
-            icon={<Gauge size={20} />}
-            ok={(martybenchScore?.total ?? 0) >= 28}
-          />
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.25fr 1fr",
-            gap: 20,
-          }}
-        >
-          <div
-            style={{
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 20,
-              padding: 24,
-            }}
-          >
-            <GlowRing listening={listening} processing={processing || capturing || analyzing} />
-
-            <div
-              style={{
-                marginTop: 24,
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 10,
-              }}
-            >
-              <ControlButton
-                onClick={runVoiceAsk}
-                disabled={busy}
-                label={listening ? "Listening..." : processing ? "Working..." : "Listen"}
-                icon={<Mic size={16} />}
-              />
-              <ControlButton
-                onClick={captureCameraSnapshot}
-                label={capturing ? "Capturing..." : "Camera"}
-                icon={<Camera size={16} />}
-                disabled={!cameraDetected || busy}
-              />
-              <ControlButton
-                onClick={analyzeLatestSnapshot}
-                label={analyzing ? "Analyzing..." : "Analyze Snapshot"}
-                icon={<ScanEye size={16} />}
-                disabled={!snapshotAvailable || busy}
-              />
-              <ControlButton
-                onClick={checkApi}
-                label="Status"
-                icon={<Activity size={16} />}
-              />
-              <ControlButton
-                label="Power"
-                icon={<Power size={16} />}
-                disabled
-              />
-              <ControlButton
-                onClick={() => setVoiceEnabled((v) => !v)}
-                label={voiceEnabled ? "Voice On" : "Voice Off"}
-                icon={voiceEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-              />
-              <ControlButton
-                onClick={() => refreshDashboard(true)}
-                label="Refresh Dashboard"
-                icon={<RefreshCw size={16} />}
-              />
-            </div>
-
-            {snapshotAvailable && (
-              <div style={{ marginTop: 24 }}>
-                <div style={{ marginBottom: 10, opacity: 0.85 }}>Latest snapshot</div>
-                <img
-                  src={`${apiBase}/api/camera/latest?v=${snapshotVersion}`}
-                  alt="Latest Jarvis camera snapshot"
-                  style={{
-                    width: "100%",
-                    maxHeight: 360,
-                    objectFit: "cover",
-                    borderRadius: 16,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(0,0,0,0.22)",
-                  }}
-                  onError={() => setSnapshotAvailable(false)}
-                />
-              </div>
-            )}
-
-            <div style={{ marginTop: 24 }}>
-              <div style={{ marginBottom: 10, opacity: 0.85 }}>Dashboard quick commands</div>
-              <div
+          {navItems.map((item) => {
+            const active = item.id === activePage;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActivePage(item.id)}
                 style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 10,
+                  padding: "10px 14px",
+                  borderRadius: 999,
+                  border: active ? "1px solid rgba(34,211,238,0.75)" : "1px solid rgba(255,255,255,0.10)",
+                  background: active ? "rgba(34,211,238,0.16)" : "rgba(255,255,255,0.05)",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: active ? 800 : 600,
                 }}
               >
-                {quickCommands.map((quickCommand) => (
-                  <ControlButton
-                    key={quickCommand}
-                    onClick={() => runQuickCommand(quickCommand)}
-                    disabled={busy}
-                    label={quickCommand}
-                    icon={<MessageSquare size={16} />}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginTop: 24 }}>
-              <div style={{ marginBottom: 10, opacity: 0.85 }}>Typed command</div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <input
-                  value={command}
-                  onChange={(e) => setCommand(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && sendTypedCommand()}
-                  placeholder="Type command... try: what model are you using"
-                  style={{
-                    flex: 1,
-                    padding: 12,
-                    borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(0,0,0,0.22)",
-                    color: "white",
-                    outline: "none",
-                  }}
-                />
-                <button
-                  onClick={sendTypedCommand}
-                  disabled={busy}
-                  style={{
-                    padding: "12px 16px",
-                    borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "white",
-                    color: "#020617",
-                    fontWeight: 700,
-                    cursor: busy ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <MessageSquare size={16} />
-                  Send
-                </button>
-              </div>
-            </div>
-
-            <div style={{ marginTop: 24 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: 0.85 }}>
-                <Brain size={16} />
-                Live details
-              </div>
-              <div
-                style={{
-                  marginTop: 10,
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: 10,
-                  fontSize: 13,
-                  opacity: 0.82,
-                }}
-              >
-                <div>Last topic: {dashboard?.brain?.last_topic || "unknown"}</div>
-                <div>History rows: {dashboard?.brain?.recent_history_rows_checked ?? "?"}</div>
-                <div>LLM: {dashboard?.brain?.llm_endpoint || "unknown"}</div>
-                <div>Vision: {dashboard?.vision?.detail || "unknown"}</div>
-                <div>MartyBench run: {dashboard?.martybench?.run_id || "unknown"}</div>
-                <div>Mic: {dashboard?.devices?.microphone?.detected ? dashboard?.devices?.microphone?.name || "detected" : "unknown"}</div>
-                <div>Camera: {dashboard?.devices?.camera?.expected_device || "unknown"}</div>
-              </div>
-            </div>
-          </div>
-
-          <ActivityLog logs={logs} />
+                {item.label}
+              </button>
+            );
+          })}
         </div>
+
+        {topCards}
+        {currentPage}
       </div>
     </div>
   );
