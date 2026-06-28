@@ -74,6 +74,54 @@ def api_camera_analyze():
     return jsonify(result), status_code
 
 
+@app.route("/api/camera/capture-analyze", methods=["POST"])
+def api_camera_capture_analyze():
+    data = request.get_json(silent=True) or {}
+    prompt = (data.get("prompt") or DEFAULT_PROMPT).strip()
+    mode = (data.get("mode") or "general").strip()
+
+    capture_result = capture_snapshot()
+    if not capture_result.get("ok"):
+        return jsonify({
+            "ok": False,
+            "mode": mode,
+            "capture": capture_result,
+            "error": capture_result.get("error", "Camera capture failed."),
+        }), 503
+
+    snapshot_path = Path(capture_result.get("file_path", ""))
+    if not snapshot_path.exists():
+        latest_snapshot = _latest_snapshot_path()
+        if latest_snapshot is None:
+            return jsonify({
+                "ok": False,
+                "mode": mode,
+                "capture": capture_result,
+                "error": "Camera capture succeeded but no snapshot file was found.",
+            }), 503
+        snapshot_path = latest_snapshot
+
+    analysis_result = analyze_image(snapshot_path, prompt=prompt)
+    if not analysis_result.get("ok"):
+        return jsonify({
+            "ok": False,
+            "mode": mode,
+            "capture": capture_result,
+            "analysis": analysis_result,
+            "error": analysis_result.get("error", "Vision analysis failed."),
+        }), 503
+
+    return jsonify({
+        "ok": True,
+        "mode": mode,
+        "capture": capture_result,
+        "analysis": analysis_result,
+        "description": analysis_result.get("description", ""),
+        "image_name": analysis_result.get("image_name", snapshot_path.name),
+        "model": analysis_result.get("model"),
+    })
+
+
 @app.route("/")
 def home():
     return "Jarvis API is running"
