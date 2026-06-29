@@ -1,601 +1,404 @@
 # Jarvis System Documentation
 
+Last updated: 2026-06-28
+Project: Jarvis Local AI Assistant
+Primary host: NVIDIA Jetson AGX Thor Developer Kit (`y-thor`)
+
+---
+
 ## Project Overview
 
-Jarvis is Marty's local AI assistant platform. It is designed to run primarily on local hardware with persistent memory, local language model inference, PostgreSQL-backed history, and future support for voice, vision, semantic memory, and manufacturing-focused prototype workflows.
+Jarvis is Marty's local-first AI assistant platform. It runs primarily on local hardware with persistent memory, local language model inference, local vision inference, voice input/output, a Flask API, and a React dashboard.
 
-Jarvis began on the NVIDIA Jetson AGX Xavier and has now been migrated to the NVIDIA Jetson AGX Thor Developer Kit as the primary development and inference platform.
+Jarvis began on the NVIDIA Jetson AGX Xavier and now runs primarily on the NVIDIA Jetson AGX Thor Developer Kit.
 
----
+The project has evolved from a local chatbot into a local multimodal assistant and AI workbench for:
 
-## Current Primary Platform
-
-### NVIDIA Jetson AGX Thor Developer Kit
-
-Current host:
-
-    y-thor
-
-Current platform summary:
-
-- Hardware: NVIDIA Jetson AGX Thor Developer Kit
-- Architecture: ARM64
-- Operating System: Ubuntu 24.04.4 LTS
-- Kernel: Linux 6.8.12-tegra
-- Memory: 128 GB
-- GPU: NVIDIA Thor / Blackwell architecture
-- CUDA: 13.0
-- JetPack: 7.0
-- Native inference engine: llama.cpp
-- llama.cpp build: CUDA-enabled ARM64 build
-- Primary model: Qwen3-30B-A3B-Q4_K_M.gguf
-- Database: PostgreSQL 16
-- Vector extension: pgvector
-- Main repo: git@github.com:mnahtygal/Jarvis.git
+```text
+- conversation
+- memory
+- voice
+- camera snapshots
+- local image understanding
+- scan-mat / object inspection
+- future maker-lab workflows
+```
 
 ---
 
-## Previous Platform
+## Current Platform
 
-### NVIDIA Jetson AGX Xavier
-
-The Xavier was the original Jarvis development platform.
-
-It successfully proved:
-
-- Local Python assistant architecture
-- Memory commands
-- PostgreSQL-backed memory
-- llama.cpp local inference
-- CUDA-enabled local LLM serving
-- OpenAI-compatible local API
-- Streaming response pipeline
-- MartyBench local benchmark workflow
-
-The Xavier remains useful as:
-
-- A backup node
-- A comparison benchmark platform
-- A historical baseline
-- A model transfer/source machine
+```text
+Host: y-thor
+Hardware: NVIDIA Jetson AGX Thor Developer Kit
+Architecture: ARM64
+Operating System: Ubuntu 24.04.4 LTS
+Memory: 128 GB
+CUDA: 13.0
+Inference engine: llama.cpp
+Database: PostgreSQL 16
+Vector extension: pgvector
+Camera: Insta360 Link
+Microphone: Samson Q2U
+Main repo: git@github.com:mnahtygal/Jarvis.git
+```
 
 ---
+
+## Current Service Layout
+
+```text
+8080  Qwen3 main brain      jarvis-llama.service
+8081  Gemma vision          jarvis-vision.service
+5000  Flask API             jarvis-api.service
+5173  React UI              manual npm run dev for now
+```
+
+The backend services are managed by systemd. The React UI is still manually started:
+
+```bash
+cd ~/jarvis/ui-app
+npm run build
+npm run dev
+```
+
 ---
 
-## Current Brain Polish Status
+## Runtime Models
 
-As of the Sunday polish pass, Jarvis has a stable local brain foundation on Thor.
+### Main Brain Model
 
-Completed brain-quality work:
+```text
+Qwen3-30B-A3B-Q4_K_M.gguf
+```
 
-- Runtime identity refactored into `skills/runtime_skill.py`
-- Deterministic runtime responses added for:
-  - hardware/platform
-  - model/runtime
-  - memory stack
-  - Jarvis long-term goal
-- Exact-memory routing improved in `core/router.py`
-  - common personal facts now answer without LLM fallback
-  - examples:
-    - preferred database: SQL Server
-    - favorite ship: Eurodam
-    - wife's name: Kelly
-    - workplace: GM
-- Regression test runner added:
-  - `tools/regression_test_brain.py`
-- Brain regression test currently passes.
+Served by llama.cpp on port 8080.
+
+### Vision Model
+
+```text
+ggml-org/gemma-3-4b-it-qat-GGUF
+```
+
+Served by llama.cpp on port 8081.
+
+---
+
+## Current Architecture
+
+### Text / Brain Path
+
+```text
+User / UI / API / Voice
+   ↓
+Flask API or CLI
+   ↓
+core.brain.think()
+   ↓
+core.router.route()
+   ↓
+Skill handler, exact-memory answer, semantic memory, or LLM fallback
+   ↓
+core.context.build_messages()
+   ↓
+llama.cpp / Qwen3 30B
+   ↓
+Jarvis response
+```
+
+### Camera / Vision Path
+
+```text
+Insta360 Link camera
+   ↓
+skills.camera_skill.capture_snapshot()
+   ↓
+runtime/camera/snapshot_*.jpg
+   ↓
+skills.vision_skill.analyze_image()
+   ↓
+Gemma vision model on port 8081
+   ↓
+Activity Log / Vision Lab result
+```
+
+### Scan Mat / OpenCV Path
+
+```text
+Camera current view
+   ↓
+Snapshot capture
+   ↓
+skills.scan_mat_skill.analyze_scan_mat()
+   ↓
+Mat detection / annotated image / rectified image / grid metadata
+   ↓
+Future measurement and maker-lab workflows
+```
+
+---
+
+## Current Flask API Surface
+
+Core:
+
+```text
+GET  /health
+POST /text
+POST /ask
+GET  /api/status/dashboard
+GET  /api/status/brain
+GET  /api/status/model
+GET  /api/status/memory
+GET  /api/status/martybench
+GET  /api/status/devices
+```
+
+Camera and vision:
+
+```text
+POST /api/camera/snapshot
+GET  /api/camera/latest
+POST /api/camera/analyze
+POST /api/camera/capture-analyze
+```
+
+Scan Mat / OpenCV:
+
+```text
+POST /api/vision/scan-mat
+POST /api/vision/capture-scan-mat
+```
+
+---
+
+## React UI
+
+Current UI app:
+
+```text
+ui-app/
+```
+
+Current navigation:
+
+```text
+Home | Vision Lab | Maker Lab | Memory | System
+```
+
+### Home
+
+Main dashboard, voice, camera, quick commands, status cards, and activity log.
+
+### Vision Lab
+
+Camera snapshot workflows, scan modes, scan-mat workflow, and image analysis.
+
+Current scan modes:
+
+```text
+General Scan
+Object on Mat
+Measurement Helper
+Read Text / Label
+3D Print Inspect
+Jet Ski Part Scan
+Workbench Status
+```
+
+Important current behavior:
+
+```text
+Capture Current View = capture whatever the Insta360 is currently looking at
+```
+
+Jarvis does not yet automatically tilt the camera down to the mat.
+
+### Maker Lab / Memory / System
+
+These pages are placeholders for upcoming maker, memory-review, and system-control workflows.
+
+---
+
+## Scan Mat Mode
+
+Current hardware:
+
+```text
+Camera: Insta360 Link
+Mount: top of monitor
+Scan surface: 18 x 24 inch black measured cutting mat
+```
+
+Current OpenCV skill:
+
+```text
+skills/scan_mat_skill.py
+```
+
+Current output directory:
+
+```text
+runtime/camera/mat_analysis/
+```
+
+Current outputs:
+
+```text
+*_mat_annotated.jpg
+*_mat_rectified.jpg
+```
+
+Current capabilities:
+
+```text
+[x] Capture current camera view
+[x] Analyze latest snapshot with Gemma vision
+[x] Capture + analyze in one backend call
+[x] Detect large four-corner mat-like contour with OpenCV
+[x] Annotate detected mat corners
+[x] Perspective-rectify mat image
+[x] Estimate grid-line visibility metadata
+```
+
+Current limitations:
+
+```text
+[ ] No automatic Insta360 gimbal control
+[ ] No UI display for annotated/rectified OpenCV output yet
+[ ] No object bounding boxes yet
+[ ] No calibrated real-world measurements yet
+[ ] No saved scan history yet
+[ ] No OpenSCAD generation from scan yet
+```
 
 ---
 
 ## Memory Architecture
 
-Jarvis now uses three local memory layers:
+Jarvis uses three local memory layers.
 
-1. Exact long-term memory
-   - Stored in PostgreSQL
-   - Managed by `core/memory.py`
-   - Used for direct known facts about Marty
+```text
+1. Exact long-term memory in PostgreSQL
+2. Conversation history in PostgreSQL
+3. Semantic memory in PostgreSQL with pgvector
+```
 
-2. Conversation history
-   - Stored in PostgreSQL table `conversation_history`
-   - Managed by `core/session.py`
-   - Used for recent context and follow-up awareness
+Local embedding model:
 
-3. Semantic memory
-   - Stored in PostgreSQL with pgvector
-   - Managed by `core/semantic_memory.py`
-   - Uses local embeddings from:
+```text
+models/embeddings/all-MiniLM-L6-v2
+```
 
-        models/embeddings/all-MiniLM-L6-v2
-
-   - Runs fully offline
-   - No external Hugging Face/API tokens required
-
-Semantic memory now supports:
-
-- source weighting
-- category inference
-- tag inference
-- weighted similarity ranking
-- weighted context filtering
-- category/tag display in debug output
+Semantic memory runs offline and does not require an external token.
 
 Normalized semantic categories:
 
-- cruise
-- hardware
-- preference
-- project
-- test
-- work
-
-Current semantic memory cleanup approach:
-
-- Test/dev rows are kept for audit/debugging
-- Test rows are categorized as `test`
-- Normal context is no longer polluted by test rows
-- No semantic memories were deleted during cleanup
-- Existing embeddings were preserved
-
----
-
-## Current Regression Test
-
-Run:
-
-    python tools/regression_test_brain.py
-
-Current regression prompts include:
-
-- what hardware are you running on
-- what model are you using
-- what memory systems do you have
-- what is the long term goal for Jarvis
-- what database does Marty prefer
-- what cruise ship does Marty like
-- what is my wife's name
-- where do I work
-- what do you remember
-- semantic memory status
-- brain status
-
-Expected behavior:
-
-- Runtime/project identity questions answer deterministically
-- Known exact-memory facts avoid LLM fallback
-- Semantic memory status confirms local/offline embedding model
-- Brain status reports Thor / Qwen3 30B / llama.cpp as ready
-
----
-## Current Jarvis Architecture
-
-    User Input
-       ↓
-    testbrain.py / API / UI
-       ↓
-    core.brain.think()
-       ↓
-    core.router.route()
-       ↓
-    Intent routing
-       ↓
-    Memory / Time / System / Chat / Docs / LLM
-       ↓
-    PostgreSQL memory + llama.cpp inference
-       ↓
-    Jarvis Response
-
----
-
-## Main Repo Structure
-
-    jarvis/
-    ├── api.py
-    ├── main.py
-    ├── testbrain.py
-    ├── testbrain_stream.py
-    ├── core/
-    │   ├── brain.py
-    │   ├── context.py
-    │   ├── db.py
-    │   ├── llm.py
-    │   ├── memory.py
-    │   ├── router.py
-    │   └── session.py
-    ├── skills/
-    │   ├── chat_skill.py
-    │   ├── docs_skill.py
-    │   ├── health_skill.py
-    │   ├── help_skill.py
-    │   ├── llama_cpp_skill.py
-    │   ├── llm_skill.py
-    │   ├── llm_stream_skill.py
-    │   ├── memory_summary_skill.py
-    │   ├── ollama_skill.py
-    │   ├── system_skill.py
-    │   ├── time_skill.py
-    │   └── version_skill.py
-    │   └── runtime_skill.py
-    ├── audio/
-    │   ├── listen.py
-    │   └── speak.py
-    ├── tools/
-    │   ├── create_semantic_memory_table.py
-    │   ├── create_session_state_table.py
-    │   └── health_check.py
-    │   └── regression_test_brain.py
-    ├── docs/
-    │   ├── JARVIS_SYSTEM_DOCUMENTATION.md
-    │   ├── early_sessions.md
-    │   └── jarvis_system_visual.html
-    ├── data/
-    │   ├── memory.json
-    │   └── memory_backup_before_postgres.json
-    ├── benchmarks/
-    │   └── singlefilegame.prompt
-    └── ui-app/
+```text
+cruise
+hardware
+preference
+project
+test
+work
+```
 
 ---
 
 ## Core Components
 
-### core/brain.py
-
-Primary entry point for Jarvis thinking.
-
-Responsibilities:
-
-- Receives user command
-- Cleans input
-- Stores conversation history
-- Sends command to router
-- Handles fallback behavior
-- Stores Jarvis response
-
-### core/router.py
-
-Routes user commands to the correct skill.
-
-Current routing areas include:
-
-- Greetings
-- Time/date
-- System status
-- Exact memory commands
-- Exact-memory direct answers for common known facts
-- Documentation commands
-- Health checks
-- Runtime/project identity routing
-- Semantic memory commands
-- LLM fallback
-
-### core/db.py
-
-PostgreSQL connection layer.
-
-Current database:
-
-    jarvis
-
-Current user:
-
-    mnahtygal
-
-Current password used during migration:
-
-    jarvis123
-
-### core/memory.py
-
-Handles persistent memory facts.
-
-Examples:
-
-- my favorite ship is Eurodam
-- my wife's name is Kelly
-- my workplace is GM
-- my preferred database is SQL Server
-- my taco tuesday drink is Diet Coke
-
-### core/session.py
-
-Handles conversation history.
-
-Current storage:
-
-    PostgreSQL table: conversation_history
-
-Responsibilities:
-
-- Save user messages
-- Save assistant messages
-- Retrieve recent session context
-- Support future context assembly
-
-### core/context.py
-
-Context assembler for Jarvis.
-
-Purpose:
-
-- Combine exact long-term memory
-- Combine recent conversation history
-- Retrieve relevant pgvector semantic memory
-- Filter semantic memory using weighted similarity
-- Build OpenAI-compatible chat messages for llama.cpp
-- Provide debug context summaries
-
-### skills/runtime_skill.py
-
-Deterministic runtime and project identity skill.
-
-Current responses include:
-
-- Current platform / hardware
-- Current model runtime
-- Current memory stack
-- Jarvis long-term project goal
-
-This keeps known Jarvis identity questions out of the LLM fallback path.
+| Component | Purpose |
+|---|---|
+| `api.py` | Flask API for text, voice, dashboard, camera, vision, and scan-mat endpoints. |
+| `core/brain.py` | Main thinking entry point. |
+| `core/router.py` | Intent routing and LLM fallback. |
+| `core/context.py` | Builds LLM context from memory/history. |
+| `core/memory.py` | PostgreSQL exact memory. |
+| `core/session.py` | Conversation history/session state. |
+| `core/semantic_memory.py` | pgvector semantic memory. |
+| `skills/camera_skill.py` | Camera snapshot capture. |
+| `skills/vision_skill.py` | Local Gemma image analysis. |
+| `skills/scan_mat_skill.py` | OpenCV scan-mat analysis. |
+| `skills/dashboard_status_skill.py` | Dashboard status payload. |
+| `skills/device_status_skill.py` | USB/audio/video device status. |
+| `skills/model_runtime.py` | Active model name/runtime status. |
+| `audio/listen.py` | Voice input. |
+| `audio/speak.py` | Voice output. |
+| `ui-app/` | React/Vite UI. |
 
 ---
 
-## Skills
+## Helper Scripts
 
-### skills/llama_cpp_skill.py
+```text
+scripts/jarvis-status.sh
+scripts/jarvis-restart.sh
+scripts/jarvis-smoke-test.sh
+scripts/voice_test.sh
+```
 
-Primary local LLM skill.
+### jarvis-status
 
-Current model:
+Checks services, health endpoints, listening ports, and git status.
 
-    Qwen3-30B-A3B-Q4_K_M.gguf
+```bash
+cd ~/jarvis
+./scripts/jarvis-status.sh
+```
 
-Current endpoint:
+### jarvis-restart
 
-    http://127.0.0.1:8080/v1/chat/completions
+Restarts the backend services.
 
-Current purpose:
+```bash
+cd ~/jarvis
+./scripts/jarvis-restart.sh
+```
 
-- Call local llama.cpp server
-- Send OpenAI-compatible chat payload
-- Strip Qwen3 thinking blocks from visible output
-- Return clean Jarvis responses
+### jarvis-smoke-test
 
-### skills/llm_skill.py
+Checks brain health, vision health, API health, dashboard API, camera snapshot, vision analysis, and a text command.
 
-General LLM routing skill.
-
-Current behavior:
-
-- Prefer llama.cpp
-- Fall back to Ollama if configured
-- Return friendly failure message if local brains are unavailable
-
-### skills/llm_stream_skill.py
-
-Streaming LLM skill.
-
-Used for:
-
-- Long responses
-- Benchmarks
-- MartyBench
-- Future UI streaming
-
-### skills/ollama_skill.py
-
-Legacy/fallback local LLM integration.
-
-Current status:
-
-- Optional
-- Not primary on Thor
-- Useful if Ollama is installed later
-
-### skills/system_skill.py
-
-Reports system information.
-
-Uses:
-
-- CPU
-- Memory
-- Disk
-- System status
-
-Requires:
-
-    psutil
-
-### Other Skills
-
-- skills/time_skill.py handles date/time requests.
-- skills/chat_skill.py handles simple conversational responses.
-- skills/docs_skill.py handles Jarvis documentation responses.
-- skills/health_skill.py provides Jarvis health checks.
-- skills/memory_summary_skill.py summarizes current Jarvis memory.
+```bash
+cd ~/jarvis
+./scripts/jarvis-smoke-test.sh
+```
 
 ---
 
-## PostgreSQL Database
-
-Current database engine:
-
-    PostgreSQL 16
-
-Current database:
-
-    jarvis
-
-Current tables:
-
-- conversation_history
-- memories
-- memory_history
-- semantic_memories
-- session_state
-
-Current extensions:
-
-    vector
-
-Migration from Xavier to Thor restored:
-
-- Conversation history
-- Memory facts
-- Memory history
-- Session state
-- Semantic memory table structure
-
-Verified table list:
-
-- public.conversation_history
-- public.memories
-- public.memory_history
-- public.semantic_memories
-- public.session_state
-
----
-
-## Current Local Model
-
-### Primary Model
-
-    Qwen3-30B-A3B-Q4_K_M.gguf
-
-Downloaded from:
-
-    unsloth/Qwen3-30B-A3B-GGUF
-
-Stored at:
-
-    ~/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf
-
-Why this model is currently primary:
-
-- Major upgrade from Qwen2.5-Coder 7B
-- Runs well on Thor
-- Good reasoning and coding capability
-- Strong local assistant candidate
-- Approximately 60 tokens/sec generation observed during testing
-- Works with llama.cpp OpenAI-compatible server
-
-### Previous Model
-
-    qwen2.5-coder-7b-instruct.Q4_K_M.gguf
-
-Stored at:
-
-    ~/models/qwen2.5-coder-7b/qwen2.5-coder-7b-instruct.Q4_K_M.gguf
-
-Current role:
-
-- Fast fallback
-- Coding baseline
-- Xavier comparison model
-- MartyBench historical benchmark model
-
----
-
-## llama.cpp
-
-Current location:
-
-    ~/llama.cpp
-
-Build verified:
-
-    version: 9173
-    built with GNU 13.3.0 for Linux aarch64
-
-CUDA build enabled:
-
-- DGGML_CUDA=ON
-- DLLAMA_CURL=ON
-
-Current build command:
-
-    cd ~/llama.cpp
-
-    cmake -B build \
-      -DGGML_CUDA=ON \
-      -DLLAMA_CURL=ON
-
-    cmake --build build --config Release -j$(nproc)
-
----
-
-## Starting Qwen3 30B Server
-
-    cd ~/llama.cpp
-
-    ./build/bin/llama-server \
-      -m ~/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf \
-      --host 0.0.0.0 \
-      --port 8080 \
-      -ngl 999 \
-      -t $(nproc) \
-      --jinja \
-      --reasoning-format none
-
-Expected successful server lines:
-
-    CUDA0 : NVIDIA Thor
-    n_ctx = 40960
-    chat template, thinking = 1
-    model loaded
-    server is listening on http://0.0.0.0:8080
-
----
-
-## Testing llama.cpp API
-
-    curl http://127.0.0.1:8080/v1/models
-
-Test completion:
-
-    curl http://127.0.0.1:8080/v1/chat/completions \
-      -H "Content-Type: application/json" \
-      -d '{
-        "model": "Qwen3-30B-A3B-Q4_K_M.gguf",
-        "messages": [
-          {"role": "user", "content": "What is Flask? Answer in one sentence."}
-        ],
-        "max_tokens": 300,
-        "temperature": 0.2
-      }'
-
----
-
-## Testing Jarvis CLI
-
-    cd ~/jarvis
-    source .venv/bin/activate
-
-    python3 testbrain.py
-
-Example memory test:
-
-    what do you remember
-
-Expected behavior:
-
-Jarvis should return stored memory facts from PostgreSQL.
-
-Example:
-
-    Here's what I remember, Marty: favorite_ship is Eurodam; my favorite color is blue; my favorite ship is Eurodam; my preference is SQL Server; my preferred database is SQL Server; my taco tuesday drink is Diet Coke; my test project is blue falcon; my wife's name is Kelly; my workplace is GM
-
-Example LLM fallback test:
-
-    what is flask and how is it different from express
-
-Expected behavior:
-
-- Jarvis routes to LLM fallback
-- llama.cpp handles request
-- Qwen3 responds
-- thinking content is stripped from visible answer
+## Validation Commands
+
+Backend service checks:
+
+```bash
+systemctl status jarvis-llama.service --no-pager
+systemctl status jarvis-vision.service --no-pager
+systemctl status jarvis-api.service --no-pager
+```
+
+Health checks:
+
+```bash
+curl -m 3 -s http://127.0.0.1:8080/health
+curl -m 3 -s http://127.0.0.1:8081/health
+curl -m 3 -s http://127.0.0.1:5000/health
+```
+
+Capture + analyze:
+
+```bash
+curl -s -X POST http://127.0.0.1:5000/api/camera/capture-analyze \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"object","prompt":"Describe the main object on the measurement mat."}' | python3 -m json.tool
+```
+
+OpenCV scan mat:
+
+```bash
+curl -s -X POST http://127.0.0.1:5000/api/vision/capture-scan-mat \
+  -H "Content-Type: application/json" \
+  -d '{}' | python3 -m json.tool
+```
 
 ---
 
@@ -603,73 +406,75 @@ Expected behavior:
 
 Current virtual environment:
 
-    ~/jarvis/.venv
+```text
+~/jarvis/.venv
+```
 
 Activate:
 
-    cd ~/jarvis
-    source .venv/bin/activate
+```bash
+cd ~/jarvis
+source .venv/bin/activate
+```
 
-Core packages:
+Important packages:
 
-- requests
-- flask
-- flask-cors
-- psycopg2-binary
-- python-dotenv
-- openai
-- numpy
-- psutil
+```text
+flask
+flask-cors
+requests
+psycopg2-binary
+python-dotenv
+openai
+numpy
+psutil
+opencv-python-headless
+```
 
----
+If testing scan-mat OpenCV support:
 
-## GitHub
-
-Current repo:
-
-    git@github.com:mnahtygal/Jarvis.git
-
-GitHub SSH verified:
-
-    Hi mnahtygal! You've successfully authenticated, but GitHub does not provide shell access.
-
-Current Git identity on Thor:
-
-    user.name=mnahtygal
-    user.email=mnahtyga@hotmail.com
-
-Important commit:
-
-    3a7efdc Add Thor Qwen3 llama.cpp support and thinking cleanup
-
-This commit added:
-
-- Qwen3 30B llama.cpp support
-- Qwen3 thinking block cleanup
-- Updated .gitignore
-- Thor model compatibility changes
+```bash
+source .venv/bin/activate
+pip install opencv-python-headless numpy
+sudo systemctl restart jarvis-api.service
+```
 
 ---
 
-## Current Working Milestones
+## Main Repo Structure
 
-Completed:
+```text
+jarvis/
+├── api.py
+├── main.py
+├── testbrain.py
+├── audio/
+├── core/
+├── skills/
+│   ├── camera_skill.py
+│   ├── dashboard_status_skill.py
+│   ├── device_status_skill.py
+│   ├── scan_mat_skill.py
+│   └── vision_skill.py
+├── scripts/
+│   ├── jarvis-status.sh
+│   ├── jarvis-restart.sh
+│   └── jarvis-smoke-test.sh
+├── docs/
+├── models/
+├── benchmarks/
+├── runtime/
+│   └── camera/
+└── ui-app/
+```
 
-- Thor booted and validated
-- CUDA 13 installed
-- JetPack 7 installed
-- PostgreSQL 16 installed
-- pgvector installed
-- Jarvis repo cloned
-- GitHub SSH restored
-- llama.cpp built natively on Thor
-- Qwen3 30B downloaded and tested
-- PostgreSQL restored from Xavier
-- Jarvis memory verified on Thor
-- llama.cpp inference verified
-- Jarvis LLM fallback verified with Qwen3
-- Qwen3 thinking output cleaned
-- Thor migration commit pushed to GitHub
+`runtime/camera/` is local runtime output and should stay out of Git.
+
+---
+
+## Previous Platform: Xavier
+
+The Xavier was the original Jarvis development platform and remains useful as a historical baseline.
 
 ---
 
@@ -677,16 +482,9 @@ Completed:
 
 MartyBench is the local benchmark concept used to evaluate Jarvis inference performance.
 
-Initial benchmark used:
+Current direction:
 
-- Qwen2.5-Coder 7B
-- llama.cpp
-- Three.js single-file game generation
-- Jetson AGX Xavier
-- Windows gaming rig for rendering validation
-
-Future MartyBench direction:
-
+```text
 - Compare Xavier vs Thor
 - Compare 7B vs 30B models
 - Track tokens/sec
@@ -694,9 +492,8 @@ Future MartyBench direction:
 - Track long-context stability
 - Track code generation quality
 - Track browser/runtime success
-- Track model hallucinated APIs
 - Track final patch effort
-- Store benchmark outputs in repo
+```
 
 ---
 
@@ -704,111 +501,35 @@ Future MartyBench direction:
 
 Recommended next development order:
 
-1. Stabilize Thor docs and config
-2. Create repeatable start scripts for llama.cpp
-3. Create Jarvis health check for model/database availability
-4. Add model selection config
-5. Add pgvector semantic memory workflow
-6. Re-run MartyBench on Qwen3 30B
-7. Add streaming UI support
-8. Restore voice input/output
-9. Add camera/vision later
-10. Prototype manufacturing-focused assistant workflows
-
----
-
-## Future Directions
-
-### Semantic Memory
-
-Use pgvector to store embedded memories and retrieve relevant context.
-
-Planned table:
-
-    semantic_memories
-
-Possible fields:
-
-- id
-- text
-- source
-- category
-- embedding
-- created_at
-- updated_at
-
-### Voice
-
-Voice remains later-stage.
-
-Planned stack:
-
-- USB microphone
-- Whisper or faster-whisper
-- Piper TTS
-- Jarvis wake/command loop
-- Conversation memory logging
-
-### Vision
-
-Vision remains later-stage.
-
-Possible stack:
-
-- USB camera
-- OpenCV
-- YOLO
-- local vision model
-- document/image understanding
-- manufacturing inspection prototypes
-
-### Manufacturing Prototype Ideas
-
-Possible future Thor/Jarvis manufacturing prototypes:
-
-- Shift handoff assistant
-- Plant-floor Q&A assistant
-- Maintenance triage helper
-- Operational data copilot
-- Quality image review assistant
-- Local SOP/document assistant
-- VLive/ODS query helper
-- Manufacturing issue summarizer
-
-Recommended first manufacturing prototype:
-
-    Shift Handoff Jarvis
-
-Why:
-
-- Low risk
-- High practical value
-- Does not control equipment
-- Easy to demonstrate
-- Good fit for local AI
-- Builds on memory, summarization, and search
-
----
-
-## Safety / Design Principle
-
-Jarvis should start as an assistant, summarizer, observer, and recommender.
-
-Jarvis should not directly control manufacturing equipment or make autonomous plant-floor decisions without formal safety architecture, validation, and human approval.
+```text
+1. Stabilize OpenCV scan-mat detection.
+2. Wire OpenCV outputs into Vision Lab UI.
+3. Add Capture + Analyze Current View button in Vision Lab.
+4. Display annotated and rectified scan images.
+5. Add scan history and object notes.
+6. Add calibrated measurement estimates.
+7. Add OpenSCAD starter generation from scans.
+8. Convert React UI to a service.
+9. Investigate safe Insta360 gimbal control later.
+```
 
 ---
 
 ## Current System Status
 
-As of the Thor migration:
+Jarvis is now a local Thor-powered multimodal assistant platform with:
 
-    Jarvis is now a local Blackwell-powered AI assistant platform with PostgreSQL memory, CUDA llama.cpp inference, and Qwen3 30B primary model support.
+```text
+[x] local Qwen3 30B brain
+[x] local Gemma 3 4B vision
+[x] PostgreSQL exact memory
+[x] pgvector semantic memory
+[x] voice input/output path
+[x] camera snapshots
+[x] Vision Lab UI
+[x] service-managed backend
+[x] status/restart/smoke-test scripts
+[x] first OpenCV scan-mat geometry layer
+```
 
-This marks the transition from:
-
-    Jetson Xavier local assistant experiment
-
-to:
-
-    Jetson Thor local AI platform
-EOF
+This marks the transition from a Jetson Xavier local assistant experiment to a Jetson Thor local multimodal AI workbench.
