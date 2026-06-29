@@ -1,15 +1,18 @@
 # Jarvis Services Checkpoint
 
 Date: 2026-06-24
+Last updated: 2026-06-28
 Project: Jarvis Local AI Assistant
 Host: NVIDIA Thor
-Status: service cleanup complete, dashboard polish complete
+Status: service cleanup complete, dashboard polish complete, scan-mat backend added
 
 ## Summary
 
 This checkpoint captures the cleanup step after local voice, camera, and vision were proven working.
 
 The goal was to reduce the number of manually opened terminals and make the Jarvis stack easier to start, restart, validate, and read from the dashboard.
+
+Since the original service checkpoint, Jarvis has also gained Vision Lab scan modes, a capture-and-analyze endpoint, and an OpenCV scan-mat analysis endpoint.
 
 ## Current Service Layout
 
@@ -57,7 +60,7 @@ curl -m 3 -s http://127.0.0.1:8081/health
 Purpose:
 
 ```text
-Flask backend for voice, text, dashboard, camera, and vision routes
+Flask backend for voice, text, dashboard, camera, vision, and scan-mat routes
 ```
 
 Health check:
@@ -131,6 +134,8 @@ cd ~/jarvis
 ./scripts/jarvis-smoke-test.sh
 ```
 
+Future improvement: extend the smoke test to include `/api/camera/capture-analyze` and `/api/vision/capture-scan-mat`.
+
 ## First-Time Permission Fix
 
 After pulling the scripts, make them executable:
@@ -158,7 +163,7 @@ jarvis-smoke-test
 
 ## Dashboard Updates
 
-The dashboard now includes a dedicated Vision status card.
+The dashboard includes a dedicated Vision status card.
 
 Expected top cards:
 
@@ -186,6 +191,51 @@ The Vision card shows:
 - Thor host
 - port 8081
 ```
+
+## Vision Lab / Scan Mat Additions
+
+Vision Lab now supports multiple scan prompts:
+
+```text
+General Scan
+Object on Mat
+Measurement Helper
+Read Text / Label
+3D Print Inspect
+Jet Ski Part Scan
+Workbench Status
+```
+
+Camera/vision API endpoints now include:
+
+```text
+POST /api/camera/snapshot
+GET  /api/camera/latest
+POST /api/camera/analyze
+POST /api/camera/capture-analyze
+POST /api/vision/scan-mat
+POST /api/vision/capture-scan-mat
+```
+
+OpenCV scan-mat analysis lives in:
+
+```text
+skills/scan_mat_skill.py
+```
+
+Generated OpenCV outputs are local-only under:
+
+```text
+runtime/camera/mat_analysis/
+```
+
+Important behavior:
+
+```text
+Capture Current View = capture whatever the Insta360 is currently looking at
+```
+
+The app does not yet automatically tilt the Insta360 down to the mat.
 
 ## Activity Log Polish
 
@@ -230,6 +280,22 @@ curl -m 3 -s http://127.0.0.1:8081/health
 curl -m 3 -s http://127.0.0.1:5000/health
 ```
 
+Scan Mat validation:
+
+```bash
+curl -s -X POST http://127.0.0.1:5000/api/vision/capture-scan-mat \
+  -H "Content-Type: application/json" \
+  -d '{}' | python3 -m json.tool
+```
+
+Capture + Analyze validation:
+
+```bash
+curl -s -X POST http://127.0.0.1:5000/api/camera/capture-analyze \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"object","prompt":"Do not identify people. Describe the main object on the measurement mat."}' | python3 -m json.tool
+```
+
 ## Current Known Good UI Validation
 
 ```text
@@ -242,6 +308,8 @@ curl -m 3 -s http://127.0.0.1:5000/health
 [x] Camera preview working
 [x] Analyze Snapshot working
 [x] Activity Log receiving cleanly formatted vision output
+[x] Vision Lab navigation present
+[x] Scan mode selector present
 ```
 
 ## Remaining Manual Step
@@ -262,11 +330,14 @@ Future improvement:
 ## Recommended Next Steps
 
 ```text
-1. Pull this checkpoint and scripts.
-2. chmod the scripts executable if needed.
-3. Run jarvis-status.
-4. Run jarvis-smoke-test.
-5. Later, convert React UI to a service.
+1. Pull latest docs/code.
+2. Ensure OpenCV dependencies are installed if testing scan mat.
+3. Restart jarvis-api.service.
+4. Run jarvis-status.
+5. Run jarvis-smoke-test.
+6. Test /api/vision/capture-scan-mat.
+7. Wire OpenCV outputs into Vision Lab UI.
+8. Later, convert React UI to a service.
 ```
 
 ## Commit Trail
@@ -281,4 +352,9 @@ bb4b0d5  Add vision dashboard type
 a85bec8  Fix dashboard semantic memory import
 d1e210c  Add vision status card to UI
 d9254e1  Improve activity log formatting
+83a56b7  Add Vision Lab navigation and scan modes
+74a64d6  Add capture and analyze camera endpoint
+6e42e7c  Add Scan Mat Mode checkpoint doc
+1dcf7dc  Add OpenCV scan mat analysis skill
+4427be5  Add scan mat analysis API endpoint
 ```
