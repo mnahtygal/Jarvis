@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Mic,
   Camera,
@@ -154,9 +154,9 @@ export default function JarvisUI() {
     return () => clearInterval(timer);
   }, []);
 
-  const prependLogs = (entries: string[]) => {
+  const prependLogs = useCallback((entries: string[]) => {
     setLogs((prev) => [...entries, ...prev].slice(0, 80));
-  };
+  }, []);
 
   const busy = listening || processing || capturing || analyzing;
 
@@ -169,7 +169,7 @@ export default function JarvisUI() {
     "show work memories",
   ];
 
-  const refreshDashboard = async (logResult = false) => {
+  const refreshDashboard = useCallback(async (logResult = false) => {
     try {
       const res = await fetch(`${apiBase}/api/status/dashboard`);
       if (!res.ok) {
@@ -190,9 +190,9 @@ export default function JarvisUI() {
         prependLogs(["Dashboard status refresh failed"]);
       }
     }
-  };
+  }, [apiBase, prependLogs]);
 
-  const checkLatestSnapshot = async () => {
+  const checkLatestSnapshot = useCallback(async () => {
     try {
       const res = await fetch(`${apiBase}/api/camera/latest`, {
         method: "HEAD",
@@ -206,7 +206,7 @@ export default function JarvisUI() {
       console.error(error);
       setSnapshotAvailable(false);
     }
-  };
+  }, [apiBase]);
 
   const runQuickCommand = async (quickCommand: string) => {
     if (busy) return;
@@ -237,7 +237,7 @@ export default function JarvisUI() {
     }
   };
 
-  const checkApi = async () => {
+  const checkApi = useCallback(async () => {
     try {
       const res = await fetch(`${apiBase}/health`);
       if (!res.ok) {
@@ -253,13 +253,18 @@ export default function JarvisUI() {
 
     refreshDashboard(true);
     checkLatestSnapshot();
-  };
+  }, [apiBase, checkLatestSnapshot, prependLogs, refreshDashboard]);
 
   useEffect(() => {
-    checkApi();
+    const initialCheck = window.setTimeout(() => {
+      checkApi();
+    }, 0);
     const dashboardTimer = setInterval(() => refreshDashboard(false), 30000);
-    return () => clearInterval(dashboardTimer);
-  }, []);
+    return () => {
+      window.clearTimeout(initialCheck);
+      clearInterval(dashboardTimer);
+    };
+  }, [checkApi, refreshDashboard]);
 
   const runVoiceAsk = async () => {
     if (busy) return;
