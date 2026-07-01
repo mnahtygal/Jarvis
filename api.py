@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, abort, jsonify, request, send_file, url_for
 from flask_cors import CORS
 
 from audio.listen import listen_command
@@ -21,6 +21,8 @@ from skills.vision_skill import DEFAULT_PROMPT, analyze_image
 app = Flask(__name__)
 CORS(app)
 
+MAT_ANALYSIS_DIR = CAPTURE_DIR / "mat_analysis"
+
 
 def _latest_snapshot_path() -> Path | None:
     if not CAPTURE_DIR.exists():
@@ -35,6 +37,78 @@ def _latest_snapshot_path() -> Path | None:
         return None
 
     return max(snapshots, key=lambda path: path.stat().st_mtime)
+
+
+def _resolve_artifact_path(base_dir: Path, artifact_name: str) -> Path | None:
+    base_path = base_dir.resolve()
+    artifact_path = (base_path / artifact_name).resolve()
+
+    try:
+        artifact_path.relative_to(base_path)
+    except ValueError:
+        return None
+
+    if not artifact_path.is_file():
+        return None
+
+    return artifact_path
+
+
+def _serve_artifact(base_dir: Path, artifact_name: str):
+    artifact_path = _resolve_artifact_path(base_dir, artifact_name)
+    if artifact_path is None:
+        abort(404)
+
+    return send_file(
+        artifact_path,
+        mimetype="image/jpeg",
+        conditional=True,
+        max_age=0,
+    )
+
+
+def _raw_artifact_url(snapshot_path: Path) -> str:
+    return url_for(
+        "api_camera_artifact",
+        artifact_name=snapshot_path.name,
+        _external=True,
+    )
+
+
+def _mat_artifact_url(artifact_path: str | None) -> str | None:
+    if not artifact_path:
+        return None
+
+    path = Path(artifact_path)
+    if _resolve_artifact_path(MAT_ANALYSIS_DIR, path.name) is None:
+        return None
+
+    return url_for(
+        "api_scan_mat_artifact",
+        artifact_name=path.name,
+        _external=True,
+    )
+
+
+def _scan_mat_metadata(snapshot_path: Path, mat_result: dict) -> dict:
+    rectified_image_url = _mat_artifact_url(mat_result.get("rectified_path"))
+    rectified_available = bool(rectified_image_url)
+    mat_detected = bool(mat_result.get("mat_detected"))
+    warning = None
+
+    if not rectified_available:
+        warning = "Rectified view is unavailable because the scan mat was not detected."
+
+    return {
+        "raw_image_url": _raw_artifact_url(snapshot_path),
+        "annotated_image_url": _mat_artifact_url(mat_result.get("annotated_path")),
+        "rectified_image_url": rectified_image_url,
+        "scan_ok": bool(mat_result.get("ok")),
+        "mat_detected": mat_detected,
+        "corners": mat_result.get("mat", {}).get("corners"),
+        "rectified_available": rectified_available,
+        "warning": warning,
+    }
 
 
 @app.route("/api/camera/snapshot", methods=["POST"])
@@ -57,6 +131,16 @@ def api_camera_latest():
         conditional=True,
         max_age=0,
     )
+
+
+@app.route("/api/vision/artifacts/raw/<path:artifact_name>", methods=["GET"])
+def api_camera_artifact(artifact_name: str):
+    return _serve_artifact(CAPTURE_DIR, artifact_name)
+
+
+@app.route("/api/vision/artifacts/mat-analysis/<path:artifact_name>", methods=["GET"])
+def api_scan_mat_artifact(artifact_name: str):
+    return _serve_artifact(MAT_ANALYSIS_DIR, artifact_name)
 
 
 @app.route("/api/camera/analyze", methods=["POST"])
@@ -132,7 +216,11 @@ def api_vision_scan_mat():
             "error": "No camera snapshot is available yet."
         }), 404
 
-    return jsonify(analyze_scan_mat(snapshot_path))
+    mat_result = analyze_scan_mat(snapshot_path)
+    return jsonify({
+        **mat_result,
+        **_scan_mat_metadata(snapshot_path, mat_result),
+    })
 
 
 @app.route("/api/vision/capture-scan-mat", methods=["POST"])
@@ -157,12 +245,14 @@ def api_vision_capture_scan_mat():
         snapshot_path = latest_snapshot
 
     mat_result = analyze_scan_mat(snapshot_path)
+    scan_metadata = _scan_mat_metadata(snapshot_path, mat_result)
     status_code = 200 if mat_result.get("ok") else 422
     return jsonify({
         "ok": bool(mat_result.get("ok")),
         "capture": capture_result,
         "mat_analysis": mat_result,
         "image_name": snapshot_path.name,
+        **scan_metadata,
     }), status_code
 
 

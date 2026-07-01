@@ -168,6 +168,8 @@ Scan Mat / OpenCV:
 ```text
 POST /api/vision/scan-mat
 POST /api/vision/capture-scan-mat
+GET  /api/vision/artifacts/raw/<artifact_name>
+GET  /api/vision/artifacts/mat-analysis/<artifact_name>
 ```
 
 ---
@@ -248,6 +250,8 @@ Current outputs:
 *_mat_annotated.jpg
 *_mat_rectified.jpg
 ```
+
+The Flask API exposes browser-safe artifact URLs for the raw capture, annotated detection image, and rectified view when available.
 
 Current capabilities:
 

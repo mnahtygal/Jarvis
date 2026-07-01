@@ -44,6 +44,31 @@ type VisionAnalysisResponse = {
   error?: string;
 };
 
+type ScanMatResponse = {
+  ok?: boolean;
+  scan_ok?: boolean;
+  mat_detected?: boolean;
+  raw_image_url?: string;
+  annotated_image_url?: string | null;
+  rectified_image_url?: string | null;
+  rectified_available?: boolean;
+  warning?: string | null;
+  corners?: number[][];
+  image_name?: string;
+  error?: string;
+  capture?: CameraSnapshotResponse;
+  mat_analysis?: {
+    ok?: boolean;
+    mat_detected?: boolean;
+    image_name?: string;
+    annotated_path?: string;
+    rectified_path?: string;
+    mat?: {
+      corners?: number[][];
+    };
+  };
+};
+
 const scanModes: Array<{ id: ScanMode; label: string; detail: string }> = [
   {
     id: "general",
@@ -120,6 +145,7 @@ export default function JarvisUI() {
   const [processing, setProcessing] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [scanningMat, setScanningMat] = useState(false);
   const [command, setCommand] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [apiStatus, setApiStatus] = useState("Checking API...");
@@ -127,6 +153,8 @@ export default function JarvisUI() {
   const [dashboardStatus, setDashboardStatus] = useState("Checking dashboard...");
   const [snapshotVersion, setSnapshotVersion] = useState(0);
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);
+  const [scanMatResult, setScanMatResult] = useState<ScanMatResponse | null>(null);
+  const [scanMatVersion, setScanMatVersion] = useState(0);
   const [logs, setLogs] = useState<string[]>([
     "Jarvis UI online",
     "Ready for voice or typed commands",
@@ -158,7 +186,7 @@ export default function JarvisUI() {
     setLogs((prev) => [...entries, ...prev].slice(0, 80));
   }, []);
 
-  const busy = listening || processing || capturing || analyzing;
+  const busy = listening || processing || capturing || analyzing || scanningMat;
 
   const quickCommands = [
     "brain status",
@@ -372,6 +400,45 @@ export default function JarvisUI() {
     }
   };
 
+  const runScanMat = async () => {
+    if (busy || !cameraDetected) return;
+
+    setScanningMat(true);
+    prependLogs(["Scan Mat requested"]);
+
+    try {
+      const res = await fetch(`${apiBase}/api/vision/capture-scan-mat`, {
+        method: "POST",
+      });
+      const data: ScanMatResponse = await res.json();
+
+      if (!res.ok && res.status !== 422) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      setScanMatResult(data);
+      setScanMatVersion(Date.now());
+
+      if (data.raw_image_url) {
+        setSnapshotAvailable(true);
+        setSnapshotVersion(Date.now());
+      }
+
+      prependLogs([
+        data.mat_detected
+          ? "Scan Mat: mat detected; artifacts ready"
+          : `Scan Mat: ${data.warning || "mat was not detected"}`,
+      ]);
+      refreshDashboard(false);
+    } catch (error) {
+      console.error(error);
+      const message = error instanceof Error ? error.message : "Unknown scan-mat error";
+      prependLogs([`Scan Mat failed: ${message}`]);
+    } finally {
+      setScanningMat(false);
+    }
+  };
+
   const sendTypedCommand = async () => {
     const trimmed = command.trim();
     if (!trimmed || busy) return;
@@ -443,6 +510,116 @@ export default function JarvisUI() {
           }}
         >
           No snapshot yet. Capture one from Camera.
+        </div>
+      )}
+    </div>
+  );
+
+  const artifactImageSrc = (url?: string | null) =>
+    url ? `${url}${url.includes("?") ? "&" : "?"}v=${scanMatVersion}` : "";
+
+  const scanArtifactCard = (
+    title: string,
+    imageUrl?: string | null,
+    detail?: string,
+    warning?: string | null
+  ) => (
+    <div
+      style={{
+        background: "rgba(0,0,0,0.22)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 14,
+        padding: 14,
+        minWidth: 0,
+      }}
+    >
+      <div style={{ fontWeight: 800, marginBottom: 8 }}>{title}</div>
+      {imageUrl ? (
+        <img
+          src={artifactImageSrc(imageUrl)}
+          alt={title}
+          style={{
+            width: "100%",
+            aspectRatio: "4 / 3",
+            objectFit: "cover",
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.08)",
+            background: "rgba(0,0,0,0.24)",
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            aspectRatio: "4 / 3",
+            borderRadius: 10,
+            border: "1px dashed rgba(255,255,255,0.18)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            textAlign: "center",
+            color: "rgba(255,255,255,0.72)",
+            background: "rgba(0,0,0,0.16)",
+          }}
+        >
+          {warning || "Artifact unavailable for this scan."}
+        </div>
+      )}
+      {detail && (
+        <div style={{ marginTop: 8, opacity: 0.72, fontSize: 12, lineHeight: 1.35 }}>
+          {detail}
+        </div>
+      )}
+    </div>
+  );
+
+  const scanMatPanel = scanMatResult && (
+    <div style={{ marginTop: 22 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+        <div style={{ opacity: 0.85 }}>Scan Mat artifacts</div>
+        <div
+          style={{
+            color: scanMatResult.mat_detected ? "#22c55e" : "#f97316",
+            fontSize: 13,
+            fontWeight: 800,
+          }}
+        >
+          {scanMatResult.mat_detected ? "Mat detected" : "Needs better view"}
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gap: 12,
+        }}
+      >
+        {scanArtifactCard(
+          "Raw Capture",
+          scanMatResult.raw_image_url,
+          scanMatResult.image_name || scanMatResult.mat_analysis?.image_name || "Latest captured image"
+        )}
+        {scanArtifactCard(
+          "Annotated Detection",
+          scanMatResult.annotated_image_url,
+          scanMatResult.mat_detected
+            ? "Detected mat boundary and corners."
+            : "Diagnostic image from OpenCV mat detection."
+        )}
+        {scanArtifactCard(
+          "Rectified View",
+          scanMatResult.rectified_available ? scanMatResult.rectified_image_url : null,
+          scanMatResult.rectified_available
+            ? "Perspective-corrected top-down mat view."
+            : undefined,
+          scanMatResult.warning || "Rectified view is unavailable until the mat is detected."
+        )}
+      </div>
+
+      {scanMatResult.corners && (
+        <div style={{ marginTop: 10, opacity: 0.68, fontSize: 12 }}>
+          Corners: {scanMatResult.corners.map((corner) => `[${corner.join(", ")}]`).join(" ")}
         </div>
       )}
     </div>
@@ -801,6 +978,12 @@ export default function JarvisUI() {
             disabled={!snapshotAvailable || busy}
           />
           <ControlButton
+            onClick={runScanMat}
+            label={scanningMat ? "Scanning Mat..." : "Scan Mat"}
+            icon={<ScanEye size={16} />}
+            disabled={!cameraDetected || busy}
+          />
+          <ControlButton
             onClick={checkLatestSnapshot}
             label="Refresh Snapshot"
             icon={<RefreshCw size={16} />}
@@ -809,6 +992,7 @@ export default function JarvisUI() {
         </div>
 
         {snapshotPanel}
+        {scanMatPanel}
 
         <div style={{ marginTop: 22 }}>
           <div style={{ marginBottom: 10, opacity: 0.85 }}>Prompt preview</div>

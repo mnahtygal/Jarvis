@@ -130,6 +130,13 @@ Expected successful response includes:
 ```text
 ok: true
 capture: snapshot metadata
+raw_image_url: browser URL for the raw capture
+annotated_image_url: browser URL for the OpenCV annotated image
+rectified_image_url: browser URL for the rectified image when available
+scan_ok: true
+mat_detected: true
+rectified_available: true
+corners: [...]
 mat_analysis:
   ok: true
   mat_detected: true
@@ -140,6 +147,22 @@ mat_analysis:
     approx_pixels_per_inch_x: ...
     approx_pixels_per_inch_y: ...
   grid: {...}
+```
+
+If mat detection fails, the endpoint still returns the raw image URL and annotated diagnostic image URL when available. `rectified_available` is false and `warning` explains that the rectified view is unavailable.
+
+### Scan Artifact Image Routes
+
+```text
+GET /api/vision/artifacts/raw/<artifact_name>
+GET /api/vision/artifacts/mat-analysis/<artifact_name>
+```
+
+These routes serve existing scan artifacts safely from:
+
+```text
+runtime/camera/
+runtime/camera/mat_analysis/
 ```
 
 ## OpenCV Skill
