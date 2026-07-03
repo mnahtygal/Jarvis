@@ -14,6 +14,17 @@ import HomePage from "./pages/HomePage";
 import MissionControlPage from "./pages/MissionControlPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import VisionLabPage from "./pages/VisionLabPage";
+import {
+  API_BASE,
+  analyzeSnapshot,
+  askJarvis,
+  captureScanMat,
+  captureSnapshot,
+  checkHealth,
+  checkLatestSnapshot as requestLatestSnapshot,
+  getDashboardStatus,
+  sendTextCommand,
+} from "./services/jarvisApi";
 import type { AskResponse, DashboardStatus } from "./types/dashboard";
 
 type AppPage = "home" | "mission" | "vision" | "maker" | "memory" | "system";
@@ -130,7 +141,7 @@ function getScanPrompt(mode: ScanMode) {
 }
 
 export default function JarvisUI() {
-  const apiBase = useMemo(() => "http://127.0.0.1:5000", []);
+  const apiBase = useMemo(() => API_BASE, []);
   const [activePage, setActivePage] = useState<AppPage>("home");
   const [scanMode, setScanMode] = useState<ScanMode>("object");
   const [listening, setListening] = useState(false);
@@ -191,7 +202,7 @@ export default function JarvisUI() {
 
   const refreshDashboard = useCallback(async (logResult = false) => {
     try {
-      const res = await fetch(`${apiBase}/api/status/dashboard`);
+      const res = await getDashboardStatus();
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -210,14 +221,11 @@ export default function JarvisUI() {
         prependLogs(["Dashboard status refresh failed"]);
       }
     }
-  }, [apiBase, prependLogs]);
+  }, [prependLogs]);
 
   const checkLatestSnapshot = useCallback(async () => {
     try {
-      const res = await fetch(`${apiBase}/api/camera/latest`, {
-        method: "HEAD",
-        cache: "no-store",
-      });
+      const res = await requestLatestSnapshot();
       setSnapshotAvailable(res.ok);
       if (res.ok) {
         setSnapshotVersion(Date.now());
@@ -226,7 +234,7 @@ export default function JarvisUI() {
       console.error(error);
       setSnapshotAvailable(false);
     }
-  }, [apiBase]);
+  }, []);
 
   const runQuickCommand = async (quickCommand: string) => {
     if (busy) return;
@@ -235,16 +243,7 @@ export default function JarvisUI() {
     prependLogs([`You: ${quickCommand}`]);
 
     try {
-      const res = await fetch(`${apiBase}/text`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          command: quickCommand,
-          use_voice: false,
-        }),
-      });
+      const res = await sendTextCommand(quickCommand, false);
 
       const data: AskResponse = await res.json();
       prependLogs([`Jarvis: ${data.response || "(no response)"}`]);
@@ -259,7 +258,7 @@ export default function JarvisUI() {
 
   const checkApi = useCallback(async () => {
     try {
-      const res = await fetch(`${apiBase}/health`);
+      const res = await checkHealth();
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
       }
@@ -273,7 +272,7 @@ export default function JarvisUI() {
 
     refreshDashboard(true);
     checkLatestSnapshot();
-  }, [apiBase, checkLatestSnapshot, prependLogs, refreshDashboard]);
+  }, [checkLatestSnapshot, prependLogs, refreshDashboard]);
 
   useEffect(() => {
     const initialCheck = window.setTimeout(() => {
@@ -293,15 +292,7 @@ export default function JarvisUI() {
     prependLogs(["Listening requested from UI"]);
 
     try {
-      const res = await fetch(`${apiBase}/ask`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          use_voice: voiceEnabled,
-        }),
-      });
+      const res = await askJarvis(voiceEnabled);
 
       const data: AskResponse = await res.json();
 
@@ -329,9 +320,7 @@ export default function JarvisUI() {
     prependLogs(["Camera snapshot requested"]);
 
     try {
-      const res = await fetch(`${apiBase}/api/camera/snapshot`, {
-        method: "POST",
-      });
+      const res = await captureSnapshot();
 
       const data: CameraSnapshotResponse = await res.json();
 
@@ -363,15 +352,7 @@ export default function JarvisUI() {
     prependLogs([`Vision analysis requested: ${selectedMode?.label || "General Scan"}`]);
 
     try {
-      const res = await fetch(`${apiBase}/api/camera/analyze`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: getScanPrompt(mode),
-        }),
-      });
+      const res = await analyzeSnapshot(getScanPrompt(mode));
 
       const data: VisionAnalysisResponse = await res.json();
 
@@ -399,9 +380,7 @@ export default function JarvisUI() {
     prependLogs(["Scan Mat requested"]);
 
     try {
-      const res = await fetch(`${apiBase}/api/vision/capture-scan-mat`, {
-        method: "POST",
-      });
+      const res = await captureScanMat();
       const data: ScanMatResponse = await res.json();
 
       if (!res.ok && res.status !== 422) {
@@ -439,16 +418,7 @@ export default function JarvisUI() {
     prependLogs([`You: ${trimmed}`]);
 
     try {
-      const res = await fetch(`${apiBase}/text`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          command: trimmed,
-          use_voice: false,
-        }),
-      });
+      const res = await sendTextCommand(trimmed, false);
 
       const data: AskResponse = await res.json();
       prependLogs([`Jarvis: ${data.response || "(no response)"}`]);
