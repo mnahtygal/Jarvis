@@ -12,9 +12,9 @@ import {
   VolumeX,
 } from "lucide-react";
 import type { DashboardStatus } from "../types/dashboard";
-import ActivityLog from "./ActivityLog";
-import ControlButton from "./ControlButton";
-import GlowRing from "./GlowRing";
+import ActivityLog from "../components/ActivityLog";
+import ControlButton from "../components/ControlButton";
+import GlowRing from "../components/GlowRing";
 
 type HomePageProps = {
   runVoiceAsk: () => void;

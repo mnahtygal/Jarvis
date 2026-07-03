@@ -1,8 +1,8 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { Camera, RefreshCw, ScanEye } from "lucide-react";
 import type { DashboardStatus } from "../types/dashboard";
-import ActivityLog from "./ActivityLog";
-import ControlButton from "./ControlButton";
+import ActivityLog from "../components/ActivityLog";
+import ControlButton from "../components/ControlButton";
 
 type ScanMode = "general" | "object" | "measurement" | "ocr" | "print" | "jetski" | "workbench";
 

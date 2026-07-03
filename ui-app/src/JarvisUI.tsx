@@ -9,11 +9,11 @@ import {
   Usb,
   ScanEye,
 } from "lucide-react";
-import HomePage from "./components/HomePage";
-import MissionControlPage from "./components/MissionControlPage";
-import PlaceholderPage from "./components/PlaceholderPage";
 import StatusCard from "./components/StatusCard";
-import VisionLabPage from "./components/VisionLabPage";
+import HomePage from "./pages/HomePage";
+import MissionControlPage from "./pages/MissionControlPage";
+import PlaceholderPage from "./pages/PlaceholderPage";
+import VisionLabPage from "./pages/VisionLabPage";
 import type { AskResponse, DashboardStatus } from "./types/dashboard";
 
 type AppPage = "home" | "mission" | "vision" | "maker" | "memory" | "system";

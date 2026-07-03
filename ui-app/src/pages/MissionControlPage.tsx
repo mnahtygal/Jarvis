@@ -1,7 +1,7 @@
 import { RefreshCw } from "lucide-react";
 import type { DashboardStatus } from "../types/dashboard";
-import ControlButton from "./ControlButton";
-import MissionSection from "./MissionSection";
+import ControlButton from "../components/ControlButton";
+import MissionSection from "../components/MissionSection";
 
 type MartyBenchScore = {
   total?: number | null;
