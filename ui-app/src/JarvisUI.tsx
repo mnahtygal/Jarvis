@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Clock3,
   Database,
@@ -9,6 +9,7 @@ import {
   Usb,
   ScanEye,
 } from "lucide-react";
+import { appConfig } from "./config/appConfig";
 import StatusCard from "./components/StatusCard";
 import { useApiHealth } from "./hooks/useApiHealth";
 import { useDashboardStatus } from "./hooks/useDashboardStatus";
@@ -17,7 +18,6 @@ import MissionControlPage from "./pages/MissionControlPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import VisionLabPage from "./pages/VisionLabPage";
 import {
-  API_BASE,
   analyzeSnapshot,
   askJarvis,
   captureScanMat,
@@ -141,7 +141,7 @@ function getScanPrompt(mode: ScanMode) {
 }
 
 export default function JarvisUI() {
-  const apiBase = useMemo(() => API_BASE, []);
+  const apiBase = appConfig.apiBaseUrl;
   const [activePage, setActivePage] = useState<AppPage>("home");
   const [scanMode, setScanMode] = useState<ScanMode>("object");
   const [listening, setListening] = useState(false);
@@ -177,7 +177,7 @@ export default function JarvisUI() {
           second: "2-digit",
         })
       );
-    }, 1000);
+    }, appConfig.clockRefreshMs);
 
     return () => clearInterval(timer);
   }, []);

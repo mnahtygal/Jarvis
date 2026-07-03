@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { appConfig } from "../config/appConfig";
 import { getDashboardStatus } from "../services/jarvisApi";
 import type { DashboardStatus } from "../types/dashboard";
 
@@ -32,7 +33,10 @@ export function useDashboardStatus(prependLogs: PrependLogs) {
   }, [prependLogs]);
 
   useEffect(() => {
-    const dashboardTimer = setInterval(() => refreshDashboard(false), 30000);
+    const dashboardTimer = setInterval(
+      () => refreshDashboard(false),
+      appConfig.dashboardRefreshMs
+    );
     return () => clearInterval(dashboardTimer);
   }, [refreshDashboard]);
 

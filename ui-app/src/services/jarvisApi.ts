@@ -1,6 +1,8 @@
 // Centralized HTTP client for the Jarvis frontend.
 
-export const API_BASE = "http://127.0.0.1:5000";
+import { appConfig } from "../config/appConfig";
+
+export const API_BASE = appConfig.apiBaseUrl;
 
 const JSON_HEADERS = {
   "Content-Type": "application/json",
