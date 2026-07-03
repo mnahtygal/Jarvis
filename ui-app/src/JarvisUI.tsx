@@ -21,6 +21,7 @@ import {
 import ActivityLog from "./components/ActivityLog";
 import ControlButton from "./components/ControlButton";
 import GlowRing from "./components/GlowRing";
+import MissionSection from "./components/MissionSection";
 import StatusCard from "./components/StatusCard";
 import type { AskResponse, DashboardStatus } from "./types/dashboard";
 
@@ -721,63 +722,6 @@ export default function JarvisUI() {
     </div>
   );
 
-  const missionSection = (title: string, rows: Array<{ label: string; value: string; ok?: boolean }>) => (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.05)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: 20,
-        padding: 20,
-        minWidth: 0,
-      }}
-    >
-      <h3 style={{ margin: "0 0 14px", fontSize: 18 }}>{title}</h3>
-      <div style={{ display: "grid", gap: 10 }}>
-        {rows.map((row) => (
-          <div
-            key={row.label}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(130px, 0.8fr) minmax(0, 1.4fr)",
-              gap: 12,
-              alignItems: "center",
-              padding: 12,
-              borderRadius: 12,
-              background: "rgba(0,0,0,0.22)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              fontSize: 13,
-            }}
-          >
-            <div style={{ opacity: 0.68 }}>{row.label}</div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                minWidth: 0,
-                fontWeight: 700,
-                overflowWrap: "anywhere",
-              }}
-            >
-              {row.ok !== undefined && (
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 999,
-                    background: row.ok ? "#22c55e" : "#f97316",
-                    flex: "0 0 auto",
-                  }}
-                />
-              )}
-              {row.value}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
   const missionControlPage = (
     <div>
       <div
@@ -813,122 +757,134 @@ export default function JarvisUI() {
           gap: 20,
         }}
       >
-        {missionSection("Core Services", [
-          {
-            label: "Brain",
-            value: dashboard?.brain?.overall || "Unknown",
-            ok: dashboard?.brain?.ready,
-          },
-          {
-            label: "Active Model",
-            value: dashboard?.model?.active_model_name || dashboard?.model?.detail || "Unknown",
-            ok: dashboard?.model?.online,
-          },
-          {
-            label: "Vision",
-            value: dashboard?.vision?.overall || dashboard?.vision?.detail || "Unknown",
-            ok: dashboard?.vision?.online,
-          },
-          {
-            label: "PostgreSQL",
-            value: dashboard?.memory?.postgres?.detail || dashboard?.brain?.postgres || "Unknown",
-            ok: dashboard?.memory?.postgres?.online,
-          },
-          {
-            label: "Semantic Memory",
-            value: dashboard?.memory?.semantic_memory?.detail || dashboard?.brain?.semantic_memory || "Unknown",
-            ok: dashboard?.memory?.semantic_memory?.online,
-          },
-          {
-            label: "Local Embeddings",
-            value: dashboard?.memory?.local_embeddings?.detail || dashboard?.brain?.local_embeddings || "Unknown",
-            ok: dashboard?.memory?.local_embeddings?.online,
-          },
-        ])}
+        <MissionSection
+          title="Core Services"
+          rows={[
+            {
+              label: "Brain",
+              value: dashboard?.brain?.overall || "Unknown",
+              ok: dashboard?.brain?.ready,
+            },
+            {
+              label: "Active Model",
+              value: dashboard?.model?.active_model_name || dashboard?.model?.detail || "Unknown",
+              ok: dashboard?.model?.online,
+            },
+            {
+              label: "Vision",
+              value: dashboard?.vision?.overall || dashboard?.vision?.detail || "Unknown",
+              ok: dashboard?.vision?.online,
+            },
+            {
+              label: "PostgreSQL",
+              value: dashboard?.memory?.postgres?.detail || dashboard?.brain?.postgres || "Unknown",
+              ok: dashboard?.memory?.postgres?.online,
+            },
+            {
+              label: "Semantic Memory",
+              value: dashboard?.memory?.semantic_memory?.detail || dashboard?.brain?.semantic_memory || "Unknown",
+              ok: dashboard?.memory?.semantic_memory?.online,
+            },
+            {
+              label: "Local Embeddings",
+              value: dashboard?.memory?.local_embeddings?.detail || dashboard?.brain?.local_embeddings || "Unknown",
+              ok: dashboard?.memory?.local_embeddings?.online,
+            },
+          ]}
+        />
 
-        {missionSection("Runtime", [
-          {
-            label: "Host",
-            value: dashboard?.brain?.runtime?.host || dashboard?.model?.host || "Thor",
-          },
-          {
-            label: "Engine",
-            value: dashboard?.brain?.runtime?.engine || dashboard?.model?.runtime || "llama.cpp",
-          },
-          {
-            label: "Model ID",
-            value: dashboard?.model?.active_model_id || "Unknown",
-          },
-          {
-            label: "Vision Port",
-            value: dashboard?.vision?.port ? String(dashboard.vision.port) : "Unknown",
-          },
-          {
-            label: "Last Topic",
-            value: dashboard?.brain?.last_topic || dashboard?.memory?.last_topic || "Unknown",
-          },
-          {
-            label: "Recent History Rows",
-            value: String(
-              dashboard?.brain?.recent_history_rows_checked
-                ?? dashboard?.memory?.recent_history?.rows_checked
-                ?? "?"
-            ),
-          },
-        ])}
+        <MissionSection
+          title="Runtime"
+          rows={[
+            {
+              label: "Host",
+              value: dashboard?.brain?.runtime?.host || dashboard?.model?.host || "Thor",
+            },
+            {
+              label: "Engine",
+              value: dashboard?.brain?.runtime?.engine || dashboard?.model?.runtime || "llama.cpp",
+            },
+            {
+              label: "Model ID",
+              value: dashboard?.model?.active_model_id || "Unknown",
+            },
+            {
+              label: "Vision Port",
+              value: dashboard?.vision?.port ? String(dashboard.vision.port) : "Unknown",
+            },
+            {
+              label: "Last Topic",
+              value: dashboard?.brain?.last_topic || dashboard?.memory?.last_topic || "Unknown",
+            },
+            {
+              label: "Recent History Rows",
+              value: String(
+                dashboard?.brain?.recent_history_rows_checked
+                  ?? dashboard?.memory?.recent_history?.rows_checked
+                  ?? "?"
+              ),
+            },
+          ]}
+        />
 
-        {missionSection("Devices", [
-          {
-            label: "Microphone",
-            value: `${dashboard?.devices?.microphone?.detected ? "Detected" : "Missing"} / ${dashboard?.devices?.microphone?.name || "unknown"}`,
-            ok: dashboard?.devices?.microphone?.detected,
-          },
-          {
-            label: "Camera",
-            value: `${dashboard?.devices?.camera?.detected ? "Detected" : "Missing"} / ${dashboard?.devices?.camera?.name || "unknown"}`,
-            ok: dashboard?.devices?.camera?.detected,
-          },
-          {
-            label: "Camera Path",
-            value: dashboard?.devices?.camera?.expected_device || "Unknown",
-            ok: dashboard?.devices?.camera?.expected_device_present,
-          },
-          {
-            label: "Audio Backend",
-            value: dashboard?.devices?.audio_backend || "Unknown",
-          },
-          {
-            label: "Dock Note",
-            value: dashboard?.devices?.dock_note || "Unknown",
-          },
-        ])}
+        <MissionSection
+          title="Devices"
+          rows={[
+            {
+              label: "Microphone",
+              value: `${dashboard?.devices?.microphone?.detected ? "Detected" : "Missing"} / ${dashboard?.devices?.microphone?.name || "unknown"}`,
+              ok: dashboard?.devices?.microphone?.detected,
+            },
+            {
+              label: "Camera",
+              value: `${dashboard?.devices?.camera?.detected ? "Detected" : "Missing"} / ${dashboard?.devices?.camera?.name || "unknown"}`,
+              ok: dashboard?.devices?.camera?.detected,
+            },
+            {
+              label: "Camera Path",
+              value: dashboard?.devices?.camera?.expected_device || "Unknown",
+              ok: dashboard?.devices?.camera?.expected_device_present,
+            },
+            {
+              label: "Audio Backend",
+              value: dashboard?.devices?.audio_backend || "Unknown",
+            },
+            {
+              label: "Dock Note",
+              value: dashboard?.devices?.dock_note || "Unknown",
+            },
+          ]}
+        />
 
-        {missionSection("MartyBench", [
-          {
-            label: "Available",
-            value: dashboard?.martybench?.available ? "Yes" : "No",
-            ok: dashboard?.martybench?.available,
-          },
-          {
-            label: "Run ID",
-            value: dashboard?.martybench?.run_id || "Unknown",
-          },
-          {
-            label: "Variant",
-            value: dashboard?.martybench?.variant || "Unknown",
-          },
-          {
-            label: "Score",
-            value:
-              martybenchScore?.total != null
-                ? `${martybenchScore.total}/${martybenchScore.max_total || 35}`
-                : "No score",
-          },
-          {
-            label: "Verdict",
-            value: martybenchScore?.verdict || "Unknown",
-          },
-        ])}
+        <MissionSection
+          title="MartyBench"
+          rows={[
+            {
+              label: "Available",
+              value: dashboard?.martybench?.available ? "Yes" : "No",
+              ok: dashboard?.martybench?.available,
+            },
+            {
+              label: "Run ID",
+              value: dashboard?.martybench?.run_id || "Unknown",
+            },
+            {
+              label: "Variant",
+              value: dashboard?.martybench?.variant || "Unknown",
+            },
+            {
+              label: "Score",
+              value:
+                martybenchScore?.total != null
+                  ? `${martybenchScore.total}/${martybenchScore.max_total || 35}`
+                  : "No score",
+            },
+            {
+              label: "Verdict",
+              value: martybenchScore?.verdict || "Unknown",
+            },
+          ]}
+        />
       </div>
     </div>
   );
