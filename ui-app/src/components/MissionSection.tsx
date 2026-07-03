@@ -1,3 +1,5 @@
+import StatusDot from "./StatusDot";
+
 type MissionSectionRow = {
   label: string;
   value: string;
@@ -48,17 +50,7 @@ export default function MissionSection({ title, rows }: MissionSectionProps) {
                 overflowWrap: "anywhere",
               }}
             >
-              {row.ok !== undefined && (
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: 999,
-                    background: row.ok ? "#22c55e" : "#f97316",
-                    flex: "0 0 auto",
-                  }}
-                />
-              )}
+              <StatusDot ok={row.ok} />
               {row.value}
             </div>
           </div>
