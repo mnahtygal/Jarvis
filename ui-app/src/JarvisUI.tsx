@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import HomePage from "./components/HomePage";
 import MissionControlPage from "./components/MissionControlPage";
+import PlaceholderPage from "./components/PlaceholderPage";
 import StatusCard from "./components/StatusCard";
 import VisionLabPage from "./components/VisionLabPage";
 import type { AskResponse, DashboardStatus } from "./types/dashboard";
@@ -683,35 +684,6 @@ export default function JarvisUI() {
     { id: "system", label: "System" },
   ];
 
-  const placeholderPage = (title: string, description: string, items: string[]) => (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.05)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        borderRadius: 20,
-        padding: 24,
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>{title}</h2>
-      <p style={{ opacity: 0.78, lineHeight: 1.5 }}>{description}</p>
-      <div style={{ display: "grid", gap: 10, marginTop: 20 }}>
-        {items.map((item) => (
-          <div
-            key={item}
-            style={{
-              padding: 12,
-              borderRadius: 12,
-              background: "rgba(0,0,0,0.22)",
-              border: "1px solid rgba(255,255,255,0.06)",
-            }}
-          >
-            {item}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
   const missionControlPage = (
     <MissionControlPage
       dashboard={dashboard}
@@ -778,26 +750,44 @@ export default function JarvisUI() {
       : activePage === "mission"
         ? missionControlPage
       : activePage === "maker"
-        ? placeholderPage("Maker Lab", "Future home for OpenSCAD, 3D printing, laser engraving, jet ski parts, and workshop projects.", [
-            "OpenSCAD generation",
-            "3D print inspection",
-            "Laser engraving review",
-            "Jet ski part reverse engineering",
-          ])
+        ? (
+            <PlaceholderPage
+              title="Maker Lab"
+              description="Future home for OpenSCAD, 3D printing, laser engraving, jet ski parts, and workshop projects."
+              items={[
+                "OpenSCAD generation",
+                "3D print inspection",
+                "Laser engraving review",
+                "Jet ski part reverse engineering",
+              ]}
+            />
+          )
         : activePage === "memory"
-          ? placeholderPage("Memory", "Future home for exact facts, semantic memory, project notes, and scanned-object history.", [
-              "Exact memory facts",
-              "Semantic memory search",
-              "Project memory categories",
-              "Vision scan history",
-            ])
+          ? (
+              <PlaceholderPage
+                title="Memory"
+                description="Future home for exact facts, semantic memory, project notes, and scanned-object history."
+                items={[
+                  "Exact memory facts",
+                  "Semantic memory search",
+                  "Project memory categories",
+                  "Vision scan history",
+                ]}
+              />
+            )
           : activePage === "system"
-            ? placeholderPage("System", "Future home for services, models, smoke tests, logs, and runtime controls.", [
-                "jarvis-status",
-                "jarvis-smoke-test",
-                "Model health",
-                "Service logs",
-              ])
+            ? (
+                <PlaceholderPage
+                  title="System"
+                  description="Future home for services, models, smoke tests, logs, and runtime controls."
+                  items={[
+                    "jarvis-status",
+                    "jarvis-smoke-test",
+                    "Model health",
+                    "Service logs",
+                  ]}
+                />
+              )
             : homePage;
 
   return (
