@@ -2,10 +2,17 @@
 *.wav
 *.raw
 
+# Logs / runtime output
+logs/*.log
+*.log
+/runtime/
+/tmp/
+
 # Python
 __pycache__/
 *.pyc
 .venv/
+.pytest_cache/
 *.bak
 
 # Environment / secrets
@@ -15,8 +22,8 @@ __pycache__/
 models/
 
 # Node / React
-ui-app/node_modules/
-ui-app/dist/
+/ui-app/node_modules/
+/ui-app/dist/
 
 # System
 .DS_Store
