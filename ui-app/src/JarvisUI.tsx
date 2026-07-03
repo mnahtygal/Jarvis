@@ -10,6 +10,7 @@ import {
   ScanEye,
 } from "lucide-react";
 import StatusCard from "./components/StatusCard";
+import { useDashboardStatus } from "./hooks/useDashboardStatus";
 import HomePage from "./pages/HomePage";
 import MissionControlPage from "./pages/MissionControlPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
@@ -22,10 +23,9 @@ import {
   captureSnapshot,
   checkHealth,
   checkLatestSnapshot as requestLatestSnapshot,
-  getDashboardStatus,
   sendTextCommand,
 } from "./services/jarvisApi";
-import type { AskResponse, DashboardStatus } from "./types/dashboard";
+import type { AskResponse } from "./types/dashboard";
 
 type AppPage = "home" | "mission" | "vision" | "maker" | "memory" | "system";
 type ScanMode = "general" | "object" | "measurement" | "ocr" | "print" | "jetski" | "workbench";
@@ -152,8 +152,6 @@ export default function JarvisUI() {
   const [command, setCommand] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [apiStatus, setApiStatus] = useState("Checking API...");
-  const [dashboard, setDashboard] = useState<DashboardStatus | null>(null);
-  const [dashboardStatus, setDashboardStatus] = useState("Checking dashboard...");
   const [snapshotVersion, setSnapshotVersion] = useState(0);
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);
   const [scanMatResult, setScanMatResult] = useState<ScanMatResponse | null>(null);
@@ -189,6 +187,8 @@ export default function JarvisUI() {
     setLogs((prev) => [...entries, ...prev].slice(0, 80));
   }, []);
 
+  const { dashboard, dashboardStatus, refreshDashboard } = useDashboardStatus(prependLogs);
+
   const busy = listening || processing || capturing || analyzing || scanningMat;
 
   const quickCommands = [
@@ -199,29 +199,6 @@ export default function JarvisUI() {
     "show project memories",
     "show work memories",
   ];
-
-  const refreshDashboard = useCallback(async (logResult = false) => {
-    try {
-      const res = await getDashboardStatus();
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      const data: DashboardStatus = await res.json();
-      setDashboard(data);
-      setDashboardStatus("Dashboard connected");
-
-      if (logResult) {
-        prependLogs(["Dashboard status refreshed"]);
-      }
-    } catch (error) {
-      console.error(error);
-      setDashboardStatus("Dashboard offline");
-      if (logResult) {
-        prependLogs(["Dashboard status refresh failed"]);
-      }
-    }
-  }, [prependLogs]);
 
   const checkLatestSnapshot = useCallback(async () => {
     try {
@@ -278,12 +255,10 @@ export default function JarvisUI() {
     const initialCheck = window.setTimeout(() => {
       checkApi();
     }, 0);
-    const dashboardTimer = setInterval(() => refreshDashboard(false), 30000);
     return () => {
       window.clearTimeout(initialCheck);
-      clearInterval(dashboardTimer);
     };
-  }, [checkApi, refreshDashboard]);
+  }, [checkApi]);
 
   const runVoiceAsk = async () => {
     if (busy) return;
