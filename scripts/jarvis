@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+case "$1" in
+  start)
+    bash "$HOME/jarvis/scripts/start-jarvis.sh"
+    ;;
+  startup|boot)
+    bash "$HOME/jarvis/scripts/startup.sh"
+    ;;
+  stop)
+    bash "$HOME/jarvis/scripts/stop-jarvis.sh"
+    ;;
+
+  restart)
+    bash "$HOME/jarvis/scripts/stop-jarvis.sh"
+    sleep 2
+    bash "$HOME/jarvis/scripts/startup.sh"
+    ;;
+
+  status|health)
+    bash "$HOME/jarvis/scripts/jarvis-health.sh"
+    ;;
+  logs)
+    tail -n 100 -f "$HOME/jarvis/logs/startup.log"
+    ;;
+  edit)
+    code "$HOME/jarvis"
+    ;;
+  ui)
+    firefox "http://localhost:5173" >/dev/null 2>&1 &
+    ;;
+  *)
+    echo "Jarvis Command Center"
+    echo
+    echo "Usage:"
+    echo "  jarvis start     Start Jarvis services"
+    echo "  jarvis startup   Run full Thor startup
+  jarvis boot      Run Boot V3 sequence"
+    echo "  jarvis stop      Stop Jarvis UI
+  jarvis restart   Restart Jarvis UI
+  jarvis status    Check Jarvis health"
+    echo "  jarvis logs      Watch startup logs"
+    echo "  jarvis edit      Open Jarvis in VS Code"
+    echo "  jarvis ui        Open Jarvis UI"
+    ;;
+esac

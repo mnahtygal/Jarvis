@@ -1,0 +1,885 @@
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[08:15:45] Good morning Marty.
+[08:15:45] Boot date: Fri Jul  3 08:15:45 AM EDT 2026
+
+[08:15:45] Initializing AI Core...
+
+[08:15:46] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[08:15:46] Running service checks...
+[08:15:46] Waiting for Jarvis UI...
+[08:15:46] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2090 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2678 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 20 hours, 35 minutes
+Memory : 35Gi used / 122Gi total
+Disk   : 216G used / 937G total (25%)
+
+============================================================
+[08:15:46] Opening workspace...
+[08:15:46] ✓ VS Code opened
+[08:15:48] ✓ Firefox already running
+
+============================================================
+[08:15:48] JARVIS BOOT COMPLETE
+[08:15:48] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[08:17:17] Good morning Marty.
+[08:17:17] Boot date: Fri Jul  3 08:17:17 AM EDT 2026
+
+[08:17:17] Initializing AI Core...
+
+[08:17:18] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[08:17:18] Running service checks...
+[08:17:18] Waiting for Jarvis UI...
+[08:17:18] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2090 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2678 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 20 hours, 37 minutes
+Memory : 37Gi used / 122Gi total
+Disk   : 216G used / 937G total (25%)
+
+============================================================
+[08:17:18] Opening workspace...
+[08:17:18] ✓ VS Code already running
+[08:17:20] ✓ Firefox already running
+
+============================================================
+[08:17:20] JARVIS BOOT COMPLETE
+[08:17:20] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[08:19:55] Good morning Marty.
+[08:19:55] Boot date: Fri Jul  3 08:19:55 AM EDT 2026
+
+[08:19:55] Initializing AI Core...
+
+[08:19:56] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[08:19:57] Running service checks...
+[08:19:57] Waiting for Jarvis UI...
+[08:19:59] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2100 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2729 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 0 minutes
+Memory : 33Gi used / 122Gi total
+Disk   : 216G used / 937G total (25%)
+
+============================================================
+[08:19:59] Opening workspace...
+[08:19:59] ✓ VS Code opened
+[08:20:01] ✓ Firefox launched through desktop
+
+============================================================
+[08:20:01] JARVIS BOOT COMPLETE
+[08:20:01] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[08:39:05] Good morning Marty.
+[08:39:05] Boot date: Fri Jul  3 08:39:05 AM EDT 2026
+
+[08:39:05] Initializing AI Core...
+
+[08:39:06] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[08:39:06] Running service checks...
+[08:39:06] Waiting for Jarvis UI...
+[08:39:06] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2100 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2729 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 19 minutes
+Memory : 35Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[08:39:06] Opening workspace...
+[08:39:06] ✓ VS Code already running
+[08:39:08] ✓ Firefox already running
+
+============================================================
+[08:39:08] JARVIS BOOT COMPLETE
+[08:39:08] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[08:39:25] Good morning Marty.
+[08:39:25] Boot date: Fri Jul  3 08:39:25 AM EDT 2026
+
+[08:39:25] Initializing AI Core...
+
+[08:39:26] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[08:39:26] Running service checks...
+[08:39:26] Waiting for Jarvis UI...
+[08:39:26] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2100 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2729 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 20 minutes
+Memory : 35Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[08:39:26] Opening workspace...
+[08:39:26] ✓ VS Code already running
+[08:39:28] ✓ Firefox launched through desktop
+
+============================================================
+[08:39:28] JARVIS BOOT COMPLETE
+[08:39:28] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[08:39:51] Good morning Marty.
+[08:39:51] Boot date: Fri Jul  3 08:39:51 AM EDT 2026
+
+[08:39:51] Initializing AI Core...
+
+[08:39:52] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[08:39:53] Running service checks...
+[08:39:53] Waiting for Jarvis UI...
+[08:39:55] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2100 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2729 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 20 minutes
+Memory : 33Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[08:39:55] Opening workspace...
+[08:39:55] ✓ VS Code opened
+[08:39:57] ✓ Firefox launched through desktop
+
+============================================================
+[08:39:57] JARVIS BOOT COMPLETE
+[08:39:57] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[08:42:21] Good morning Marty.
+[08:42:21] Boot date: Fri Jul  3 08:42:21 AM EDT 2026
+
+[08:42:21] Initializing AI Core...
+
+[08:42:22] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[08:42:22] Running service checks...
+[08:42:22] Waiting for Jarvis UI...
+[08:42:22] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2100 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2729 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 23 minutes
+Memory : 35Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[08:42:22] Opening workspace...
+[08:42:22] ✓ VS Code already running
+[08:42:24] ✓ Firefox already running
+
+============================================================
+[08:42:24] JARVIS BOOT COMPLETE
+[08:42:24] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[08:46:23] Good morning Marty.
+[08:46:23] Boot date: Fri Jul  3 08:46:23 AM EDT 2026
+
+[08:46:23] Initializing AI Core...
+
+[08:46:24] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[08:46:24] Running service checks...
+[08:46:24] Waiting for Jarvis UI...
+[08:46:25] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2100 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2729 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 27 minutes
+Memory : 35Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[08:46:25] Opening workspace...
+[08:46:25] ✓ VS Code already running
+[08:46:27] ✓ Firefox already running
+
+============================================================
+[08:46:27] JARVIS BOOT COMPLETE
+[08:46:27] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[08:52:34] Good morning Marty.
+[08:52:34] Boot date: Fri Jul  3 08:52:34 AM EDT 2026
+
+[08:52:34] Initializing AI Core...
+
+[08:52:35] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[08:52:35] Running service checks...
+[08:52:35] Waiting for Jarvis UI...
+[08:52:35] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2100 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2729 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 33 minutes
+Memory : 35Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[08:52:35] Opening workspace...
+[08:52:35] ✓ VS Code already running
+[08:52:37] Launching Firefox workspace...
+[08:52:45] ✓ Firefox workspace launched
+
+============================================================
+[08:52:45] JARVIS BOOT COMPLETE
+[08:52:45] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[08:53:12] Good morning Marty.
+[08:53:12] Boot date: Fri Jul  3 08:53:12 AM EDT 2026
+
+[08:53:12] Initializing AI Core...
+
+[08:53:13] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[08:53:13] Running service checks...
+[08:53:13] Waiting for Jarvis UI...
+[08:53:13] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2100 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2729 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 33 minutes
+Memory : 35Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[08:53:13] Opening workspace...
+[08:53:13] ✓ VS Code opened
+[08:53:15] Launching Firefox workspace...
+[08:53:23] ✓ Firefox workspace launched
+
+============================================================
+[08:53:23] JARVIS BOOT COMPLETE
+[08:53:23] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[08:57:31] Good morning Marty.
+[08:57:31] Boot date: Fri Jul  3 08:57:31 AM EDT 2026
+
+[08:57:31] Initializing AI Core...
+
+[08:57:32] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[08:57:32] Running service checks...
+[08:57:32] Waiting for Jarvis UI...
+[08:57:32] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2100 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2729 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 38 minutes
+Memory : 35Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[08:57:32] Opening workspace...
+[08:57:32] ✓ VS Code already running
+[08:57:34] Launching Firefox workspace...
+[08:57:43] ✓ Firefox workspace launched
+
+============================================================
+[08:57:43] JARVIS BOOT COMPLETE
+[08:57:43] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[08:58:54] Good morning Marty.
+[08:58:54] Boot date: Fri Jul  3 08:58:54 AM EDT 2026
+
+[08:58:54] Initializing AI Core...
+
+[08:58:55] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[08:58:55] Running service checks...
+[08:58:55] Waiting for Jarvis UI...
+[08:58:55] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2100 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2729 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 39 minutes
+Memory : 33Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[08:58:55] Opening workspace...
+[08:58:55] ✓ VS Code opened
+[08:58:57] Launching Firefox workspace...
+[08:59:05] ✓ Firefox workspace launched
+
+============================================================
+[08:59:05] JARVIS BOOT COMPLETE
+[08:59:05] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[09:02:15] Good morning Marty.
+[09:02:15] Boot date: Fri Jul  3 09:02:15 AM EDT 2026
+
+[09:02:15] Initializing AI Core...
+
+[09:02:16] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[09:02:16] Running service checks...
+[09:02:16] Waiting for Jarvis UI...
+[09:02:16] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2100 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2729 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 43 minutes
+Memory : 33Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[09:02:16] Opening workspace...
+[09:02:16] ✓ VS Code opened
+[09:02:20] Launching Firefox workspace...
+[09:02:25] ✓ Firefox workspace launched
+
+============================================================
+[09:02:25] JARVIS BOOT COMPLETE
+[09:02:25] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[09:06:24] Good morning Marty.
+[09:06:24] Boot date: Fri Jul  3 09:06:24 AM EDT 2026
+
+[09:06:24] Initializing AI Core...
+
+[09:06:25] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[09:06:25] Running service checks...
+[09:06:25] Waiting for Jarvis UI...
+[09:06:25] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2100 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2729 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 47 minutes
+Memory : 33Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[09:06:25] Opening workspace...
+[09:06:25] ✓ VS Code opened
+[09:06:28] Firefox launch skipped - session restore handles pinned tabs
+
+============================================================
+[09:06:28] JARVIS BOOT COMPLETE
+[09:06:28] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[09:08:38] Good morning Marty.
+[09:08:38] Boot date: Fri Jul  3 09:08:38 AM EDT 2026
+
+[09:08:38] Initializing AI Core...
+
+[09:08:39] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[09:08:39] Running service checks...
+[09:08:39] Waiting for Jarvis UI...
+[09:08:41] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2098 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2757 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 0 minutes
+Memory : 33Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[09:08:41] Opening workspace...
+[09:08:41] ✓ VS Code opened
+[09:08:44] Firefox launch skipped - session restore handles pinned tabs
+
+============================================================
+[09:08:44] JARVIS BOOT COMPLETE
+[09:08:44] Welcome back Marty.
+============================================================
+
+[H[2J[3J============================================================
+              THOR AI WORKSTATION
+                 JARVIS v0.2.0
+============================================================
+
+[09:13:44] Good morning Marty.
+[09:13:44] Boot date: Fri Jul  3 09:13:44 AM EDT 2026
+
+[09:13:44] Initializing AI Core...
+
+[09:13:45] Starting Jarvis services...
+✓ Qwen3 already running
+✓ GemmaVision already running
+
+Jarvis started.
+UI      : http://localhost:5173
+API     : http://localhost:5000
+Text LLM: http://127.0.0.1:8080
+Vision  : http://127.0.0.1:8081
+Logs are in /tmp
+
+[09:13:45] Running service checks...
+[09:13:45] Waiting for Jarvis UI...
+[09:13:47] ✓ Jarvis UI ready
+
+============================================================
+SYSTEM STATUS
+============================================================
+✓ Jarvis UI      http://localhost:5173
+✓ Text LLM       http://127.0.0.1:8080
+✓ Vision LLM     http://127.0.0.1:8081
+
+============================================================
+RUNNING MODELS
+============================================================
+2091 /home/mnahtygal/llama.cpp/build/bin/llama-server --vision-gemma-4b-default --host 127.0.0.1 --port 8081
+2724 ./build/bin/llama-server -m /home/mnahtygal/models/qwen3-30b/Qwen3-30B-A3B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -ngl 999 -t 14 --jinja --reasoning-format none
+
+============================================================
+SYSTEM RESOURCES
+============================================================
+Uptime : up 1 minute
+Memory : 33Gi used / 122Gi total
+Disk   : 217G used / 937G total (25%)
+
+============================================================
+[09:13:47] Opening workspace...
+[09:13:47] ✓ VS Code opened
+[09:13:50] Firefox launch skipped - session restore handles pinned tabs
+
+============================================================
+[09:13:50] JARVIS BOOT COMPLETE
+[09:13:50] Welcome back Marty.
+============================================================
+

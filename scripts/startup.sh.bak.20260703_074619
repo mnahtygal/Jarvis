@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+LOG="$HOME/jarvis/logs/startup.log"
+
+{
+echo "========================================"
+echo "      THOR AI WORKSTATION STARTUP"
+echo "========================================"
+echo "Started: $(date)"
+echo
+
+echo "[1/4] Starting Jarvis..."
+bash "$HOME/jarvis/scripts/start-jarvis.sh"
+
+echo
+echo "[2/4] Waiting for services..."
+sleep 8
+
+echo
+echo "[3/4] Opening VS Code..."
+code "$HOME/jarvis" >/dev/null 2>&1 &
+
+sleep 3
+
+echo
+echo "[4/4] Opening Firefox..."
+firefox >/dev/null 2>&1 &
+
+echo
+echo "Startup complete: $(date)"
+echo "Welcome back Marty."
+echo "========================================"
+} | tee -a "$LOG"

@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+LOG="$HOME/jarvis/logs/startup.log"
+
+wait_for_url() {
+  NAME="$1"
+  URL="$2"
+  MAX_TRIES="${3:-30}"
+
+  echo "Waiting for $NAME..."
+
+  for i in $(seq 1 "$MAX_TRIES"); do
+    if curl -fsS "$URL" >/dev/null 2>&1; then
+      echo "✓ $NAME ready"
+      return 0
+    fi
+
+    echo "  $NAME not ready yet... attempt $i/$MAX_TRIES"
+    sleep 2
+  done
+
+  echo "⚠ $NAME did not respond: $URL"
+  return 1
+}
+
+{
+echo
+echo "========================================"
+echo "      THOR AI WORKSTATION STARTUP"
+echo "========================================"
+echo "Started: $(date)"
+echo
+
+echo "[1/5] Starting Jarvis..."
+bash "$HOME/jarvis/scripts/start-jarvis.sh"
+
+echo
+echo "[2/5] Checking Jarvis UI..."
+wait_for_url "Jarvis UI" "http://localhost:5173" 30
+
+echo
+echo "[3/5] Opening VS Code..."
+code "$HOME/jarvis" >/dev/null 2>&1 &
+
+sleep 2
+
+echo
+echo "[4/5] Opening Firefox..."
+firefox >/dev/null 2>&1 &
+
+echo
+echo "[5/5] Startup health check..."
+bash "$HOME/jarvis/scripts/jarvis-health.sh"
+
+echo
+echo "Startup complete: $(date)"
+echo "Welcome back Marty."
+echo "========================================"
+} | tee -a "$LOG"
