@@ -10,6 +10,7 @@ import {
   ScanEye,
 } from "lucide-react";
 import StatusCard from "./components/StatusCard";
+import { useApiHealth } from "./hooks/useApiHealth";
 import { useDashboardStatus } from "./hooks/useDashboardStatus";
 import HomePage from "./pages/HomePage";
 import MissionControlPage from "./pages/MissionControlPage";
@@ -21,7 +22,6 @@ import {
   askJarvis,
   captureScanMat,
   captureSnapshot,
-  checkHealth,
   checkLatestSnapshot as requestLatestSnapshot,
   sendTextCommand,
 } from "./services/jarvisApi";
@@ -151,7 +151,6 @@ export default function JarvisUI() {
   const [scanningMat, setScanningMat] = useState(false);
   const [command, setCommand] = useState("");
   const [voiceEnabled, setVoiceEnabled] = useState(true);
-  const [apiStatus, setApiStatus] = useState("Checking API...");
   const [snapshotVersion, setSnapshotVersion] = useState(0);
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);
   const [scanMatResult, setScanMatResult] = useState<ScanMatResponse | null>(null);
@@ -188,6 +187,11 @@ export default function JarvisUI() {
   }, []);
 
   const { dashboard, dashboardStatus, refreshDashboard } = useDashboardStatus(prependLogs);
+  const { apiOnline, apiStatus, checkApi: checkApiHealth } = useApiHealth(
+    refreshDashboard,
+    prependLogs
+  );
+  const apiDisplayStatus = apiOnline ? apiStatus : apiStatus;
 
   const busy = listening || processing || capturing || analyzing || scanningMat;
 
@@ -234,22 +238,9 @@ export default function JarvisUI() {
   };
 
   const checkApi = useCallback(async () => {
-    try {
-      const res = await checkHealth();
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      setApiStatus("API connected");
-      prependLogs(["Backend health check passed"]);
-    } catch (error) {
-      console.error(error);
-      setApiStatus("API offline");
-      prependLogs(["Backend health check failed"]);
-    }
-
-    refreshDashboard(true);
+    await checkApiHealth();
     checkLatestSnapshot();
-  }, [checkLatestSnapshot, prependLogs, refreshDashboard]);
+  }, [checkApiHealth, checkLatestSnapshot]);
 
   useEffect(() => {
     const initialCheck = window.setTimeout(() => {
@@ -767,7 +758,7 @@ export default function JarvisUI() {
               <Clock3 size={16} />
               {time}
             </div>
-            <div>API: {apiStatus}</div>
+            <div>API: {apiDisplayStatus}</div>
             <div>Dashboard: {dashboardStatus}</div>
             <div>Voice: {voiceEnabled ? "On" : "Off"}</div>
           </div>
