@@ -12,13 +12,13 @@ import {
 import { appConfig } from "./config/appConfig";
 import StatusCard from "./components/StatusCard";
 import { useApiHealth } from "./hooks/useApiHealth";
+import { useCalibration } from "./hooks/useCalibration";
 import { useDashboardStatus } from "./hooks/useDashboardStatus";
 import HomePage from "./pages/HomePage";
 import MissionControlPage from "./pages/MissionControlPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import VisionLabPage from "./pages/VisionLabPage";
 import {
-  applyCalibration,
   analyzeSnapshot,
   askJarvis,
   captureScanMat,
@@ -29,7 +29,6 @@ import {
 } from "./services/jarvisApi";
 import type {
   AskResponse,
-  CalibrationApplyResponse,
   MeasurementResult,
   ScanMatDiagnostics,
 } from "./types/dashboard";
@@ -165,6 +164,10 @@ function getScanMatDiagnostics(result: ScanMatResponse | null) {
   return result?.diagnostics || result?.mat_analysis?.diagnostics || null;
 }
 
+function getScanMatImageSize(result: ScanMatResponse | null) {
+  return result?.image_size || result?.mat_analysis?.image_size;
+}
+
 function getRectifiedScanImagePath(result: ScanMatResponse | null) {
   if (!result?.rectified_available) return null;
   return result.mat_analysis?.rectified_path || null;
@@ -185,10 +188,6 @@ export default function JarvisUI() {
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);
   const [scanMatResult, setScanMatResult] = useState<ScanMatResponse | null>(null);
   const [scanMatVersion, setScanMatVersion] = useState(0);
-  const [calibrationWidthMm, setCalibrationWidthMm] = useState("");
-  const [calibrationHeightMm, setCalibrationHeightMm] = useState("");
-  const [calibrating, setCalibrating] = useState(false);
-  const [calibrationMessage, setCalibrationMessage] = useState("");
   const [measuring, setMeasuring] = useState(false);
   const [measurementResult, setMeasurementResult] = useState<MeasurementResult | null>(null);
   const [measurementMessage, setMeasurementMessage] = useState("");
@@ -228,6 +227,21 @@ export default function JarvisUI() {
     refreshDashboard,
     prependLogs
   );
+  const {
+    calibrationWidthMm,
+    calibrationHeightMm,
+    setCalibrationWidthMm,
+    setCalibrationHeightMm,
+    calibrating,
+    calibrationMessage,
+    applyLatestScanCalibration,
+  } = useCalibration({
+    getLatestScanCorners: () => getScanMatCorners(scanMatResult),
+    getLatestScanImageSize: () => getScanMatImageSize(scanMatResult),
+    refreshDashboard,
+    prependLogs,
+    isScanMatBusy: () => scanningMat,
+  });
   const apiDisplayStatus = apiOnline ? apiStatus : apiStatus;
 
   const busy = listening || processing || capturing || analyzing || scanningMat || calibrating || measuring;
@@ -410,71 +424,6 @@ export default function JarvisUI() {
       prependLogs([`Scan Mat failed: ${message}`]);
     } finally {
       setScanningMat(false);
-    }
-  };
-
-  const applyLatestScanCalibration = async () => {
-    if (calibrating || scanningMat) return;
-
-    const corners = getScanMatCorners(scanMatResult);
-    if (!corners) {
-      const message = "Run Scan Mat first; no corners are available yet.";
-      setCalibrationMessage(message);
-      prependLogs([`Calibration failed: ${message}`]);
-      return;
-    }
-
-    const knownWidthMm = Number(calibrationWidthMm);
-    const knownHeightMm = Number(calibrationHeightMm);
-    if (!Number.isFinite(knownWidthMm) || knownWidthMm <= 0) {
-      const message = "Calibration width must be a number greater than 0.";
-      setCalibrationMessage(message);
-      prependLogs([`Calibration failed: ${message}`]);
-      return;
-    }
-
-    if (!Number.isFinite(knownHeightMm) || knownHeightMm <= 0) {
-      const message = "Calibration height must be a number greater than 0.";
-      setCalibrationMessage(message);
-      prependLogs([`Calibration failed: ${message}`]);
-      return;
-    }
-
-    setCalibrating(true);
-    setCalibrationMessage("Applying calibration...");
-    prependLogs(["Calibration apply requested"]);
-
-    const imageSize = scanMatResult?.image_size || scanMatResult?.mat_analysis?.image_size;
-
-    try {
-      const res = await applyCalibration({
-        corners,
-        known_width_mm: knownWidthMm,
-        known_height_mm: knownHeightMm,
-        image_width_px: imageSize?.width,
-        image_height_px: imageSize?.height,
-      });
-      const data: CalibrationApplyResponse = await res.json();
-
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-
-      const confidence =
-        data.calibration?.confidence != null
-          ? ` Confidence: ${data.calibration.confidence}`
-          : "";
-      const message = `Calibration saved.${confidence}`;
-      setCalibrationMessage(message);
-      prependLogs([message]);
-      refreshDashboard(true);
-    } catch (error) {
-      console.error(error);
-      const message = error instanceof Error ? error.message : "Unknown calibration error";
-      setCalibrationMessage(`Calibration failed: ${message}`);
-      prependLogs([`Calibration failed: ${message}`]);
-    } finally {
-      setCalibrating(false);
     }
   };
 
