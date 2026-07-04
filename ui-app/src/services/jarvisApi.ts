@@ -8,8 +8,24 @@ const JSON_HEADERS = {
   "Content-Type": "application/json",
 };
 
+export type ApplyCalibrationPayload = {
+  corners: number[][];
+  known_width_mm: number;
+  known_height_mm: number;
+  image_width_px?: number;
+  image_height_px?: number;
+};
+
 export async function getDashboardStatus() {
   return fetch(`${API_BASE}/api/status/dashboard`);
+}
+
+export async function getCalibrationStatus() {
+  return fetch(`${API_BASE}/api/status/calibration`);
+}
+
+export async function getCalibrationProfile() {
+  return fetch(`${API_BASE}/api/calibration/profile`);
 }
 
 export async function checkHealth() {
@@ -84,5 +100,23 @@ export async function scanMat() {
 export async function captureScanMat() {
   return fetch(`${API_BASE}/api/vision/capture-scan-mat`, {
     method: "POST",
+  });
+}
+
+export async function applyCalibration(payload: ApplyCalibrationPayload) {
+  return fetch(`${API_BASE}/api/calibration/apply`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function measureLatestObject(imagePath: string) {
+  return fetch(`${API_BASE}/api/measurement/analyze`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({
+      image_path: imagePath,
+    }),
   });
 }

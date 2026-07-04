@@ -24,9 +24,15 @@ import {
   captureScanMat,
   captureSnapshot,
   checkLatestSnapshot as requestLatestSnapshot,
+  measureLatestObject as requestMeasurement,
   sendTextCommand,
 } from "./services/jarvisApi";
-import type { AskResponse, CalibrationApplyResponse, ScanMatDiagnostics } from "./types/dashboard";
+import type {
+  AskResponse,
+  CalibrationApplyResponse,
+  MeasurementResult,
+  ScanMatDiagnostics,
+} from "./types/dashboard";
 
 type AppPage = "home" | "mission" | "vision" | "maker" | "memory" | "system";
 type ScanMode = "general" | "object" | "measurement" | "ocr" | "print" | "jetski" | "workbench";
@@ -159,6 +165,11 @@ function getScanMatDiagnostics(result: ScanMatResponse | null) {
   return result?.diagnostics || result?.mat_analysis?.diagnostics || null;
 }
 
+function getRectifiedScanImagePath(result: ScanMatResponse | null) {
+  if (!result?.rectified_available) return null;
+  return result.mat_analysis?.rectified_path || null;
+}
+
 export default function JarvisUI() {
   const apiBase = appConfig.apiBaseUrl;
   const [activePage, setActivePage] = useState<AppPage>("home");
@@ -178,6 +189,9 @@ export default function JarvisUI() {
   const [calibrationHeightMm, setCalibrationHeightMm] = useState("");
   const [calibrating, setCalibrating] = useState(false);
   const [calibrationMessage, setCalibrationMessage] = useState("");
+  const [measuring, setMeasuring] = useState(false);
+  const [measurementResult, setMeasurementResult] = useState<MeasurementResult | null>(null);
+  const [measurementMessage, setMeasurementMessage] = useState("");
   const [logs, setLogs] = useState<string[]>([
     "Jarvis UI online",
     "Ready for voice or typed commands",
@@ -216,7 +230,7 @@ export default function JarvisUI() {
   );
   const apiDisplayStatus = apiOnline ? apiStatus : apiStatus;
 
-  const busy = listening || processing || capturing || analyzing || scanningMat || calibrating;
+  const busy = listening || processing || capturing || analyzing || scanningMat || calibrating || measuring;
 
   const quickCommands = [
     "brain status",
@@ -464,6 +478,57 @@ export default function JarvisUI() {
     }
   };
 
+  const measureLatestObject = async () => {
+    if (measuring) return;
+
+    const rectifiedImagePath = getRectifiedScanImagePath(scanMatResult);
+    if (!rectifiedImagePath) {
+      const message = "Run Scan Mat first; no rectified image is available yet.";
+      setMeasurementMessage(message);
+      prependLogs([`Measurement failed: ${message}`]);
+      return;
+    }
+
+    if (!dashboard?.calibration?.ready) {
+      const message = "Calibration is required before measurement.";
+      setMeasurementMessage(message);
+      prependLogs([`Measurement failed: ${message}`]);
+      return;
+    }
+
+    setMeasuring(true);
+    setMeasurementMessage("Measuring latest rectified scan...");
+    prependLogs(["Measurement requested"]);
+
+    try {
+      const res = await requestMeasurement(rectifiedImagePath);
+      const data: MeasurementResult = await res.json();
+      setMeasurementResult(data);
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      const width = data.measurement?.bbox_mm?.width;
+      const height = data.measurement?.bbox_mm?.height;
+      const message =
+        width != null && height != null
+          ? `Measurement complete: ${width} mm x ${height} mm`
+          : "Measurement complete";
+      setMeasurementMessage(message);
+      prependLogs([message]);
+      refreshDashboard(false);
+    } catch (error) {
+      console.error(error);
+      const message = error instanceof Error ? error.message : "Unknown measurement error";
+      setMeasurementMessage(`Measurement failed: ${message}`);
+      prependLogs([`Measurement failed: ${message}`]);
+      refreshDashboard(false);
+    } finally {
+      setMeasuring(false);
+    }
+  };
+
   const sendTypedCommand = async () => {
     const trimmed = command.trim();
     if (!trimmed || busy) return;
@@ -497,6 +562,7 @@ export default function JarvisUI() {
   const selectedScanMode = scanModes.find((item) => item.id === scanMode) || scanModes[0];
   const latestScanCorners = getScanMatCorners(scanMatResult);
   const latestScanDiagnostics = getScanMatDiagnostics(scanMatResult);
+  const latestRectifiedImagePath = getRectifiedScanImagePath(scanMatResult);
 
   const snapshotPanel = (
     <div style={{ marginTop: 24 }}>
@@ -775,6 +841,12 @@ export default function JarvisUI() {
       calibrationMessage={calibrationMessage}
       applyLatestScanCalibration={applyLatestScanCalibration}
       calibrationStatus={dashboard?.calibration}
+      measurementStatus={dashboard?.measurement}
+      measuring={measuring}
+      measurementResult={measurementResult}
+      measurementMessage={measurementMessage}
+      measureLatestObject={measureLatestObject}
+      rectifiedImageAvailable={Boolean(latestRectifiedImagePath)}
       promptPreview={getScanPrompt(scanMode)}
       logs={logs}
     />

@@ -141,6 +141,58 @@ export type ScanMatDiagnostics = {
   suggestions?: string[];
 };
 
+export type MeasurementStatus = {
+  ready?: boolean;
+  measurement_engine_ready?: boolean;
+  active_profile_id?: string | null;
+  active_profile_name?: string | null;
+  calibration_ready?: boolean;
+  calibration_confidence?: number | null;
+  supported_methods?: string[];
+  error?: string | null;
+};
+
+export type MeasurementResult = {
+  ok?: boolean;
+  error?: string;
+  measurement?: {
+    bbox_px?: {
+      x?: number;
+      y?: number;
+      width?: number;
+      height?: number;
+    };
+    bbox_mm?: {
+      width?: number;
+      height?: number;
+    };
+    area_px?: number;
+    area_mm2?: number;
+    confidence?: number;
+    method?: string;
+  };
+  calibration?: {
+    ready?: boolean;
+    profile_id?: string | null;
+    profile_name?: string | null;
+    mm_per_pixel_x?: number | null;
+    mm_per_pixel_y?: number | null;
+    pixels_per_mm_x?: number | null;
+    pixels_per_mm_y?: number | null;
+    confidence?: number | null;
+    error?: string | null;
+  };
+  diagnostics?: {
+    image_width?: number | null;
+    image_height?: number | null;
+    contour_count?: number;
+    candidate_count?: number;
+    selected_area_ratio?: number | null;
+    failure_reason?: string | null;
+    suggestions?: string[];
+  };
+};
+
 export type DashboardStatus = {
   brain?: {
     overall?: string;
@@ -216,4 +268,5 @@ export type DashboardStatus = {
   devices?: DeviceStatus;
   camera_diagnostics?: CameraDiagnosticsStatus;
   calibration?: CalibrationStatus;
+  measurement?: MeasurementStatus;
 };

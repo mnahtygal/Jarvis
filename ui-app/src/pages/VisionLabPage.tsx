@@ -1,6 +1,12 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { Camera, RefreshCw, ScanEye } from "lucide-react";
-import type { CalibrationStatus, DashboardStatus, ScanMatDiagnostics } from "../types/dashboard";
+import type {
+  CalibrationStatus,
+  DashboardStatus,
+  MeasurementResult,
+  MeasurementStatus,
+  ScanMatDiagnostics,
+} from "../types/dashboard";
 import ActivityLog from "../components/ActivityLog";
 import ControlButton from "../components/ControlButton";
 
@@ -41,6 +47,12 @@ type VisionLabPageProps = {
   calibrationMessage: string;
   applyLatestScanCalibration: () => void;
   calibrationStatus?: CalibrationStatus;
+  measurementStatus?: MeasurementStatus;
+  measuring: boolean;
+  measurementResult: MeasurementResult | null;
+  measurementMessage: string;
+  measureLatestObject: () => void;
+  rectifiedImageAvailable: boolean;
   promptPreview: string;
   logs: string[];
 };
@@ -74,6 +86,12 @@ export default function VisionLabPage({
   calibrationMessage,
   applyLatestScanCalibration,
   calibrationStatus,
+  measurementStatus,
+  measuring,
+  measurementResult,
+  measurementMessage,
+  measureLatestObject,
+  rectifiedImageAvailable,
   promptPreview,
   logs,
 }: VisionLabPageProps) {
@@ -91,6 +109,10 @@ export default function VisionLabPage({
       ? "Corners detected"
       : "Corners not detected"
     : "No scan yet";
+  const measurementDisabled =
+    measuring || !measurementStatus?.calibration_ready || !rectifiedImageAvailable;
+  const measurement = measurementResult?.measurement;
+  const measurementDiagnostics = measurementResult?.diagnostics;
 
   return (
     <div
@@ -301,6 +323,82 @@ export default function VisionLabPage({
 
         {snapshotPanel}
         {scanMatPanel}
+
+        <div
+          style={{
+            marginTop: 22,
+            padding: 16,
+            borderRadius: 14,
+            background: "rgba(0,0,0,0.22)",
+            border: "1px solid rgba(255,255,255,0.06)",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+            <div>
+              <div style={{ fontWeight: 800 }}>Measurement</div>
+              <div style={{ marginTop: 6, opacity: 0.72, fontSize: 13, lineHeight: 1.4 }}>
+                Measure the main object from the latest rectified scan.
+              </div>
+            </div>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 800,
+                color: measurementStatus?.measurement_engine_ready ? "#22c55e" : "#f97316",
+              }}
+            >
+              {measurementStatus?.measurement_engine_ready ? "Ready" : "Not ready"}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            <ControlButton
+              onClick={measureLatestObject}
+              label={measuring ? "Measuring..." : "Measure Object"}
+              icon={<ScanEye size={16} />}
+              disabled={measurementDisabled}
+            />
+            <div style={{ opacity: 0.72, fontSize: 13 }}>
+              {rectifiedImageAvailable ? "Rectified scan ready" : "No rectified scan yet"}
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: 8,
+              fontSize: 13,
+              opacity: 0.78,
+            }}
+          >
+            <div>Width: {measurement?.bbox_mm?.width ?? "unknown"} mm</div>
+            <div>Height: {measurement?.bbox_mm?.height ?? "unknown"} mm</div>
+            <div>Area: {measurement?.area_mm2 ?? "unknown"} mm²</div>
+            <div>Confidence: {measurement?.confidence ?? "unknown"}</div>
+            <div>Method: {measurement?.method || "unknown"}</div>
+            <div>
+              Bounding Box:{" "}
+              {measurement?.bbox_px
+                ? `${measurement.bbox_px.x ?? "?"}, ${measurement.bbox_px.y ?? "?"}, ${measurement.bbox_px.width ?? "?"}x${measurement.bbox_px.height ?? "?"}`
+                : "unknown"}
+            </div>
+            <div>Failure reason: {measurementDiagnostics?.failure_reason || "none"}</div>
+          </div>
+
+          {measurementMessage && (
+            <div
+              style={{
+                marginTop: 12,
+                color: measurementMessage.startsWith("Measurement failed") ? "#f97316" : "#22c55e",
+                fontSize: 13,
+              }}
+            >
+              {measurementMessage}
+            </div>
+          )}
+        </div>
 
         <div
           style={{
