@@ -1,6 +1,6 @@
 # Jarvis Vision
 
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 
 ## What Is Jarvis?
 
@@ -15,6 +15,8 @@ Jarvis is not just a chatbot. It is a local AI workbench that combines:
 - pgvector semantic memory
 - camera workflows
 - Scan Mat analysis
+- calibration
+- bounding-box measurement foundations
 - a React operations dashboard
 - command-line startup and health tools
 
@@ -39,6 +41,8 @@ Jarvis is intended to help with:
 - local software engineering workflows
 - camera-based inspection and documentation
 - Scan Mat capture and measurement foundations
+- interactive calibration
+- object bounding-box measurement from rectified scans
 - maker project memory
 - local model experimentation
 - voice-driven assistant workflows
@@ -113,6 +117,52 @@ The long-term vision is a personal AI operating system for engineering and makin
 
 Jarvis should become a trustworthy local companion for repeated work, not a novelty demo.
 
+## Current Vision Foundation
+
+The July 3-4 development sprint moved Jarvis from a promising Vision Lab prototype toward a real workshop foundation.
+
+Completed foundations:
+
+- Professional React architecture with pages, components, hooks, services, config, and types.
+- Mission Control as a read-only operations view.
+- Vision Lab as the primary camera, Scan Mat, calibration, diagnostics, and measurement workspace.
+- Camera diagnostics and manual overhead scan station profile.
+- UVC Extension Unit investigation for the Insta360 Link.
+- Calibration engine, API, profile storage, and interactive calibration UI.
+- Scan Mat diagnostics for understanding detection success and failure.
+- Measurement Engine foundation with bounding-box measurement v0.
+
+The next practical step is Phase 2.3B Measurement Overlay: showing bounding boxes and measurement labels directly on rectified Scan Mat artifacts.
+
+## Known Camera Limitations
+
+Jarvis currently assumes the Insta360 Link is manually positioned overhead for Scan Mat work.
+
+Known findings:
+
+- `/dev/video0` is the video capture node.
+- `/dev/video1` is the metadata node.
+- Standard V4L2 pan/tilt controls exist and accept values.
+- Those controls do not physically move the Insta360 Link gimbal on Thor.
+- No Insta360 HID interface is exposed.
+- A UVC Extension Unit exists and likely controls vendor-specific gimbal behavior.
+
+Gimbal automation is not part of the current workflow. Manual overhead mode remains the stable path until vendor-specific UVC extension commands are mapped.
+
+## Phase 3 Direction
+
+Phase 3 planning should build on the Vision Foundation:
+
+- Measurement Overlay.
+- Feature Detection.
+- CAD Automation.
+- OpenSCAD Generator.
+- STL Generation.
+- Laser/CNC workflow.
+- Multiple camera support.
+- Plugin architecture.
+- Future Maker Lab vision.
+
 ## Intentionally Out Of Scope
 
 For the current phase, Jarvis should not prioritize:
@@ -128,4 +178,3 @@ For the current phase, Jarvis should not prioritize:
 - restart/shutdown controls in Mission Control
 
 Those may be revisited later, but only after Scan Mat, Vision Lab, memory, and Maker Lab foundations are stable.
-

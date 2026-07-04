@@ -1,6 +1,6 @@
 # Jarvis Boot History
 
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 
 Jarvis startup has evolved as the project moved from a manually started local assistant to a repeatable Thor AI workstation environment.
 
@@ -78,3 +78,17 @@ Turn Thor into a repeatable AI workstation boot environment.
 
 Current stable startup system. Do not change Boot V3 behavior casually. In particular, do not reintroduce Firefox launch unless there is an explicit new design decision.
 
+## July 3-4 Phase 2 Sprint Note
+
+The July 3-4 development sprint changed frontend architecture, Mission Control, Vision Lab, camera diagnostics, calibration, and measurement foundations. It did not change Boot V3 behavior.
+
+Boot V3 remains responsible for:
+
+- starting Jarvis services through `scripts/start-jarvis.sh`
+- checking UI/model readiness
+- reporting local workstation status
+- opening VS Code
+- writing `logs/boot-v3.log`
+- intentionally not launching Firefox
+
+Future Phase 3 architecture work should continue to treat Boot V3 as stable infrastructure unless a dedicated startup design pass explicitly changes it.

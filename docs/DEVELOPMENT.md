@@ -1,6 +1,6 @@
 # Jarvis Development Guide
 
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 
 This guide is for developing Jarvis on Thor or another Ubuntu workstation. Jarvis is local-first: avoid adding cloud dependencies, hidden service assumptions, or large frameworks without discussion.
 
@@ -196,6 +196,7 @@ http://localhost:5173
 - Put HTTP calls in `ui-app/src/services/jarvisApi.ts`.
 - Put frontend constants in `ui-app/src/config/appConfig.ts`.
 - Keep shared dashboard types in `ui-app/src/types/dashboard.ts`.
+- Keep calibration and measurement UI state in reusable hooks.
 - Do not add React Router until the app actually needs route-level browser navigation.
 
 ### Documentation
@@ -207,7 +208,21 @@ Update docs when:
 - Boot/startup behavior changes.
 - Folder structure changes.
 - Scan Mat outputs change.
+- Calibration, camera profile, or measurement behavior changes.
 - Memory behavior changes.
+
+### Vision Lab Development Notes
+
+Vision Lab is the primary UI for camera and workshop workflows. Preserve these behavior boundaries:
+
+- Scan Mat detection should keep raw, annotated, and rectified artifacts working.
+- Scan Mat diagnostics should remain backward-compatible additions to the result payload.
+- Calibration uses the latest scan corners and known real-world mat dimensions.
+- Calibration values are stored in the active camera profile.
+- Measurement currently uses the latest rectified scan image and `largest_contour_bbox_v0`.
+- Measurement results must include calibration context, confidence, and diagnostics.
+- Do not claim precision beyond calibration quality.
+- Measurement Overlay is the next Phase 2.3B step; do not mix it into unrelated cleanup.
 
 ## Professional Development Workflow
 
@@ -219,3 +234,12 @@ Update docs when:
 6. Update docs for behavior, workflow, or architecture changes.
 7. Commit only after approval.
 
+## Current Sprint State
+
+The July 3-4 development sprint completed the Phase 2 architecture foundation:
+
+- Mission Control is read-only and backed by `/api/status/dashboard`.
+- Frontend code is organized into pages, components, hooks, services, config, and types.
+- Camera diagnostics, manual scan station profiles, calibration, and measurement foundations are present.
+- Phase 2.3A Measurement Engine foundation is complete.
+- Phase 2.3B Measurement Overlay is next.

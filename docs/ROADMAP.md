@@ -1,10 +1,12 @@
 # Jarvis Roadmap
 
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 
 This roadmap is organized by releases. Dates are intentionally omitted until a release is actively scheduled.
 
 ## Jarvis 0.3 - Professional Architecture
+
+**Status:** Substantially complete.
 
 ### Goals
 
@@ -20,6 +22,7 @@ This roadmap is organized by releases. Dates are intentionally omitted until a r
 - Centralized frontend API service and config.
 - Repository cleanup and ignore rules.
 - Documentation Sprint 1.0.
+- Hook extraction for dashboard status, API health, calibration, and measurement.
 
 ### Success Criteria
 
@@ -51,6 +54,8 @@ This roadmap is organized by releases. Dates are intentionally omitted until a r
 
 ## Jarvis 0.5 - Vision Workbench
 
+**Status:** Active. Phase 2.3A Measurement Engine foundation is complete.
+
 ### Goals
 
 - Stabilize camera, local vision, and Scan Mat foundations.
@@ -62,9 +67,13 @@ This roadmap is organized by releases. Dates are intentionally omitted until a r
 - 2.2A Camera Diagnostics & Config Fix.
 - 2.2B Manual Overhead Scan Mat Stabilization.
 - 2.2C UVC Extension Unit Investigation.
-- 2.3A Measurement Engine foundation in progress.
-- Scan Mat calibration quality indicators.
-- Measurement overlays with calibration metadata.
+- Camera profiles for the manual overhead scan station.
+- Calibration engine, API, profile storage, and Vision Lab calibration UI.
+- Scan Mat diagnostics for detection reliability.
+- 2.3A Measurement Engine foundation.
+- Measurement API and Vision Lab measurement UI.
+- Bounding-box measurement v0.
+- 2.3B Measurement Overlay.
 - Persistent scan history.
 - Better artifact browsing in Vision Lab.
 
@@ -73,8 +82,44 @@ This roadmap is organized by releases. Dates are intentionally omitted until a r
 - Scan Mat detection is repeatable.
 - Measurements include unit, calibration source, pixel-to-unit ratio, confidence/quality, raw image reference, and rectified image reference.
 - Jarvis does not present unproven measurements as precise.
+- Measurement foundation can report bounding-box width, height, area, confidence, and diagnostics from rectified scan images.
 
-## Jarvis 0.6 - Agent Framework
+### Next Focus
+
+- 2.3B Measurement Overlay.
+- Draw bounding boxes and measurement labels on rectified artifacts.
+- Preserve measurement metadata with calibration source and confidence.
+- Continue improving Scan Mat detection reliability before advanced CAD generation.
+
+## Jarvis 0.6 - Phase 3 Architecture Planning
+
+**Status:** Next major milestone.
+
+### Goals
+
+- Plan the next architecture layer for maker workflows after the Vision Foundation.
+- Keep Phase 3 grounded in stable Scan Mat, calibration, and measurement foundations.
+- Avoid premature automation until measurements and overlays are trustworthy.
+
+### Major Features
+
+- Measurement Overlay.
+- Feature Detection.
+- CAD Automation.
+- OpenSCAD Generator.
+- STL Generation.
+- Laser/CNC workflow.
+- Multiple camera support.
+- Plugin architecture.
+- Future Maker Lab vision.
+
+### Success Criteria
+
+- Phase 3 plans have clear boundaries, dependencies, and validation paths.
+- Generated CAD remains labeled as starter geometry.
+- Maker Lab workflows remain local-first and inspectable.
+
+## Jarvis 0.7 - Agent Framework
 
 ### Goals
 
@@ -94,7 +139,7 @@ This roadmap is organized by releases. Dates are intentionally omitted until a r
 - No hidden cloud dependencies.
 - Human approval remains clear for risky operations.
 
-## Jarvis 0.7 - Maker Lab
+## Jarvis 0.8 - Maker Lab
 
 ### Goals
 
@@ -113,7 +158,7 @@ This roadmap is organized by releases. Dates are intentionally omitted until a r
 - Maker workflows are grounded in files, scans, measurements, and project memory.
 - OpenSCAD output is clearly labeled as starter geometry, not production-ready CAD.
 
-## Jarvis 0.8 - Memory Intelligence
+## Jarvis 0.9 - Memory Intelligence
 
 ### Goals
 

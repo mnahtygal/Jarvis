@@ -1,8 +1,8 @@
 # Jarvis Architecture
 
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 
-Jarvis is a local-first AI engineering assistant. It runs a React/Vite dashboard, a Flask API, local llama.cpp model servers, PostgreSQL exact memory, PostgreSQL + pgvector semantic memory, camera and vision workflows, and Boot V3 startup automation on Thor.
+Jarvis is a local-first AI engineering assistant. It runs a React/Vite dashboard, a Flask API, local llama.cpp model servers, PostgreSQL exact memory, PostgreSQL + pgvector semantic memory, camera, vision, calibration, measurement workflows, and Boot V3 startup automation on Thor.
 
 ## High-Level Diagram
 
@@ -24,9 +24,10 @@ Flask API -------------------- operational checks
   |                    +--> PostgreSQL exact memory
   |                    +--> PostgreSQL + pgvector semantic memory
   |
-  +--> Camera / Vision / Scan Mat skills
+  +--> Camera / Vision / Scan Mat / Calibration / Measurement
   |                    |
   |                    +--> runtime/camera artifacts
+  |                    +--> config/camera_profiles.json
   |                    +--> llama.cpp vision server :8081
   |
   +--> Dashboard status aggregation
@@ -61,7 +62,7 @@ pages/VisionLabPage.tsx
 pages/PlaceholderPage.tsx
 ```
 
-Home provides command, voice, camera, quick-command, and live-detail views. Mission Control is a read-only operations page backed by `/api/status/dashboard`. Vision Lab handles camera snapshots, prompt modes, scan-mat artifacts, and local vision analysis. Maker Lab, Memory, and System currently use a reusable placeholder page.
+Home provides command, voice, camera, quick-command, and live-detail views. Mission Control is a read-only operations page backed by `/api/status/dashboard`. Vision Lab handles camera snapshots, prompt modes, scan-mat artifacts, local vision analysis, calibration, Scan Mat diagnostics, and measurement. Maker Lab, Memory, and System currently use a reusable placeholder page.
 
 ### Components
 
@@ -81,9 +82,11 @@ Components are reusable display primitives. They should not own backend communic
 ```text
 hooks/useApiHealth.ts
 hooks/useDashboardStatus.ts
+hooks/useCalibration.ts
+hooks/useMeasurement.ts
 ```
 
-Hooks own reusable frontend state/effects. `useDashboardStatus` polls dashboard status every `appConfig.dashboardRefreshMs`. `useApiHealth` owns API health status and triggers dashboard refresh after health checks.
+Hooks own reusable frontend state/effects. `useDashboardStatus` polls dashboard status every `appConfig.dashboardRefreshMs`. `useApiHealth` owns API health status and triggers dashboard refresh after health checks. `useCalibration` owns Vision Lab calibration state and calls the calibration API. `useMeasurement` owns Vision Lab measurement state and calls the measurement API.
 
 ### Services
 
@@ -113,7 +116,7 @@ Current frontend constants:
 types/dashboard.ts
 ```
 
-Contains API response shapes consumed by the dashboard and Mission Control.
+Contains API response shapes consumed by the dashboard, Mission Control, Vision Lab calibration, Scan Mat diagnostics, and measurement UI.
 
 ## Backend
 
@@ -125,10 +128,12 @@ The backend entry point is `api.py`, a Flask app with CORS enabled for the local
 | --- | --- |
 | Health | `/`, `/health` |
 | Text and voice | `/text`, `/listen`, `/ask` |
-| Dashboard status | `/api/status/dashboard`, `/api/status/brain`, `/api/status/model`, `/api/status/memory`, `/api/status/martybench`, `/api/status/devices` |
+| Dashboard status | `/api/status/dashboard`, `/api/status/brain`, `/api/status/model`, `/api/status/memory`, `/api/status/martybench`, `/api/status/devices`, `/api/status/camera-diagnostics`, `/api/status/calibration`, `/api/status/measurement` |
 | Camera | `/api/camera/snapshot`, `/api/camera/latest` |
 | Vision | `/api/camera/analyze`, `/api/camera/capture-analyze` |
 | Scan Mat | `/api/vision/scan-mat`, `/api/vision/capture-scan-mat` |
+| Calibration | `/api/calibration/profile`, `/api/calibration/apply` |
+| Measurement | `/api/measurement/analyze` |
 | Artifacts | `/api/vision/artifacts/raw/<artifact_name>`, `/api/vision/artifacts/mat-analysis/<artifact_name>` |
 
 ### Brain
@@ -162,8 +167,11 @@ The `skills/` layer contains task-specific logic. Current important skills inclu
 | `device_status_skill.py` | Checks microphone, camera, PipeWire, and dock note |
 | `model_runtime.py` | Reads active llama.cpp model information |
 | `camera_skill.py` | Captures snapshots with ffmpeg |
+| `camera_diagnostics_skill.py` | Reports read-only camera diagnostics |
 | `vision_skill.py` | Sends images to local vision model |
 | `scan_mat_skill.py` | OpenCV scan-mat detection and artifact generation |
+| `calibration_skill.py` | Reports calibration readiness |
+| `measurement_skill.py` | Reports measurement readiness |
 | `semantic_memory_skill.py` | Semantic memory status/search responses |
 | `llm_skill.py`, `llama_cpp_skill.py` | Local text model calls |
 
@@ -189,6 +197,60 @@ Current semantic design:
 - source/category weighting at search time
 
 Do not replace PostgreSQL + pgvector with Chroma, FAISS, Pinecone, or a cloud vector store unless explicitly requested.
+
+## Vision Foundation
+
+The July 3-4 sprint made Vision Lab the main workshop workflow surface.
+
+### Camera Diagnostics
+
+Jarvis can report read-only camera diagnostics for the Thor/Insta360 setup. Current findings:
+
+- `/dev/video0` is the real video capture node.
+- `/dev/video1` is the metadata node.
+- Driver is `uvcvideo`.
+- Standard V4L2 pan/tilt/zoom controls exist, but pan/tilt values do not physically move the Insta360 Link gimbal.
+- No Insta360 HID interface is exposed.
+- UVC Extension Unit was detected with Unit ID 9, GUID `faf1672d-b71b-4793-8c91-7b1c9b7f95f8`, and 11 controls.
+- Real gimbal movement likely requires vendor-specific UVC extension-unit commands.
+
+### Manual Scan Station
+
+The current Scan Mat workflow assumes the camera is manually positioned overhead and kept fixed. Camera profiles live in:
+
+```text
+config/camera_profiles.json
+```
+
+The active profile stores device mapping, scan-mat assumptions, calibration values, and gimbal-control limitations.
+
+### Calibration
+
+Calibration is profile-backed:
+
+```text
+Scan Mat corners + known mat dimensions
+  -> core.calibration.compute_calibration_from_mat()
+  -> POST /api/calibration/apply
+  -> active camera profile calibration values
+  -> dashboard / Vision Lab status
+```
+
+Calibration records millimeters per pixel, pixels per millimeter, confidence, and timestamp.
+
+### Measurement
+
+Measurement foundation is intentionally simple:
+
+```text
+Rectified scan-mat image
+  -> POST /api/measurement/analyze
+  -> core.measurement.measure_object_bbox_from_image()
+  -> largest_contour_bbox_v0
+  -> width / height / area / confidence / diagnostics
+```
+
+This is bounding-box measurement v0. It is not yet a visual overlay system and should not be treated as precision metrology until calibration and detection quality are validated.
 
 ## Local Models
 
@@ -302,6 +364,18 @@ Scan Mat
   -> POST /api/vision/capture-scan-mat
   -> raw / annotated / rectified artifacts
   -> VisionLab artifact cards
+
+Apply Calibration
+  -> latest scan corners + known dimensions
+  -> POST /api/calibration/apply
+  -> active camera profile
+  -> dashboard refresh
+
+Measure Object
+  -> latest rectified artifact path
+  -> POST /api/measurement/analyze
+  -> bounding-box measurement result
+  -> VisionLab measurement card
 ```
 
 ## Current Architecture Decisions
@@ -313,8 +387,9 @@ Scan Mat
 | llama.cpp for local inference | Current runtime |
 | React/Vite dashboard | Current UI stack |
 | Mission Control as existing UI page | Implemented |
+| Vision Lab as primary camera/calibration/measurement workspace | Implemented |
 | No React Router yet | Intentional |
 | No cloud dependencies by default | Required |
 | Boot V3 does not launch Firefox | Intentional |
 | Restart/shutdown buttons not in Mission Control | Intentional |
-
+| Measurement overlay is next, not complete | Active roadmap |
