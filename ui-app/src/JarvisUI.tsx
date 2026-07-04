@@ -14,6 +14,7 @@ import StatusCard from "./components/StatusCard";
 import { useApiHealth } from "./hooks/useApiHealth";
 import { useCalibration } from "./hooks/useCalibration";
 import { useDashboardStatus } from "./hooks/useDashboardStatus";
+import { useMeasurement } from "./hooks/useMeasurement";
 import HomePage from "./pages/HomePage";
 import MissionControlPage from "./pages/MissionControlPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
@@ -24,12 +25,10 @@ import {
   captureScanMat,
   captureSnapshot,
   checkLatestSnapshot as requestLatestSnapshot,
-  measureLatestObject as requestMeasurement,
   sendTextCommand,
 } from "./services/jarvisApi";
 import type {
   AskResponse,
-  MeasurementResult,
   ScanMatDiagnostics,
 } from "./types/dashboard";
 
@@ -188,9 +187,6 @@ export default function JarvisUI() {
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);
   const [scanMatResult, setScanMatResult] = useState<ScanMatResponse | null>(null);
   const [scanMatVersion, setScanMatVersion] = useState(0);
-  const [measuring, setMeasuring] = useState(false);
-  const [measurementResult, setMeasurementResult] = useState<MeasurementResult | null>(null);
-  const [measurementMessage, setMeasurementMessage] = useState("");
   const [logs, setLogs] = useState<string[]>([
     "Jarvis UI online",
     "Ready for voice or typed commands",
@@ -241,6 +237,17 @@ export default function JarvisUI() {
     refreshDashboard,
     prependLogs,
     isScanMatBusy: () => scanningMat,
+  });
+  const {
+    measuring,
+    measurementResult,
+    measurementMessage,
+    measureLatestObject,
+  } = useMeasurement({
+    getLatestRectifiedImagePath: () => getRectifiedScanImagePath(scanMatResult),
+    canMeasureLatestObject: () => Boolean(dashboard?.calibration?.ready),
+    refreshDashboard,
+    prependLogs,
   });
   const apiDisplayStatus = apiOnline ? apiStatus : apiStatus;
 
@@ -424,57 +431,6 @@ export default function JarvisUI() {
       prependLogs([`Scan Mat failed: ${message}`]);
     } finally {
       setScanningMat(false);
-    }
-  };
-
-  const measureLatestObject = async () => {
-    if (measuring) return;
-
-    const rectifiedImagePath = getRectifiedScanImagePath(scanMatResult);
-    if (!rectifiedImagePath) {
-      const message = "Run Scan Mat first; no rectified image is available yet.";
-      setMeasurementMessage(message);
-      prependLogs([`Measurement failed: ${message}`]);
-      return;
-    }
-
-    if (!dashboard?.calibration?.ready) {
-      const message = "Calibration is required before measurement.";
-      setMeasurementMessage(message);
-      prependLogs([`Measurement failed: ${message}`]);
-      return;
-    }
-
-    setMeasuring(true);
-    setMeasurementMessage("Measuring latest rectified scan...");
-    prependLogs(["Measurement requested"]);
-
-    try {
-      const res = await requestMeasurement(rectifiedImagePath);
-      const data: MeasurementResult = await res.json();
-      setMeasurementResult(data);
-
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-
-      const width = data.measurement?.bbox_mm?.width;
-      const height = data.measurement?.bbox_mm?.height;
-      const message =
-        width != null && height != null
-          ? `Measurement complete: ${width} mm x ${height} mm`
-          : "Measurement complete";
-      setMeasurementMessage(message);
-      prependLogs([message]);
-      refreshDashboard(false);
-    } catch (error) {
-      console.error(error);
-      const message = error instanceof Error ? error.message : "Unknown measurement error";
-      setMeasurementMessage(`Measurement failed: ${message}`);
-      prependLogs([`Measurement failed: ${message}`]);
-      refreshDashboard(false);
-    } finally {
-      setMeasuring(false);
     }
   };
 
