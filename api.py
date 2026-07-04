@@ -6,6 +6,7 @@ from flask_cors import CORS
 from audio.listen import listen_command
 from audio.speak import speak
 from core.brain import think
+from skills.camera_diagnostics_skill import get_camera_diagnostics_status
 from skills.camera_skill import CAPTURE_DIR, capture_snapshot
 from skills.dashboard_status_skill import (
     get_brain_dashboard_status,
@@ -294,6 +295,11 @@ def api_status_martybench():
 @app.route("/api/status/devices", methods=["GET"])
 def api_status_devices():
     return jsonify(get_device_dashboard_status())
+
+
+@app.route("/api/status/camera-diagnostics", methods=["GET"])
+def api_status_camera_diagnostics():
+    return jsonify(get_camera_diagnostics_status())
 
 
 @app.route("/listen", methods=["GET"])

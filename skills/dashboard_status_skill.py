@@ -16,6 +16,7 @@ from skills.brain_status_skill import (
     _check_postgres,
     _count_semantic_memories,
 )
+from skills.camera_diagnostics_skill import get_camera_diagnostics_status
 from skills.device_status_skill import get_device_dashboard_status
 from skills.model_runtime import get_active_model_friendly_name, get_model_runtime_status
 from skills.vision_skill import VISION_MODEL
@@ -246,4 +247,5 @@ def get_dashboard_status() -> Dict[str, Any]:
         "memory": get_memory_dashboard_status(),
         "martybench": get_martybench_dashboard_status(),
         "devices": get_device_dashboard_status(),
+        "camera_diagnostics": get_camera_diagnostics_status(),
     }
