@@ -6,6 +6,11 @@ from flask_cors import CORS
 from audio.listen import listen_command
 from audio.speak import speak
 from core.brain import think
+from core.calibration import (
+    apply_calibration_to_active_profile,
+    compute_calibration_from_mat,
+    get_active_camera_profile,
+)
 from skills.calibration_skill import get_calibration_status
 from skills.camera_diagnostics_skill import get_camera_diagnostics_status
 from skills.camera_skill import CAPTURE_DIR, capture_snapshot
@@ -306,6 +311,74 @@ def api_status_camera_diagnostics():
 @app.route("/api/status/calibration", methods=["GET"])
 def api_status_calibration():
     return jsonify(get_calibration_status())
+
+
+@app.route("/api/calibration/profile", methods=["GET"])
+def api_calibration_profile():
+    try:
+        return jsonify({
+            "ok": True,
+            "profile": get_active_camera_profile(),
+        })
+    except Exception as exc:
+        return jsonify({
+            "ok": False,
+            "error": str(exc),
+        }), 500
+
+
+@app.route("/api/calibration/apply", methods=["POST"])
+def api_calibration_apply():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({
+            "ok": False,
+            "error": "JSON body is required.",
+        }), 400
+
+    if "corners" not in data:
+        return jsonify({
+            "ok": False,
+            "error": "corners is required.",
+        }), 400
+
+    if "known_width_mm" not in data:
+        return jsonify({
+            "ok": False,
+            "error": "known_width_mm is required.",
+        }), 400
+
+    if "known_height_mm" not in data:
+        return jsonify({
+            "ok": False,
+            "error": "known_height_mm is required.",
+        }), 400
+
+    try:
+        calibration = compute_calibration_from_mat(
+            corners=data["corners"],
+            known_width_mm=data["known_width_mm"],
+            known_height_mm=data["known_height_mm"],
+            image_width_px=data.get("image_width_px"),
+            image_height_px=data.get("image_height_px"),
+        )
+        updated_profile = apply_calibration_to_active_profile(calibration)
+    except ValueError as exc:
+        return jsonify({
+            "ok": False,
+            "error": str(exc),
+        }), 400
+    except Exception as exc:
+        return jsonify({
+            "ok": False,
+            "error": str(exc),
+        }), 500
+
+    return jsonify({
+        "ok": True,
+        "profile": updated_profile,
+        "calibration": calibration,
+    })
 
 
 @app.route("/listen", methods=["GET"])
