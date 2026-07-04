@@ -97,6 +97,9 @@ Phase 2 – Professional Architecture
 **Status:** Planned
 
 ## Calibration Engine
+- ☐ 2.2A Camera Diagnostics & Config Fix
+- ◐ 2.2B Manual Overhead Scan Mat Stabilization
+- ☐ 2.2C UVC Extension Unit Investigation
 - ☐ Automatic mat calibration
 - ☐ Pixel-to-mm conversion
 - ☐ Calibration confidence score

@@ -1,0 +1,48 @@
+{
+  "profiles": [
+    {
+      "id": "thor_manual_overhead_scan_station",
+      "name": "Thor Manual Overhead Scan Station",
+      "status": "draft",
+      "camera": {
+        "device": "/dev/video0",
+        "metadata_device": "/dev/video1",
+        "model": "Insta360 Link",
+        "mode": "manual_overhead",
+        "resolution": {
+          "width": 1920,
+          "height": 1080,
+          "pixel_format": "MJPG",
+          "fps": 30
+        }
+      },
+      "scan_mat": {
+        "name": "Workbench Scan Mat",
+        "status": "manual_alignment_required",
+        "known_width_mm": null,
+        "known_height_mm": null
+      },
+      "mounting": {
+        "camera_height_mm": null,
+        "angle": "overhead",
+        "fixed_position": false,
+        "notes": "Manually position the Insta360 Link overhead and avoid moving it after alignment."
+      },
+      "calibration": {
+        "status": "not_calibrated",
+        "pixel_to_mm_x": null,
+        "pixel_to_mm_y": null,
+        "confidence": null,
+        "last_calibrated_at": null
+      },
+      "gimbal": {
+        "control_status": "extension_unit_required",
+        "standard_v4l2_controls_move_physical_gimbal": false,
+        "extension_guid": "faf1672d-b71b-4793-8c91-7b1c9b7f95f8",
+        "extension_unit_id": 9,
+        "notes": "Manual positioning is required until vendor-specific UVC extension-unit commands are mapped."
+      }
+    }
+  ],
+  "active_profile_id": "thor_manual_overhead_scan_station"
+}

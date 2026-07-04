@@ -55,10 +55,13 @@ This roadmap is organized by releases. Dates are intentionally omitted until a r
 
 - Stabilize camera, local vision, and Scan Mat foundations.
 - Preserve raw, annotated, rectified, and metadata outputs.
+- Establish a fixed manual overhead scan-station baseline before calibration.
 
 ### Major Features
 
-- Camera device consistency.
+- 2.2A Camera Diagnostics & Config Fix.
+- 2.2B Manual Overhead Scan Mat Stabilization.
+- 2.2C UVC Extension Unit Investigation.
 - Scan Mat calibration quality indicators.
 - Measurement overlays with calibration metadata.
 - Persistent scan history.
@@ -148,4 +151,3 @@ This roadmap is organized by releases. Dates are intentionally omitted until a r
 - Jarvis can be restarted, inspected, debugged, and extended without tribal knowledge.
 - Core workflows work offline on local hardware.
 - The project is understandable as a public open-source repository.
-
