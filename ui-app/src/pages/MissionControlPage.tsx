@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react";
-import type { DashboardStatus } from "../types/dashboard";
+import type { CameraControlStatus, DashboardStatus } from "../types/dashboard";
 import ControlButton from "../components/ControlButton";
 import MissionSection from "../components/MissionSection";
 
@@ -15,11 +15,38 @@ type MissionControlPageProps = {
   refreshDashboard: (logResult?: boolean) => void;
 };
 
+function detectedLabel(present?: boolean) {
+  return present ? "detected" : "missing";
+}
+
+function formatControlStatus(control?: CameraControlStatus) {
+  if (!control?.present) {
+    return "missing";
+  }
+
+  const value = control.value ?? "unknown";
+  return `present / value ${value}`;
+}
+
 export default function MissionControlPage({
   dashboard,
   martybenchScore,
   refreshDashboard,
 }: MissionControlPageProps) {
+  const cameraDiagnostics = dashboard?.camera_diagnostics;
+  const captureDevice = cameraDiagnostics?.capture_device;
+  const metadataDevice = cameraDiagnostics?.metadata_device;
+  const cameraFormat = captureDevice?.format;
+  const panControl = cameraDiagnostics?.controls?.pan_absolute;
+  const tiltControl = cameraDiagnostics?.controls?.tilt_absolute;
+  const zoomControl = cameraDiagnostics?.controls?.zoom_absolute;
+  const gimbalStatus = cameraDiagnostics?.gimbal?.status;
+  const extensionUnit = cameraDiagnostics?.extension_unit;
+  const formatValue =
+    cameraFormat?.width && cameraFormat?.height
+      ? `${cameraFormat.width}x${cameraFormat.height} / ${cameraFormat.pixel_format || "unknown"} / ${cameraFormat.fps || "unknown fps"}`
+      : "Unknown";
+
   return (
     <div>
       <div
@@ -180,6 +207,60 @@ export default function MissionControlPage({
             {
               label: "Verdict",
               value: martybenchScore?.verdict || "Unknown",
+            },
+          ]}
+        />
+
+        <MissionSection
+          title="Camera Diagnostics"
+          rows={[
+            {
+              label: "Overall",
+              value: cameraDiagnostics?.overall || "Unknown",
+              ok: cameraDiagnostics?.ready,
+            },
+            {
+              label: "Capture Device",
+              value: `${captureDevice?.path || "/dev/video0"} ${detectedLabel(captureDevice?.present)}`,
+              ok: captureDevice?.present,
+            },
+            {
+              label: "Metadata Device",
+              value: `${metadataDevice?.path || "/dev/video1"} ${detectedLabel(metadataDevice?.present)}`,
+              ok: metadataDevice?.present,
+            },
+            {
+              label: "Format",
+              value: formatValue,
+            },
+            {
+              label: "Pan Control",
+              value: formatControlStatus(panControl),
+              ok: panControl?.present,
+            },
+            {
+              label: "Tilt Control",
+              value: formatControlStatus(tiltControl),
+              ok: tiltControl?.present,
+            },
+            {
+              label: "Zoom Control",
+              value: formatControlStatus(zoomControl),
+              ok: zoomControl?.present,
+            },
+            {
+              label: "Gimbal Path",
+              value: gimbalStatus || "Unknown",
+              ok: gimbalStatus === "extension_unit_required" ? false : undefined,
+            },
+            {
+              label: "Extension Unit",
+              value: `${extensionUnit?.detected ? "detected" : "missing"} / Unit ${extensionUnit?.unit_id ?? "unknown"} / ${extensionUnit?.controls ?? "unknown"} controls`,
+              ok: extensionUnit?.detected,
+            },
+            {
+              label: "Extension GUID",
+              value: extensionUnit?.guid || "Unknown",
             },
           ]}
         />

@@ -27,6 +27,55 @@ export type DeviceStatus = {
   };
 };
 
+export type CameraControlStatus = {
+  present?: boolean;
+  value?: number | null;
+  min?: number | null;
+  max?: number | null;
+  step?: number | null;
+};
+
+export type CameraDiagnosticsStatus = {
+  overall?: string;
+  ready?: boolean;
+  capture_device?: {
+    path?: string;
+    present?: boolean;
+    role?: string;
+    driver?: string | null;
+    card?: string | null;
+    bus_info?: string | null;
+    format?: {
+      width?: number | null;
+      height?: number | null;
+      pixel_format?: string | null;
+      fps?: string | null;
+    };
+  };
+  metadata_device?: {
+    path?: string;
+    present?: boolean;
+    role?: string;
+  };
+  controls?: {
+    pan_absolute?: CameraControlStatus;
+    tilt_absolute?: CameraControlStatus;
+    zoom_absolute?: CameraControlStatus;
+  };
+  gimbal?: {
+    standard_controls_present?: boolean;
+    standard_controls_move_physical_gimbal?: boolean;
+    status?: string;
+    note?: string;
+  };
+  extension_unit?: {
+    detected?: boolean;
+    unit_id?: number | null;
+    guid?: string | null;
+    controls?: number | null;
+  };
+};
+
 export type DashboardStatus = {
   brain?: {
     overall?: string;
@@ -100,4 +149,5 @@ export type DashboardStatus = {
     };
   };
   devices?: DeviceStatus;
+  camera_diagnostics?: CameraDiagnosticsStatus;
 };
