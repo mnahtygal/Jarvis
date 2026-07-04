@@ -18,6 +18,7 @@ import MissionControlPage from "./pages/MissionControlPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import VisionLabPage from "./pages/VisionLabPage";
 import {
+  applyCalibration,
   analyzeSnapshot,
   askJarvis,
   captureScanMat,
@@ -25,7 +26,7 @@ import {
   checkLatestSnapshot as requestLatestSnapshot,
   sendTextCommand,
 } from "./services/jarvisApi";
-import type { AskResponse } from "./types/dashboard";
+import type { AskResponse, CalibrationApplyResponse, ScanMatDiagnostics } from "./types/dashboard";
 
 type AppPage = "home" | "mission" | "vision" | "maker" | "memory" | "system";
 type ScanMode = "general" | "object" | "measurement" | "ocr" | "print" | "jetski" | "workbench";
@@ -56,7 +57,12 @@ type ScanMatResponse = {
   rectified_image_url?: string | null;
   rectified_available?: boolean;
   warning?: string | null;
+  diagnostics?: ScanMatDiagnostics;
   corners?: number[][];
+  image_size?: {
+    width?: number;
+    height?: number;
+  };
   image_name?: string;
   error?: string;
   capture?: CameraSnapshotResponse;
@@ -64,6 +70,11 @@ type ScanMatResponse = {
     ok?: boolean;
     mat_detected?: boolean;
     image_name?: string;
+    image_size?: {
+      width?: number;
+      height?: number;
+    };
+    diagnostics?: ScanMatDiagnostics;
     annotated_path?: string;
     rectified_path?: string;
     mat?: {
@@ -140,6 +151,14 @@ function getScanPrompt(mode: ScanMode) {
   return `${safety} Briefly describe what you see in this image. Mention important objects, visible text, lighting, and anything useful for a workshop assistant. Mention uncertainty when needed.`;
 }
 
+function getScanMatCorners(result: ScanMatResponse | null) {
+  return result?.corners || result?.mat_analysis?.mat?.corners || null;
+}
+
+function getScanMatDiagnostics(result: ScanMatResponse | null) {
+  return result?.diagnostics || result?.mat_analysis?.diagnostics || null;
+}
+
 export default function JarvisUI() {
   const apiBase = appConfig.apiBaseUrl;
   const [activePage, setActivePage] = useState<AppPage>("home");
@@ -155,6 +174,10 @@ export default function JarvisUI() {
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);
   const [scanMatResult, setScanMatResult] = useState<ScanMatResponse | null>(null);
   const [scanMatVersion, setScanMatVersion] = useState(0);
+  const [calibrationWidthMm, setCalibrationWidthMm] = useState("");
+  const [calibrationHeightMm, setCalibrationHeightMm] = useState("");
+  const [calibrating, setCalibrating] = useState(false);
+  const [calibrationMessage, setCalibrationMessage] = useState("");
   const [logs, setLogs] = useState<string[]>([
     "Jarvis UI online",
     "Ready for voice or typed commands",
@@ -193,7 +216,7 @@ export default function JarvisUI() {
   );
   const apiDisplayStatus = apiOnline ? apiStatus : apiStatus;
 
-  const busy = listening || processing || capturing || analyzing || scanningMat;
+  const busy = listening || processing || capturing || analyzing || scanningMat || calibrating;
 
   const quickCommands = [
     "brain status",
@@ -376,6 +399,71 @@ export default function JarvisUI() {
     }
   };
 
+  const applyLatestScanCalibration = async () => {
+    if (calibrating || scanningMat) return;
+
+    const corners = getScanMatCorners(scanMatResult);
+    if (!corners) {
+      const message = "Run Scan Mat first; no corners are available yet.";
+      setCalibrationMessage(message);
+      prependLogs([`Calibration failed: ${message}`]);
+      return;
+    }
+
+    const knownWidthMm = Number(calibrationWidthMm);
+    const knownHeightMm = Number(calibrationHeightMm);
+    if (!Number.isFinite(knownWidthMm) || knownWidthMm <= 0) {
+      const message = "Calibration width must be a number greater than 0.";
+      setCalibrationMessage(message);
+      prependLogs([`Calibration failed: ${message}`]);
+      return;
+    }
+
+    if (!Number.isFinite(knownHeightMm) || knownHeightMm <= 0) {
+      const message = "Calibration height must be a number greater than 0.";
+      setCalibrationMessage(message);
+      prependLogs([`Calibration failed: ${message}`]);
+      return;
+    }
+
+    setCalibrating(true);
+    setCalibrationMessage("Applying calibration...");
+    prependLogs(["Calibration apply requested"]);
+
+    const imageSize = scanMatResult?.image_size || scanMatResult?.mat_analysis?.image_size;
+
+    try {
+      const res = await applyCalibration({
+        corners,
+        known_width_mm: knownWidthMm,
+        known_height_mm: knownHeightMm,
+        image_width_px: imageSize?.width,
+        image_height_px: imageSize?.height,
+      });
+      const data: CalibrationApplyResponse = await res.json();
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      const confidence =
+        data.calibration?.confidence != null
+          ? ` Confidence: ${data.calibration.confidence}`
+          : "";
+      const message = `Calibration saved.${confidence}`;
+      setCalibrationMessage(message);
+      prependLogs([message]);
+      refreshDashboard(true);
+    } catch (error) {
+      console.error(error);
+      const message = error instanceof Error ? error.message : "Unknown calibration error";
+      setCalibrationMessage(`Calibration failed: ${message}`);
+      prependLogs([`Calibration failed: ${message}`]);
+    } finally {
+      setCalibrating(false);
+    }
+  };
+
   const sendTypedCommand = async () => {
     const trimmed = command.trim();
     if (!trimmed || busy) return;
@@ -407,6 +495,8 @@ export default function JarvisUI() {
   const cameraDetected = dashboard?.devices?.camera?.detected ?? false;
   const martybenchScore = dashboard?.martybench?.score;
   const selectedScanMode = scanModes.find((item) => item.id === scanMode) || scanModes[0];
+  const latestScanCorners = getScanMatCorners(scanMatResult);
+  const latestScanDiagnostics = getScanMatDiagnostics(scanMatResult);
 
   const snapshotPanel = (
     <div style={{ marginTop: 24 }}>
@@ -675,6 +765,16 @@ export default function JarvisUI() {
       snapshotAvailable={snapshotAvailable}
       snapshotPanel={snapshotPanel}
       scanMatPanel={scanMatPanel}
+      scanMatDiagnostics={latestScanDiagnostics}
+      latestScanCornersAvailable={Boolean(latestScanCorners)}
+      calibrationWidthMm={calibrationWidthMm}
+      calibrationHeightMm={calibrationHeightMm}
+      setCalibrationWidthMm={setCalibrationWidthMm}
+      setCalibrationHeightMm={setCalibrationHeightMm}
+      calibrating={calibrating}
+      calibrationMessage={calibrationMessage}
+      applyLatestScanCalibration={applyLatestScanCalibration}
+      calibrationStatus={dashboard?.calibration}
       promptPreview={getScanPrompt(scanMode)}
       logs={logs}
     />

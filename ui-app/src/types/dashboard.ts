@@ -76,6 +76,71 @@ export type CameraDiagnosticsStatus = {
   };
 };
 
+export type CalibrationStatus = {
+  ready?: boolean;
+  active_profile_id?: string | null;
+  profile_name?: string | null;
+  status?: string;
+  known_width_mm?: number | null;
+  known_height_mm?: number | null;
+  pixel_to_mm_x?: number | null;
+  pixel_to_mm_y?: number | null;
+  mm_per_pixel_x?: number | null;
+  mm_per_pixel_y?: number | null;
+  pixels_per_mm_x?: number | null;
+  pixels_per_mm_y?: number | null;
+  confidence?: number | null;
+  last_calibrated_at?: string | null;
+  error?: string | null;
+};
+
+export type CameraProfile = {
+  id?: string;
+  name?: string;
+  status?: string;
+  camera?: Record<string, unknown>;
+  scan_mat?: {
+    name?: string;
+    status?: string;
+    known_width_mm?: number | null;
+    known_height_mm?: number | null;
+  };
+  calibration?: Partial<CalibrationStatus>;
+  [key: string]: unknown;
+};
+
+export type CalibrationApplyResponse = {
+  ok?: boolean;
+  profile?: CameraProfile;
+  calibration?: CalibrationStatus & {
+    corners?: number[][];
+    edge_lengths_px?: Record<string, number>;
+    image_width_px?: number | null;
+    image_height_px?: number | null;
+    pixel_width_px?: number;
+    pixel_height_px?: number;
+  };
+  error?: string;
+};
+
+export type ScanMatDiagnostics = {
+  image_width?: number | null;
+  image_height?: number | null;
+  mode?: string;
+  edges_found?: boolean;
+  edge_pixels?: number | null;
+  contour_count?: number;
+  candidate_quad_count?: number;
+  largest_contour_area?: number | null;
+  largest_contour_area_ratio?: number | null;
+  selected_quad_area?: number | null;
+  selected_quad_area_ratio?: number | null;
+  corners_detected?: boolean;
+  rectified_available?: boolean;
+  failure_reason?: string | null;
+  suggestions?: string[];
+};
+
 export type DashboardStatus = {
   brain?: {
     overall?: string;
@@ -150,4 +215,5 @@ export type DashboardStatus = {
   };
   devices?: DeviceStatus;
   camera_diagnostics?: CameraDiagnosticsStatus;
+  calibration?: CalibrationStatus;
 };

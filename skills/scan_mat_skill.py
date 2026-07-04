@@ -7,6 +7,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 MAT_WIDTH_INCHES = 24.0
 MAT_HEIGHT_INCHES = 18.0
+SCAN_MAT_SUGGESTIONS = [
+    "Move camera closer so the mat fills more of the frame.",
+    "Improve lighting and reduce glare.",
+    "Make sure all four mat corners are visible.",
+    "Use a higher-contrast mat boundary.",
+    "Keep the camera fixed and pointed at the mat.",
+]
 
 
 def _cv2_missing() -> Dict[str, Any]:
@@ -43,6 +50,26 @@ def _find_largest_quad(image) -> Tuple[Optional[Any], Dict[str, Any]]:
     contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     image_area = float(width * height)
+    contour_areas = [float(cv2.contourArea(contour)) for contour in contours]
+    largest_contour_area = max(contour_areas) if contour_areas else 0.0
+    edge_pixels = int(cv2.countNonZero(edges))
+    diagnostics = {
+        "image_width": int(width),
+        "image_height": int(height),
+        "mode": "largest_quad_contour_v1",
+        "edges_found": edge_pixels > 0,
+        "edge_pixels": edge_pixels,
+        "contour_count": len(contours),
+        "candidate_quad_count": 0,
+        "largest_contour_area": round(largest_contour_area, 2),
+        "largest_contour_area_ratio": round(largest_contour_area / image_area, 6) if image_area else 0.0,
+        "selected_quad_area": None,
+        "selected_quad_area_ratio": None,
+        "corners_detected": False,
+        "rectified_available": False,
+        "failure_reason": "unknown",
+        "suggestions": SCAN_MAT_SUGGESTIONS,
+    }
     candidates = []
     for contour in contours:
         area = cv2.contourArea(contour)
@@ -59,19 +86,32 @@ def _find_largest_quad(image) -> Tuple[Optional[Any], Dict[str, Any]]:
                 "points": approx.reshape(4, 2).astype(float).tolist(),
             })
 
+    diagnostics["candidate_quad_count"] = len(candidates)
+
     if not candidates:
+        diagnostics["failure_reason"] = (
+            "no_contours_found" if not contours else "no_quadrilateral_candidates"
+        )
         return None, {
             "contours_checked": len(contours),
             "candidate_count": 0,
             "reason": "No large four-corner contour found.",
+            "diagnostics": diagnostics,
         }
 
     candidates.sort(key=lambda item: item["area"], reverse=True)
     best = candidates[0]
+    diagnostics.update({
+        "selected_quad_area": round(float(best["area"]), 2),
+        "selected_quad_area_ratio": round(float(best["area_ratio"]), 6),
+        "corners_detected": True,
+        "failure_reason": None,
+    })
     return _order_points(best["points"]), {
         "contours_checked": len(contours),
         "candidate_count": len(candidates),
         "best": best,
+        "diagnostics": diagnostics,
     }
 
 
@@ -136,14 +176,25 @@ def analyze_scan_mat(image_path: Path, output_dir: Path | None = None) -> Dict[s
         return _cv2_missing()
 
     if not image_path.exists():
-        return {"ok": False, "mat_detected": False, "error": "Image file does not exist."}
+        return {
+            "ok": False,
+            "mat_detected": False,
+            "error": "Image file does not exist.",
+            "diagnostics": _failure_diagnostics("image_file_missing"),
+        }
 
     image = cv2.imread(str(image_path))
     if image is None:
-        return {"ok": False, "mat_detected": False, "error": "OpenCV could not read image."}
+        return {
+            "ok": False,
+            "mat_detected": False,
+            "error": "OpenCV could not read image.",
+            "diagnostics": _failure_diagnostics("opencv_read_failed"),
+        }
 
     height, width = image.shape[:2]
     rect, debug = _find_largest_quad(image)
+    diagnostics = debug.get("diagnostics", _failure_diagnostics("unknown"))
     output_dir = output_dir or image_path.parent / "mat_analysis"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -159,6 +210,7 @@ def analyze_scan_mat(image_path: Path, output_dir: Path | None = None) -> Dict[s
             "image_name": image_path.name,
             "image_size": {"width": width, "height": height},
             "debug": debug,
+            "diagnostics": diagnostics,
             "annotated_path": str(annotated_path),
             "guidance": [
                 "Point the camera down at the mat.",
@@ -182,6 +234,11 @@ def analyze_scan_mat(image_path: Path, output_dir: Path | None = None) -> Dict[s
     warped = cv2.warpPerspective(image, transform, (warped_width, warped_height))
     rectified_path = output_dir / f"{image_path.stem}_mat_rectified.jpg"
     cv2.imwrite(str(rectified_path), warped)
+    diagnostics = {
+        **diagnostics,
+        "rectified_available": rectified_path.is_file(),
+        "failure_reason": None if rectified_path.is_file() else "rectification_failed",
+    }
 
     mat_pixel_width = float(np.linalg.norm(rect[1] - rect[0]))
     mat_pixel_height = float(np.linalg.norm(rect[3] - rect[0]))
@@ -200,6 +257,27 @@ def analyze_scan_mat(image_path: Path, output_dir: Path | None = None) -> Dict[s
         },
         "grid": _grid_estimate(warped),
         "debug": debug,
+        "diagnostics": diagnostics,
         "annotated_path": str(annotated_path),
         "rectified_path": str(rectified_path),
+    }
+
+
+def _failure_diagnostics(failure_reason: str) -> Dict[str, Any]:
+    return {
+        "image_width": None,
+        "image_height": None,
+        "mode": "largest_quad_contour_v1",
+        "edges_found": False,
+        "edge_pixels": None,
+        "contour_count": 0,
+        "candidate_quad_count": 0,
+        "largest_contour_area": None,
+        "largest_contour_area_ratio": None,
+        "selected_quad_area": None,
+        "selected_quad_area_ratio": None,
+        "corners_detected": False,
+        "rectified_available": False,
+        "failure_reason": failure_reason,
+        "suggestions": SCAN_MAT_SUGGESTIONS,
     }

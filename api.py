@@ -258,6 +258,7 @@ def api_vision_capture_scan_mat():
         "ok": bool(mat_result.get("ok")),
         "capture": capture_result,
         "mat_analysis": mat_result,
+        "diagnostics": mat_result.get("diagnostics"),
         "image_name": snapshot_path.name,
         **scan_metadata,
     }), status_code
