@@ -19,6 +19,7 @@ from skills.brain_status_skill import (
 from skills.calibration_skill import get_calibration_status
 from skills.camera_diagnostics_skill import get_camera_diagnostics_status
 from skills.device_status_skill import get_device_dashboard_status
+from skills.measurement_skill import get_measurement_status
 from skills.model_runtime import get_active_model_friendly_name, get_model_runtime_status
 from skills.vision_skill import VISION_MODEL
 
@@ -250,4 +251,5 @@ def get_dashboard_status() -> Dict[str, Any]:
         "devices": get_device_dashboard_status(),
         "camera_diagnostics": get_camera_diagnostics_status(),
         "calibration": get_calibration_status(),
+        "measurement": get_measurement_status(),
     }

@@ -109,9 +109,10 @@ Phase 2 – Professional Architecture
 ---
 
 # Version 2.3.0
-**Status:** Planned
+**Status:** In Progress
 
 ## Measurement Engine
+- ◐ 2.3A Measurement Engine foundation
 - ☐ Object dimensions
 - ☐ Bounding boxes
 - ☐ Diameter estimation

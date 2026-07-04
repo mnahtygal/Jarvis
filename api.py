@@ -11,6 +11,7 @@ from core.calibration import (
     compute_calibration_from_mat,
     get_active_camera_profile,
 )
+from core.measurement import measure_object_bbox_from_image
 from skills.calibration_skill import get_calibration_status
 from skills.camera_diagnostics_skill import get_camera_diagnostics_status
 from skills.camera_skill import CAPTURE_DIR, capture_snapshot
@@ -22,12 +23,14 @@ from skills.dashboard_status_skill import (
     get_model_dashboard_status,
 )
 from skills.device_status_skill import get_device_dashboard_status
+from skills.measurement_skill import get_measurement_status
 from skills.scan_mat_skill import analyze_scan_mat
 from skills.vision_skill import DEFAULT_PROMPT, analyze_image
 
 app = Flask(__name__)
 CORS(app)
 
+PROJECT_ROOT = Path(__file__).resolve().parent
 MAT_ANALYSIS_DIR = CAPTURE_DIR / "mat_analysis"
 
 
@@ -72,6 +75,35 @@ def _serve_artifact(base_dir: Path, artifact_name: str):
         conditional=True,
         max_age=0,
     )
+
+
+def _resolve_measurement_image_path(raw_path: str) -> Path | None:
+    if not raw_path:
+        return None
+
+    requested_path = Path(raw_path)
+    if not requested_path.is_absolute():
+        requested_path = PROJECT_ROOT / requested_path
+
+    try:
+        resolved_path = requested_path.resolve()
+    except Exception:
+        return None
+
+    allowed_roots = [
+        CAPTURE_DIR.resolve(),
+        MAT_ANALYSIS_DIR.resolve(),
+        (PROJECT_ROOT / "runtime").resolve(),
+        Path("/tmp").resolve(),
+    ]
+    for allowed_root in allowed_roots:
+        try:
+            resolved_path.relative_to(allowed_root)
+            return resolved_path if resolved_path.is_file() else None
+        except ValueError:
+            continue
+
+    return None
 
 
 def _raw_artifact_url(snapshot_path: Path) -> str:
@@ -312,6 +344,37 @@ def api_status_camera_diagnostics():
 @app.route("/api/status/calibration", methods=["GET"])
 def api_status_calibration():
     return jsonify(get_calibration_status())
+
+
+@app.route("/api/status/measurement", methods=["GET"])
+def api_status_measurement():
+    return jsonify(get_measurement_status())
+
+
+@app.route("/api/measurement/analyze", methods=["POST"])
+def api_measurement_analyze():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({
+            "ok": False,
+            "error": "JSON body is required.",
+        }), 400
+
+    image_path = data.get("image_path")
+    if not isinstance(image_path, str) or not image_path.strip():
+        return jsonify({
+            "ok": False,
+            "error": "image_path is required.",
+        }), 400
+
+    resolved_path = _resolve_measurement_image_path(image_path.strip())
+    if resolved_path is None:
+        return jsonify({
+            "ok": False,
+            "error": "image_path must point to an existing Jarvis runtime/camera artifact or /tmp file.",
+        }), 400
+
+    return jsonify(measure_object_bbox_from_image(str(resolved_path)))
 
 
 @app.route("/api/calibration/profile", methods=["GET"])

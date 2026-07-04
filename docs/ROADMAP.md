@@ -62,6 +62,7 @@ This roadmap is organized by releases. Dates are intentionally omitted until a r
 - 2.2A Camera Diagnostics & Config Fix.
 - 2.2B Manual Overhead Scan Mat Stabilization.
 - 2.2C UVC Extension Unit Investigation.
+- 2.3A Measurement Engine foundation in progress.
 - Scan Mat calibration quality indicators.
 - Measurement overlays with calibration metadata.
 - Persistent scan history.
