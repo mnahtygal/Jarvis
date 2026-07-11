@@ -7,9 +7,9 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.camera_roles import DEFAULT_CAMERA_ROLE, get_camera_roles_status
 
-CAPTURE_DEVICE = "/dev/video0"
-METADATA_DEVICE = "/dev/video1"
+
 INSTA360_USB_ID = "2e1a:4c01"
 EXTENSION_UNIT_ID = 9
 EXTENSION_UNIT_GUID = "faf1672d-b71b-4793-8c91-7b1c9b7f95f8"
@@ -160,17 +160,25 @@ def _detect_extension_unit(lsusb_output: str, command_result: Dict[str, Any]) ->
 
 
 def get_camera_diagnostics_status() -> Dict[str, Any]:
-    capture_present = Path(CAPTURE_DEVICE).exists()
-    metadata_present = Path(METADATA_DEVICE).exists()
+    camera_status = get_camera_roles_status()
+    active_camera = camera_status.get("active_camera") or {}
+    capture_device = active_camera.get("resolved_device_path") or ""
+    capture_present = bool(capture_device and Path(capture_device).exists())
 
-    capture_all_result = _run_command(["v4l2-ctl", "-d", CAPTURE_DEVICE, "--all"])
-    controls_result = _run_command(["v4l2-ctl", "-d", CAPTURE_DEVICE, "--list-ctrls"])
-    metadata_all_result = _run_command(["v4l2-ctl", "-d", METADATA_DEVICE, "--all"])
+    capture_all_result = (
+        _run_command(["v4l2-ctl", "-d", capture_device, "--all"])
+        if capture_device
+        else {"ok": False, "text": ""}
+    )
+    controls_result = (
+        _run_command(["v4l2-ctl", "-d", capture_device, "--list-ctrls"])
+        if capture_device
+        else {"ok": False, "text": ""}
+    )
     extension_probe_result = _run_command(["lsusb", "-v", "-d", INSTA360_USB_ID], timeout=5.0)
 
     capture_all = capture_all_result.get("text", "")
     controls_text = controls_result.get("text", "")
-    metadata_all = metadata_all_result.get("text", "")
     extension_probe = extension_probe_result.get("text", "")
 
     device_info = _parse_device_info(capture_all)
@@ -180,29 +188,32 @@ def get_camera_diagnostics_status() -> Dict[str, Any]:
         for control_name in ["pan_absolute", "tilt_absolute"]
     )
     extension_unit = _detect_extension_unit(extension_probe, extension_probe_result)
-    metadata_info = _parse_device_info(metadata_all)
 
-    ready = capture_present and metadata_present and bool(device_info.get("driver"))
+    ready = capture_present and bool(device_info.get("driver"))
 
     return {
         "overall": "READY" if ready else "CHECK CAMERA",
         "ready": ready,
+        "active_role": camera_status.get("active_role"),
+        "default_role": DEFAULT_CAMERA_ROLE,
+        "active_camera": active_camera,
+        "cameras": camera_status.get("cameras", []),
         "capture_device": {
-            "path": CAPTURE_DEVICE,
+            "path": capture_device or None,
             "present": capture_present,
-            "role": "video_capture",
+            "role": active_camera.get("role") or "video_capture",
             "driver": device_info.get("driver"),
             "card": device_info.get("card"),
             "bus_info": device_info.get("bus_info"),
             "format": _parse_format(capture_all),
         },
         "metadata_device": {
-            "path": METADATA_DEVICE,
-            "present": metadata_present,
+            "path": None,
+            "present": False,
             "role": "metadata_capture",
-            "driver": metadata_info.get("driver"),
-            "card": metadata_info.get("card"),
-            "bus_info": metadata_info.get("bus_info"),
+            "driver": None,
+            "card": None,
+            "bus_info": None,
         },
         "controls": controls,
         "gimbal": {
@@ -218,7 +229,7 @@ def get_camera_diagnostics_status() -> Dict[str, Any]:
         "raw": {
             "v4l2_all": capture_all,
             "v4l2_ctrls": controls_text,
-            "metadata_v4l2_all": metadata_all,
+            "metadata_v4l2_all": "",
             "extension_probe": extension_probe,
         },
     }

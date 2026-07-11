@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Clock3,
   Database,
@@ -25,10 +25,13 @@ import {
   captureScanMat,
   captureSnapshot,
   checkLatestSnapshot as requestLatestSnapshot,
+  getCameras,
   sendTextCommand,
+  switchActiveCamera,
 } from "./services/jarvisApi";
 import type {
   AskResponse,
+  CameraRolesStatus,
   ScanMatDiagnostics,
 } from "./types/dashboard";
 
@@ -63,6 +66,8 @@ type ScanMatResponse = {
   warning?: string | null;
   diagnostics?: ScanMatDiagnostics;
   corners?: number[][];
+  annotated_path?: string;
+  rectified_path?: string;
   image_size?: {
     width?: number;
     height?: number;
@@ -85,6 +90,24 @@ type ScanMatResponse = {
       corners?: number[][];
     };
   };
+};
+
+type NormalizedScanMatResponse = {
+  matDetected: boolean;
+  rawImageUrl?: string | null;
+  annotatedImageUrl?: string | null;
+  rectifiedImageUrl?: string | null;
+  rectifiedImagePath?: string | null;
+  rectifiedAvailable: boolean;
+  warning?: string | null;
+  diagnostics: ScanMatDiagnostics | null;
+  corners: number[][] | null;
+  imageSize?: {
+    width?: number;
+    height?: number;
+  };
+  imageName?: string;
+  failureReason?: string | null;
 };
 
 const scanModes: Array<{ id: ScanMode; label: string; detail: string }> = [
@@ -155,21 +178,28 @@ function getScanPrompt(mode: ScanMode) {
   return `${safety} Briefly describe what you see in this image. Mention important objects, visible text, lighting, and anything useful for a workshop assistant. Mention uncertainty when needed.`;
 }
 
-function getScanMatCorners(result: ScanMatResponse | null) {
-  return result?.corners || result?.mat_analysis?.mat?.corners || null;
-}
+function normalizeScanMatResponse(result: ScanMatResponse | null): NormalizedScanMatResponse | null {
+  if (!result) return null;
 
-function getScanMatDiagnostics(result: ScanMatResponse | null) {
-  return result?.diagnostics || result?.mat_analysis?.diagnostics || null;
-}
+  const diagnostics = result.diagnostics || result.mat_analysis?.diagnostics || null;
+  const matDetected = result.mat_detected ?? result.mat_analysis?.mat_detected ?? false;
+  const rectifiedImagePath = result.rectified_path || result.mat_analysis?.rectified_path || null;
+  const rectifiedAvailable = result.rectified_available ?? Boolean(rectifiedImagePath || result.rectified_image_url);
 
-function getScanMatImageSize(result: ScanMatResponse | null) {
-  return result?.image_size || result?.mat_analysis?.image_size;
-}
-
-function getRectifiedScanImagePath(result: ScanMatResponse | null) {
-  if (!result?.rectified_available) return null;
-  return result.mat_analysis?.rectified_path || null;
+  return {
+    matDetected,
+    rawImageUrl: result.raw_image_url,
+    annotatedImageUrl: result.annotated_image_url,
+    rectifiedImageUrl: result.rectified_image_url,
+    rectifiedImagePath,
+    rectifiedAvailable,
+    warning: result.warning,
+    diagnostics,
+    corners: result.corners || result.mat_analysis?.mat?.corners || null,
+    imageSize: result.image_size || result.mat_analysis?.image_size,
+    imageName: result.image_name || result.mat_analysis?.image_name,
+    failureReason: diagnostics?.failure_reason || null,
+  };
 }
 
 export default function JarvisUI() {
@@ -187,6 +217,9 @@ export default function JarvisUI() {
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);
   const [scanMatResult, setScanMatResult] = useState<ScanMatResponse | null>(null);
   const [scanMatVersion, setScanMatVersion] = useState(0);
+  const [cameraRoles, setCameraRoles] = useState<CameraRolesStatus | null>(null);
+  const [switchingCameraRole, setSwitchingCameraRole] = useState(false);
+  const microphoneLogRef = useRef("");
   const [logs, setLogs] = useState<string[]>([
     "Jarvis UI online",
     "Ready for voice or typed commands",
@@ -223,6 +256,7 @@ export default function JarvisUI() {
     refreshDashboard,
     prependLogs
   );
+  const normalizedScanMat = normalizeScanMatResponse(scanMatResult);
   const {
     calibrationWidthMm,
     calibrationHeightMm,
@@ -232,8 +266,8 @@ export default function JarvisUI() {
     calibrationMessage,
     applyLatestScanCalibration,
   } = useCalibration({
-    getLatestScanCorners: () => getScanMatCorners(scanMatResult),
-    getLatestScanImageSize: () => getScanMatImageSize(scanMatResult),
+    getLatestScanCorners: () => normalizeScanMatResponse(scanMatResult)?.corners || null,
+    getLatestScanImageSize: () => normalizeScanMatResponse(scanMatResult)?.imageSize,
     refreshDashboard,
     prependLogs,
     isScanMatBusy: () => scanningMat,
@@ -244,14 +278,30 @@ export default function JarvisUI() {
     measurementMessage,
     measureLatestObject,
   } = useMeasurement({
-    getLatestRectifiedImagePath: () => getRectifiedScanImagePath(scanMatResult),
+    getLatestRectifiedImagePath: () => normalizeScanMatResponse(scanMatResult)?.rectifiedImagePath || null,
     canMeasureLatestObject: () => Boolean(dashboard?.calibration?.ready),
     refreshDashboard,
     prependLogs,
   });
   const apiDisplayStatus = apiOnline ? apiStatus : apiStatus;
 
-  const busy = listening || processing || capturing || analyzing || scanningMat || calibrating || measuring;
+  const busy = listening || processing || capturing || analyzing || scanningMat || calibrating || measuring || switchingCameraRole;
+
+  useEffect(() => {
+    const microphone = dashboard?.devices?.microphone;
+    if (!microphone) return;
+
+    const fallbackName = microphone.fallback_microphone?.name;
+    const logEntry = microphone.using_preferred
+      ? "Microphone: Samson Q2U selected"
+      : fallbackName
+        ? `Microphone fallback: ${fallbackName}`
+        : "";
+
+    if (!logEntry || microphoneLogRef.current === logEntry) return;
+    microphoneLogRef.current = logEntry;
+    prependLogs([logEntry]);
+  }, [dashboard?.devices?.microphone, prependLogs]);
 
   const quickCommands = [
     "brain status",
@@ -272,6 +322,18 @@ export default function JarvisUI() {
     } catch (error) {
       console.error(error);
       setSnapshotAvailable(false);
+    }
+  }, []);
+
+  const refreshCameraRoles = useCallback(async () => {
+    try {
+      const res = await getCameras();
+      const data: CameraRolesStatus = await res.json();
+      if (res.ok && data.ok !== false) {
+        setCameraRoles(data);
+      }
+    } catch (error) {
+      console.error(error);
     }
   }, []);
 
@@ -298,7 +360,8 @@ export default function JarvisUI() {
   const checkApi = useCallback(async () => {
     await checkApiHealth();
     checkLatestSnapshot();
-  }, [checkApiHealth, checkLatestSnapshot]);
+    refreshCameraRoles();
+  }, [checkApiHealth, checkLatestSnapshot, refreshCameraRoles]);
 
   useEffect(() => {
     const initialCheck = window.setTimeout(() => {
@@ -368,6 +431,35 @@ export default function JarvisUI() {
     }
   };
 
+  const switchCameraRole = async (role: string) => {
+    if (busy || switchingCameraRole) return;
+
+    setSwitchingCameraRole(true);
+    prependLogs([`Camera switch requested: ${role}`]);
+
+    try {
+      const res = await switchActiveCamera(role);
+      const data: CameraRolesStatus = await res.json();
+
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      setCameraRoles(data);
+      const active = data.active_camera;
+      prependLogs([
+        `Camera switched to ${data.active_role || role}: ${active?.display_name || "camera"}`,
+      ]);
+      refreshDashboard(false);
+    } catch (error) {
+      console.error(error);
+      const message = error instanceof Error ? error.message : "Camera unavailable";
+      prependLogs([`Camera switch failed: ${message}`]);
+    } finally {
+      setSwitchingCameraRole(false);
+    }
+  };
+
   const analyzeLatestSnapshot = async (mode: ScanMode = "general") => {
     if (busy || !snapshotAvailable) return;
 
@@ -420,9 +512,9 @@ export default function JarvisUI() {
       }
 
       prependLogs([
-        data.mat_detected
+        normalizeScanMatResponse(data)?.matDetected
           ? "Scan Mat: mat detected; artifacts ready"
-          : `Scan Mat: ${data.warning || "mat was not detected"}`,
+          : `Scan Mat: ${normalizeScanMatResponse(data)?.warning || "mat was not detected"}`,
       ]);
       refreshDashboard(false);
     } catch (error) {
@@ -465,9 +557,9 @@ export default function JarvisUI() {
   const cameraDetected = dashboard?.devices?.camera?.detected ?? false;
   const martybenchScore = dashboard?.martybench?.score;
   const selectedScanMode = scanModes.find((item) => item.id === scanMode) || scanModes[0];
-  const latestScanCorners = getScanMatCorners(scanMatResult);
-  const latestScanDiagnostics = getScanMatDiagnostics(scanMatResult);
-  const latestRectifiedImagePath = getRectifiedScanImagePath(scanMatResult);
+  const latestScanCorners = normalizedScanMat?.corners || null;
+  const latestScanDiagnostics = normalizedScanMat?.diagnostics || null;
+  const latestRectifiedImagePath = normalizedScanMat?.rectifiedImagePath || null;
 
   const snapshotPanel = (
     <div style={{ marginTop: 24 }}>
@@ -568,12 +660,12 @@ export default function JarvisUI() {
         <div style={{ opacity: 0.85 }}>Scan Mat artifacts</div>
         <div
           style={{
-            color: scanMatResult.mat_detected ? "#22c55e" : "#f97316",
+            color: normalizedScanMat?.matDetected ? "#22c55e" : "#f97316",
             fontSize: 13,
             fontWeight: 800,
           }}
         >
-          {scanMatResult.mat_detected ? "Mat detected" : "Needs better view"}
+          {normalizedScanMat?.matDetected ? "Mat detected" : "Needs better view"}
         </div>
       </div>
 
@@ -586,29 +678,29 @@ export default function JarvisUI() {
       >
         {scanArtifactCard(
           "Raw Capture",
-          scanMatResult.raw_image_url,
-          scanMatResult.image_name || scanMatResult.mat_analysis?.image_name || "Latest captured image"
+          normalizedScanMat?.rawImageUrl,
+          normalizedScanMat?.imageName || "Latest captured image"
         )}
         {scanArtifactCard(
           "Annotated Detection",
-          scanMatResult.annotated_image_url,
-          scanMatResult.mat_detected
+          normalizedScanMat?.annotatedImageUrl,
+          normalizedScanMat?.matDetected
             ? "Detected mat boundary and corners."
             : "Diagnostic image from OpenCV mat detection."
         )}
         {scanArtifactCard(
           "Rectified View",
-          scanMatResult.rectified_available ? scanMatResult.rectified_image_url : null,
-          scanMatResult.rectified_available
+          normalizedScanMat?.rectifiedAvailable ? normalizedScanMat?.rectifiedImageUrl : null,
+          normalizedScanMat?.rectifiedAvailable
             ? "Perspective-corrected top-down mat view."
             : undefined,
-          scanMatResult.warning || "Rectified view is unavailable until the mat is detected."
+          normalizedScanMat?.warning || "Rectified view is unavailable until the mat is detected."
         )}
       </div>
 
-      {scanMatResult.corners && (
+      {normalizedScanMat?.corners && (
         <div style={{ marginTop: 10, opacity: 0.68, fontSize: 12 }}>
-          Corners: {scanMatResult.corners.map((corner) => `[${corner.join(", ")}]`).join(" ")}
+          Corners: {normalizedScanMat.corners.map((corner) => `[${corner.join(", ")}]`).join(" ")}
         </div>
       )}
     </div>
@@ -721,6 +813,7 @@ export default function JarvisUI() {
       captureCameraSnapshot={captureCameraSnapshot}
       analyzeLatestSnapshot={analyzeLatestSnapshot}
       runScanMat={runScanMat}
+      switchCameraRole={switchCameraRole}
       checkLatestSnapshot={checkLatestSnapshot}
       setScanMode={setScanMode}
       dashboard={dashboard}
@@ -730,6 +823,8 @@ export default function JarvisUI() {
       capturing={capturing}
       analyzing={analyzing}
       scanningMat={scanningMat}
+      switchingCameraRole={switchingCameraRole}
+      cameraRoles={cameraRoles || dashboard?.devices?.camera}
       scanMode={scanMode}
       scanModes={scanModes}
       selectedScanMode={selectedScanMode}

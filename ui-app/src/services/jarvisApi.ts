@@ -70,6 +70,18 @@ export async function captureSnapshot() {
   });
 }
 
+export async function getCameras() {
+  return fetch(`${API_BASE}/api/cameras`);
+}
+
+export async function switchActiveCamera(role: string) {
+  return fetch(`${API_BASE}/api/camera/active`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ role }),
+  });
+}
+
 export async function analyzeSnapshot(prompt: string) {
   return fetch(`${API_BASE}/api/camera/analyze`, {
     method: "POST",

@@ -1,4 +1,41 @@
 {
+  "active_camera_role": "workbench",
+  "default_vision_lab_role": "workbench",
+  "cameras": [
+    {
+      "id": "logitech_c920",
+      "display_name": "Logitech HD Pro Webcam C920",
+      "detected_v4l2_name": "HD Pro Webcam C920",
+      "role": "workbench",
+      "enabled": true,
+      "preferred_resolution": {
+        "width": 1920,
+        "height": 1080
+      },
+      "preferred_pixel_format": "MJPG",
+      "match_names": [
+        "HD Pro Webcam C920",
+        "Logitech HD Pro Webcam C920",
+        "C920"
+      ]
+    },
+    {
+      "id": "insta360_link",
+      "display_name": "Insta360 Link",
+      "detected_v4l2_name": "Insta360 Link",
+      "role": "face",
+      "enabled": true,
+      "preferred_resolution": {
+        "width": 1920,
+        "height": 1080
+      },
+      "preferred_pixel_format": "MJPG",
+      "match_names": [
+        "Insta360 Link",
+        "Insta360"
+      ]
+    }
+  ],
   "profiles": [
     {
       "id": "thor_manual_overhead_scan_station",
@@ -29,11 +66,15 @@
         "notes": "Manually position the Insta360 Link overhead and avoid moving it after alignment."
       },
       "calibration": {
-        "status": "not_calibrated",
-        "pixel_to_mm_x": null,
-        "pixel_to_mm_y": null,
-        "confidence": null,
-        "last_calibrated_at": null
+        "status": "calibrated",
+        "pixel_to_mm_x": 0.326749,
+        "pixel_to_mm_y": 0.442994,
+        "confidence": 0.9791,
+        "last_calibrated_at": "2026-07-11T18:47:40.290895+00:00",
+        "mm_per_pixel_x": 0.326749,
+        "mm_per_pixel_y": 0.442994,
+        "pixels_per_mm_x": 3.060456,
+        "pixels_per_mm_y": 2.257368
       },
       "gimbal": {
         "control_status": "extension_unit_required",

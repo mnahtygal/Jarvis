@@ -11,6 +11,11 @@ export type DeviceStatus = {
   microphone?: {
     name?: string;
     detected?: boolean;
+    preferred_microphone?: string;
+    resolved_microphone?: string | null;
+    available?: boolean;
+    using_preferred?: boolean;
+    fallback_microphone?: AudioSource | null;
     usb_lines?: string[];
     audio_source_lines?: string[];
     wpctl_lines?: string[];
@@ -21,10 +26,54 @@ export type DeviceStatus = {
     detected?: boolean;
     expected_device?: string;
     expected_device_present?: boolean;
+    active_role?: string;
+    active_camera?: CameraRole;
+    cameras?: CameraRole[];
     video_devices?: string[];
     usb_lines?: string[];
     test_command?: string;
   };
+};
+
+export type AudioSource = {
+  id?: string;
+  name?: string;
+  driver?: string | null;
+  description?: string;
+};
+
+export type CameraRole = {
+  id?: string;
+  display_name?: string;
+  detected_v4l2_name?: string;
+  role?: string;
+  resolved_device_path?: string | null;
+  enabled?: boolean;
+  available?: boolean;
+  preferred_resolution?: {
+    width?: number;
+    height?: number;
+  };
+  preferred_pixel_format?: string;
+  matched_device?: {
+    path?: string;
+    name?: string | null;
+    bus_info?: string | null;
+  } | null;
+};
+
+export type CameraRolesStatus = {
+  ok?: boolean;
+  default_role?: string;
+  active_role?: string;
+  active_camera?: CameraRole | null;
+  cameras?: CameraRole[];
+  devices?: Array<{
+    path?: string;
+    name?: string | null;
+    bus_info?: string | null;
+  }>;
+  error?: string;
 };
 
 export type CameraControlStatus = {
@@ -38,6 +87,10 @@ export type CameraControlStatus = {
 export type CameraDiagnosticsStatus = {
   overall?: string;
   ready?: boolean;
+  active_role?: string;
+  default_role?: string;
+  active_camera?: CameraRole;
+  cameras?: CameraRole[];
   capture_device?: {
     path?: string;
     present?: boolean;

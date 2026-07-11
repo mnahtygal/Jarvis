@@ -4,6 +4,7 @@ from flask import Flask, abort, jsonify, request, send_file, url_for
 from flask_cors import CORS
 
 from audio.listen import listen_command
+from core.camera_roles import DEFAULT_CAMERA_ROLE, get_camera_roles_status, set_active_camera_role
 from audio.speak import speak
 from core.brain import think
 from core.calibration import (
@@ -133,10 +134,15 @@ def _scan_mat_metadata(snapshot_path: Path, mat_result: dict) -> dict:
     rectified_image_url = _mat_artifact_url(mat_result.get("rectified_path"))
     rectified_available = bool(rectified_image_url)
     mat_detected = bool(mat_result.get("mat_detected"))
+    diagnostics = mat_result.get("diagnostics") or {}
+    failure_reason = diagnostics.get("failure_reason")
     warning = None
 
     if not rectified_available:
-        warning = "Rectified view is unavailable because the scan mat was not detected."
+        if failure_reason:
+            warning = f"Rectified view is unavailable: {failure_reason}."
+        else:
+            warning = "Rectified view is unavailable because the scan mat was not detected."
 
     return {
         "raw_image_url": _raw_artifact_url(snapshot_path),
@@ -146,13 +152,59 @@ def _scan_mat_metadata(snapshot_path: Path, mat_result: dict) -> dict:
         "mat_detected": mat_detected,
         "corners": mat_result.get("mat", {}).get("corners"),
         "rectified_available": rectified_available,
+        "failure_reason": failure_reason,
         "warning": warning,
     }
 
 
 @app.route("/api/camera/snapshot", methods=["POST"])
 def api_camera_snapshot():
-    return jsonify(capture_snapshot())
+    data = request.get_json(silent=True) or {}
+    role = data.get("role")
+    device = data.get("device")
+    result = capture_snapshot(device=device, role=role)
+    return jsonify(result), 200 if result.get("ok") else 503
+
+
+@app.route("/api/cameras", methods=["GET"])
+def api_cameras():
+    return jsonify(get_camera_roles_status())
+
+
+@app.route("/api/camera/active", methods=["GET"])
+def api_camera_active():
+    status = get_camera_roles_status()
+    return jsonify({
+        "ok": True,
+        "active_role": status.get("active_role"),
+        "active_camera": status.get("active_camera"),
+    })
+
+
+@app.route("/api/camera/active", methods=["POST"])
+def api_camera_switch_active():
+    data = request.get_json(silent=True) or {}
+    role = (data.get("role") or "").strip()
+    if not role:
+        return jsonify({
+            "ok": False,
+            "error": "role is required.",
+        }), 400
+
+    try:
+        status = set_active_camera_role(role)
+    except ValueError as exc:
+        return jsonify({
+            "ok": False,
+            "error": str(exc),
+        }), 409
+    except Exception as exc:
+        return jsonify({
+            "ok": False,
+            "error": str(exc),
+        }), 500
+
+    return jsonify(status)
 
 
 @app.route("/api/camera/latest", methods=["GET"])
@@ -203,8 +255,10 @@ def api_camera_capture_analyze():
     data = request.get_json(silent=True) or {}
     prompt = (data.get("prompt") or DEFAULT_PROMPT).strip()
     mode = (data.get("mode") or "general").strip()
+    role = (data.get("role") or "").strip() or None
+    device = (data.get("device") or "").strip() or None
 
-    capture_result = capture_snapshot()
+    capture_result = capture_snapshot(device=device, role=role)
     if not capture_result.get("ok"):
         return jsonify({
             "ok": False,
@@ -264,7 +318,7 @@ def api_vision_scan_mat():
 
 @app.route("/api/vision/capture-scan-mat", methods=["POST"])
 def api_vision_capture_scan_mat():
-    capture_result = capture_snapshot()
+    capture_result = capture_snapshot(role=DEFAULT_CAMERA_ROLE)
     if not capture_result.get("ok"):
         return jsonify({
             "ok": False,

@@ -30,10 +30,12 @@ from typing import Optional
 
 import whisper
 
+from core.microphone import get_preferred_microphone_source
+
 
 DEFAULT_SOURCE = os.getenv(
     "JARVIS_MIC_SOURCE",
-    "alsa_input.usb-Samson_Technologies_Samson_Q2U_Microphone-00.analog-stereo",
+    "",
 )
 
 DEFAULT_SECONDS = int(os.getenv("JARVIS_LISTEN_SECONDS", "7"))
@@ -55,7 +57,7 @@ def get_whisper_model():
 def record_wav(
     output_path: Path,
     seconds: int = DEFAULT_SECONDS,
-    source: Optional[str] = DEFAULT_SOURCE,
+    source: Optional[str] = None,
 ) -> bool:
     """
     Record WAV audio using parec/PipeWire.
@@ -73,10 +75,13 @@ def record_wav(
         str(output_path),
     ]
 
-    if source:
-        cmd.insert(3, f"--device={source}")
+    resolved_source = source or DEFAULT_SOURCE or get_preferred_microphone_source()
+    if resolved_source:
+        cmd.insert(3, f"--device={resolved_source}")
 
     print(f"[LISTEN] Recording {seconds} second(s)...")
+    if resolved_source:
+        print(f"[LISTEN] Source: {resolved_source}")
     started_at = time.perf_counter()
 
     result = subprocess.run(

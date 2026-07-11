@@ -2,6 +2,7 @@
 
 import string
 
+from core.camera_roles import get_camera_roles_status, set_active_camera_role
 from skills.time_skill import get_time_response
 from skills.system_skill import get_system_response
 from skills.chat_skill import get_chat_response
@@ -405,6 +406,65 @@ def _is_memory_summary_request(text: str) -> bool:
     return text in memory_summary_phrases
 
 
+def _try_camera_role_command(text: str):
+    workbench_phrases = [
+        "switch to workbench camera",
+        "use logitech camera",
+        "use the logitech camera",
+        "look at the workbench",
+        "look at workbench",
+    ]
+    face_phrases = [
+        "switch to face camera",
+        "use insta360",
+        "use the insta360",
+        "use insta360 camera",
+        "use the insta360 camera",
+        "look at me",
+    ]
+    active_phrases = [
+        "which camera is active",
+        "what camera are you using",
+        "which camera are you using",
+        "what camera is active",
+    ]
+
+    if text in active_phrases:
+        status = get_camera_roles_status()
+        active = status.get("active_camera") or {}
+        role = status.get("active_role") or "unknown"
+        label = "workbench camera" if role == "workbench" else "face camera" if role == "face" else f"{role} camera"
+        if active.get("available"):
+            return f"The {label} is active."
+        return f"The {label} is selected, but the camera is unavailable."
+
+    role = None
+    if text in workbench_phrases:
+        role = "workbench"
+    elif text in face_phrases:
+        role = "face"
+
+    if not role:
+        return None
+
+    try:
+        status = set_active_camera_role(role)
+    except ValueError as error:
+        message = str(error)
+        if "Logitech" in message:
+            return "The Logitech C920 is unavailable."
+        if "Insta360" in message:
+            return "The Insta360 Link is unavailable."
+        return "Camera unavailable."
+
+    active = status.get("active_camera") or {}
+    if role == "workbench":
+        return "Workbench camera selected." if active.get("available") else "The Logitech C920 is unavailable."
+    if role == "face":
+        return "Face camera selected." if active.get("available") else "The Insta360 Link is unavailable."
+    return f"{role.title()} camera selected."
+
+
 def _is_docs_request(text: str) -> bool:
     docs_phrases = [
         "jarvis docs",
@@ -481,6 +541,10 @@ def route(command: str) -> str:
 
     if not text:
         return "I didn't hear anything, Marty."
+
+    camera_response = _try_camera_role_command(text)
+    if camera_response:
+        return camera_response
 
     if _is_runtime_identity_request(text):
         if "memory system" in text or "memory systems" in text:

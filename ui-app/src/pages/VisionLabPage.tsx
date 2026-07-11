@@ -1,6 +1,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import { Camera, RefreshCw, ScanEye } from "lucide-react";
 import type {
+  CameraRolesStatus,
   CalibrationStatus,
   DashboardStatus,
   MeasurementResult,
@@ -22,6 +23,7 @@ type VisionLabPageProps = {
   captureCameraSnapshot: () => void;
   analyzeLatestSnapshot: (mode: ScanMode) => void;
   runScanMat: () => void;
+  switchCameraRole: (role: string) => void;
   checkLatestSnapshot: () => void;
   setScanMode: Dispatch<SetStateAction<ScanMode>>;
   dashboard: DashboardStatus | null;
@@ -31,6 +33,8 @@ type VisionLabPageProps = {
   capturing: boolean;
   analyzing: boolean;
   scanningMat: boolean;
+  switchingCameraRole: boolean;
+  cameraRoles?: CameraRolesStatus | null;
   scanMode: ScanMode;
   scanModes: ScanModeOption[];
   selectedScanMode: ScanModeOption;
@@ -61,6 +65,7 @@ export default function VisionLabPage({
   captureCameraSnapshot,
   analyzeLatestSnapshot,
   runScanMat,
+  switchCameraRole,
   checkLatestSnapshot,
   setScanMode,
   dashboard,
@@ -70,6 +75,8 @@ export default function VisionLabPage({
   capturing,
   analyzing,
   scanningMat,
+  switchingCameraRole,
+  cameraRoles,
   scanMode,
   scanModes,
   selectedScanMode,
@@ -113,6 +120,14 @@ export default function VisionLabPage({
     measuring || !measurementStatus?.calibration_ready || !rectifiedImageAvailable;
   const measurement = measurementResult?.measurement;
   const measurementDiagnostics = measurementResult?.diagnostics;
+  const measurementFailureReason = measurementResult
+    ? measurementDiagnostics?.failure_reason || "none"
+    : rectifiedImageAvailable
+      ? "Measurement not run"
+      : "Waiting for rectified scan";
+  const cameras = cameraRoles?.cameras || dashboard?.devices?.camera?.cameras || [];
+  const activeCameraRole = cameraRoles?.active_role || dashboard?.devices?.camera?.active_role || "unknown";
+  const activeCamera = cameraRoles?.active_camera || dashboard?.devices?.camera?.active_camera;
 
   return (
     <div
@@ -135,7 +150,7 @@ export default function VisionLabPage({
             <h2 style={{ margin: 0 }}>Vision Lab</h2>
             <div style={{ opacity: 0.74, marginTop: 6 }}>
               Scan mat mode for objects, parts, OCR, measurements, and workshop inspection.
-              Capture Mat uses the current camera angle — point the Insta360 down first.
+              Scan Mat uses the workbench camera role by default.
             </div>
           </div>
           <div
@@ -153,6 +168,60 @@ export default function VisionLabPage({
         </div>
 
         <div style={{ marginTop: 22, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div
+            style={{
+              padding: 14,
+              borderRadius: 14,
+              background: "rgba(0,0,0,0.22)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              fontSize: 13,
+              lineHeight: 1.45,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <strong>Camera</strong>
+              <span style={{ color: activeCamera?.available ? "#22c55e" : "#f97316", fontWeight: 800 }}>
+                {activeCameraRole}
+              </span>
+            </div>
+            <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+              {cameras.length ? (
+                cameras.map((camera) => (
+                  <label
+                    key={camera.role || camera.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 10,
+                      padding: "8px 10px",
+                      borderRadius: 10,
+                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: camera.role === activeCameraRole ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)",
+                    }}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input
+                        type="radio"
+                        checked={camera.role === activeCameraRole}
+                        disabled={busy || switchingCameraRole || !camera.available || !camera.role}
+                        onChange={() => camera.role && switchCameraRole(camera.role)}
+                      />
+                      <span>
+                        {camera.display_name || camera.id || "Camera"} - {camera.role || "unknown"}
+                      </span>
+                    </span>
+                    <span style={{ color: camera.available ? "#22c55e" : "#f97316", fontWeight: 800 }}>
+                      {camera.available ? camera.resolved_device_path || "connected" : "missing"}
+                    </span>
+                  </label>
+                ))
+              ) : (
+                <div style={{ opacity: 0.7 }}>Camera roles unavailable.</div>
+              )}
+            </div>
+          </div>
+
           <div>
             <div style={{ marginBottom: 8, opacity: 0.85 }}>Scan mode</div>
             <select
@@ -190,7 +259,7 @@ export default function VisionLabPage({
           >
             <strong>Workbench position checklist</strong>
             <div style={{ marginTop: 6 }}>
-              1. Use Insta360 Link Controller / DeskView to point camera down.
+              1. Select the workbench camera and keep the mat corners visible.
               <br />
               2. Confirm the mat fills most of the preview.
               <br />
@@ -260,7 +329,7 @@ export default function VisionLabPage({
                 value={calibrationWidthMm}
                 onChange={(event) => setCalibrationWidthMm(event.target.value)}
                 inputMode="decimal"
-                placeholder="420"
+                placeholder="609.6"
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -279,7 +348,7 @@ export default function VisionLabPage({
                 value={calibrationHeightMm}
                 onChange={(event) => setCalibrationHeightMm(event.target.value)}
                 inputMode="decimal"
-                placeholder="297"
+                placeholder="457.2"
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -384,7 +453,7 @@ export default function VisionLabPage({
                 ? `${measurement.bbox_px.x ?? "?"}, ${measurement.bbox_px.y ?? "?"}, ${measurement.bbox_px.width ?? "?"}x${measurement.bbox_px.height ?? "?"}`
                 : "unknown"}
             </div>
-            <div>Failure reason: {measurementDiagnostics?.failure_reason || "none"}</div>
+            <div>Measurement status: {measurementFailureReason}</div>
           </div>
 
           {measurementMessage && (

@@ -17,8 +17,8 @@ export function useCalibration({
   prependLogs,
   isScanMatBusy,
 }: UseCalibrationOptions) {
-  const [calibrationWidthMm, setCalibrationWidthMm] = useState("");
-  const [calibrationHeightMm, setCalibrationHeightMm] = useState("");
+  const [calibrationWidthMm, setCalibrationWidthMm] = useState("609.6");
+  const [calibrationHeightMm, setCalibrationHeightMm] = useState("457.2");
   const [calibrating, setCalibrating] = useState(false);
   const [calibrationMessage, setCalibrationMessage] = useState("");
 
