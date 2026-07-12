@@ -1,5 +1,8 @@
 # Jarvis Device Status Dashboard Checkpoint
 
+> **Historical checkpoint — device paths are not current assignments.** See
+> [Vision](VISION.md) for role-based camera and microphone behavior.
+
 Date: 2026-06-12
 Project: Jarvis Local AI Assistant
 Host: NVIDIA Thor

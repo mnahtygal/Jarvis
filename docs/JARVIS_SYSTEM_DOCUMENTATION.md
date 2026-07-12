@@ -1,5 +1,11 @@
 # Jarvis System Documentation
 
+> **Historical system snapshot (2026-06-28).** Service management, camera
+> assignments, API routes, and Vision Lab behavior have changed. Use the
+> [documentation index](README.md), [current architecture](ARCHITECTURE.md),
+> [vision guide](VISION.md), and [startup guide](UBUNTU_STARTUP.md) for current
+> behavior. The body below is preserved as historical reference.
+
 Last updated: 2026-06-28
 Project: Jarvis Local AI Assistant
 Primary host: NVIDIA Jetson AGX Thor Developer Kit (`y-thor`)

@@ -174,7 +174,7 @@ http://localhost:5173
 | `jarvis logs` | Follow startup logs |
 | `jarvis edit` | Open VS Code |
 | `jarvis ui` | Open UI |
-| `./scripts/jarvis-status.sh` | Check systemd services, ports, API, dashboard, git |
+| `jarvis status` | Check API, UI, text LLM, vision LLM, API PID/age, and logs |
 | `./scripts/jarvis-smoke-test.sh` | Run end-to-end smoke checks |
 
 ## Repository Conventions
@@ -236,10 +236,12 @@ Vision Lab is the primary UI for camera and workshop workflows. Preserve these b
 
 ## Current Sprint State
 
-The July 3-4 development sprint completed the Phase 2 architecture foundation:
+The current Phase 2 foundation includes:
 
 - Mission Control is read-only and backed by `/api/status/dashboard`.
 - Frontend code is organized into pages, components, hooks, services, config, and types.
-- Camera diagnostics, manual scan station profiles, calibration, and measurement foundations are present.
+- Role-based Logitech C920 workbench and Insta360 Link face cameras are present.
+- V4L2 camera paths and the preferred Samson Q2U microphone are resolved dynamically.
+- Scan Mat, calibration, and bounding-box measurement foundations are present.
 - Phase 2.3A Measurement Engine foundation is complete.
-- Phase 2.3B Measurement Overlay is next.
+- Automatic object measurement, overlays, and validation are next.

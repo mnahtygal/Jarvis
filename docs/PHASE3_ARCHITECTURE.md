@@ -19,8 +19,8 @@ Phase 3 should remain:
 Phase 3 assumes these Phase 2 foundations exist:
 
 - Vision Lab workflow
-- manual overhead scan station
-- camera profiles
+- Logitech C920 workbench and Insta360 Link face camera roles
+- dynamic V4L2 camera resolution and Vision Lab role selection
 - raw, annotated, and rectified Scan Mat artifacts
 - Scan Mat diagnostics
 - calibration profile storage
@@ -165,11 +165,18 @@ Constraints:
 - no direct hardware control without a separate safety design
 - generated paths must be reviewed by a human
 
-## Multiple Camera Support
+## Multiple Camera Expansion
 
-Goal:
+Completed Phase 2 foundation:
 
-- Support more than one camera/profile without breaking the current manual overhead workflow.
+- role-based workbench and face cameras
+- dynamic device-path resolution
+- active-role selection in Vision Lab
+- workbench-role Scan Mat capture
+
+Phase 3 goal:
+
+- extend the role/profile system without breaking the fixed workbench workflow
 
 Architecture direction:
 
@@ -178,9 +185,8 @@ Architecture direction:
 - each profile records device, mode, calibration, and limitations
 - multiple cameras should not require changing Boot V3
 
-Possible profiles:
+Possible additional profiles:
 
-- manual overhead Scan Mat camera
 - handheld inspection camera
 - future fixed side-view camera
 - future microscope/detail camera
@@ -232,7 +238,7 @@ Maker Lab should remain practical and workshop-focused, not a marketing page or 
 - What minimum calibration confidence should allow measurement overlays?
 - Which features should be detected before OpenSCAD generation starts?
 - Should overlay artifacts be generated backend-side, frontend-side, or both?
-- How should multiple camera profiles be selected in the UI?
+- What additional camera roles provide enough workshop value to justify support?
 
 ## Near-Term Sequence
 
@@ -240,7 +246,8 @@ Recommended order:
 
 1. Phase 2.3B Measurement Overlay.
 2. Measurement history schema.
-3. Feature detection diagnostics.
-4. OpenSCAD starter generator for simple shapes.
-5. Maker Lab project workspace.
-6. Phase 3 plugin architecture design.
+3. OCR and feature detection diagnostics.
+4. Reverse-engineering workflow validation.
+5. OpenSCAD starter generator for simple shapes.
+6. Maker Lab project workspace.
+7. Phase 3 plugin architecture design.

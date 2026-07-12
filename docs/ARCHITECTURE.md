@@ -1,6 +1,6 @@
 # Jarvis Architecture
 
-Last updated: 2026-07-04
+Last updated: 2026-07-12
 
 Jarvis is a local-first AI engineering assistant. It runs a React/Vite dashboard, a Flask API, local llama.cpp model servers, PostgreSQL exact memory, PostgreSQL + pgvector semantic memory, camera, vision, calibration, measurement workflows, and Boot V3 startup automation on Thor.
 
@@ -24,11 +24,13 @@ Flask API -------------------- operational checks
   |                    +--> PostgreSQL exact memory
   |                    +--> PostgreSQL + pgvector semantic memory
   |
-  +--> Camera / Vision / Scan Mat / Calibration / Measurement
+  +--> Camera role resolver / Vision Lab / Scan Mat / Calibration / Measurement
   |                    |
   |                    +--> runtime/camera artifacts
   |                    +--> config/camera_profiles.json
   |                    +--> llama.cpp vision server :8081
+  |
+  +--> PipeWire microphone resolver -> Samson Q2U preference
   |
   +--> Dashboard status aggregation
                        |
@@ -129,7 +131,7 @@ The backend entry point is `api.py`, a Flask app with CORS enabled for the local
 | Health | `/`, `/health` |
 | Text and voice | `/text`, `/listen`, `/ask` |
 | Dashboard status | `/api/status/dashboard`, `/api/status/brain`, `/api/status/model`, `/api/status/memory`, `/api/status/martybench`, `/api/status/devices`, `/api/status/camera-diagnostics`, `/api/status/calibration`, `/api/status/measurement` |
-| Camera | `/api/camera/snapshot`, `/api/camera/latest` |
+| Camera | `/api/cameras`, `/api/camera/active`, `/api/camera/snapshot`, `/api/camera/latest` |
 | Vision | `/api/camera/analyze`, `/api/camera/capture-analyze` |
 | Scan Mat | `/api/vision/scan-mat`, `/api/vision/capture-scan-mat` |
 | Calibration | `/api/calibration/profile`, `/api/calibration/apply` |
@@ -200,29 +202,43 @@ Do not replace PostgreSQL + pgvector with Chroma, FAISS, Pinecone, or a cloud ve
 
 ## Vision Foundation
 
-The July 3-4 sprint made Vision Lab the main workshop workflow surface.
+Vision Lab is the main workshop workflow surface.
 
-### Camera Diagnostics
+### Camera Roles
 
-Jarvis can report read-only camera diagnostics for the Thor/Insta360 setup. Current findings:
+`core/camera_roles.py` separates stable purposes from unstable Linux device
+paths. It discovers V4L2 nodes, reads their device names, and matches configured
+cameras at runtime:
 
-- `/dev/video0` is the real video capture node.
-- `/dev/video1` is the metadata node.
-- Driver is `uvcvideo`.
-- Standard V4L2 pan/tilt/zoom controls exist, but pan/tilt values do not physically move the Insta360 Link gimbal.
-- No Insta360 HID interface is exposed.
-- UVC Extension Unit was detected with Unit ID 9, GUID `faf1672d-b71b-4793-8c91-7b1c9b7f95f8`, and 11 controls.
-- Real gimbal movement likely requires vendor-specific UVC extension-unit commands.
+| Role | Camera | Use |
+| --- | --- | --- |
+| `workbench` | Logitech HD Pro Webcam C920 | Fixed Vision Lab and Scan Mat capture |
+| `face` | Insta360 Link | Face/general camera capture |
 
-### Manual Scan Station
+Vision Lab retrieves the role inventory from `GET /api/cameras` and switches
+the active role through `POST /api/camera/active`. Scan Mat capture explicitly
+uses the default `workbench` role. `/dev/video0`, `/dev/video2`, and other node
+numbers may change after restart and are never permanent role mappings.
 
-The current Scan Mat workflow assumes the camera is manually positioned overhead and kept fixed. Camera profiles live in:
+The Insta360 gimbal investigation remains historical/reference information; it
+does not define the current Scan Mat camera.
+
+Camera configuration lives in:
 
 ```text
 config/camera_profiles.json
 ```
 
-The active profile stores device mapping, scan-mat assumptions, calibration values, and gimbal-control limitations.
+The configuration stores role matching names, active role, preferred capture
+settings, scan-mat assumptions, and calibration values.
+
+### Microphone Resolution
+
+`core/microphone.py` enumerates PipeWire/PulseAudio sources. It prefers the
+Samson Q2U by stable name hints (or an explicit `JARVIS_MIC_SOURCE` override)
+and avoids Insta360, Logitech, C920, webcam, and camera microphones when choosing
+a fallback. Device status exposes whether the preferred microphone is present
+and active.
 
 ### Calibration
 
@@ -277,7 +293,17 @@ Ubuntu autostart entry
   -> services and checks
 ```
 
-Boot V3 starts Jarvis services, waits for UI readiness, reports model and resource status, opens VS Code, and intentionally does not launch Firefox. Firefox restores its own previous session.
+Boot V3 starts missing services, requires Flask readiness at `GET /health`,
+waits for UI readiness, reports all four service endpoints, opens VS Code, and
+intentionally does not launch Firefox. Firefox restores its own previous
+session.
+
+The service scripts use `nohup` and runtime PID/process validation rather than
+the older systemd checkpoint design. `jarvis restart` gracefully stops the
+repo-specific API and UI, waits for port 5000 to clear, reloads their source,
+and preserves healthy llama.cpp processes on ports 8080 and 8081. The API uses
+`/tmp/jarvis-api.pid` and `/tmp/jarvis-api.log`; startup is not successful until
+`GET /health` responds. `GET /api/cameras` then verifies the camera-role route.
 
 ## CLI
 
@@ -287,8 +313,8 @@ Boot V3 starts Jarvis services, waits for UI readiness, reports model and resour
 | --- | --- |
 | `jarvis start` | Start Jarvis services |
 | `jarvis startup` / `jarvis boot` | Run full Boot V3 sequence |
-| `jarvis stop` | Stop Jarvis UI |
-| `jarvis restart` | Stop and restart startup flow |
+| `jarvis stop` | Stop the repo-specific Jarvis API and UI |
+| `jarvis restart` | Reload API and UI; preserve healthy model servers |
 | `jarvis status` / `jarvis health` | Run health checks |
 | `jarvis logs` | Follow startup log |
 | `jarvis edit` | Open repo in VS Code |

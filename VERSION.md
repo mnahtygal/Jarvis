@@ -10,12 +10,13 @@ This document tracks major project milestones rather than individual Git commits
 
 **Version:** 2.3.0-dev
 
-**Codename:** Vision Foundation
+**Codename:** Measurement Validation
 
-**Sprint:** July 3-4 Development Sprint
+**Sprint:** Phase 2 Maker & Workshop Assistant
 
-**Status:** Phase 2 Architecture Complete  
-Phase 2.3 Measurement Foundation Complete
+**Status:** Phase 2 active
+
+Vision and Scan Mat foundations stable; measurement refinement in progress
 
 ## Platform
 
@@ -32,12 +33,12 @@ Phase 2.3 Measurement Foundation Complete
 
 ## Current Milestone
 
-July 3-4 Phase 2 Development Sprint Complete
+Vision Lab multi-camera and Scan Mat stabilization complete
 
 ## Next Milestone
 
 Phase 2.3B  
-Measurement Overlay
+Automatic object measurement, overlays, and validation
 
 ---
 
@@ -119,7 +120,16 @@ Phase 2 – Professional Architecture
 - ✅ Measurement API
 - ✅ Vision Lab measurement UI
 - ✅ Bounding-box measurement v0
+- ✅ Vision Lab multi-camera selector
+- ✅ Role-based Logitech C920 workbench camera
+- ✅ Role-based Insta360 Link face camera
+- ✅ Dynamic V4L2 camera resolution
+- ✅ Samson Q2U PipeWire preference
+- ✅ Scan Mat stabilization at 609.6 × 457.2 mm
+- ✅ Reliable API/UI restart lifecycle with API readiness checks
 - ☐ 2.3B Measurement Overlay
+- ☐ Automatic object isolation and measurement refinement
+- ☐ Measurement validation against known objects
 - ☐ Diameter estimation
 - ☐ Measurement history
 

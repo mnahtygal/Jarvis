@@ -1,5 +1,9 @@
 # Phase 2 Summary
 
+> **Historical sprint summary (2026-07-04).** For current Phase 2 status, see
+> the repository [roadmap](../ROADMAP.md), [version history](../VERSION.md), and
+> [documentation index](README.md).
+
 Last updated: 2026-07-04
 
 ## Status

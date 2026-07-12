@@ -20,10 +20,12 @@ Phase 2 turns Jarvis into a practical engineering partner for the workshop.
 
 ### Phase 2A: Scan Mat Stabilization
 
+Status: completed foundation.
+
 Goals:
 
 - Capture raw image.
-- Detect 18 x 24 inch grid mat.
+- Detect the 24 inch wide × 18 inch high grid mat.
 - Save annotated image.
 - Save rectified top-down image.
 - Display all outputs in Vision Lab.
@@ -37,6 +39,9 @@ Exit criteria:
 
 ### Phase 2B: Calibration and Measurement
 
+Status: active. Calibration and bounding-box measurement foundations exist;
+automatic object measurement, overlays, and validation are next.
+
 Goals:
 
 - Use mat dimensions for pixel-to-inch/mm conversion.
@@ -44,6 +49,8 @@ Goals:
 - Add measurement overlays.
 - Support basic object dimensions.
 - Store measurement metadata.
+- Validate measurements against known reference objects.
+- Add OCR for labels, markings, and dimensions.
 
 Exit criteria:
 
@@ -71,12 +78,15 @@ Goals:
 - Use editable parameters.
 - Include source scan IDs and assumptions.
 - Provide preview-ready simple geometry.
+- Support a conservative scan-to-reverse-engineering workflow.
 
 Exit criteria:
 
 - Jarvis can generate a simple editable OpenSCAD starting point from a scan.
 
 ### Phase 2E: Maker Lab
+
+Status: planned after measurement inputs are trustworthy.
 
 Goals:
 
@@ -115,4 +125,3 @@ Do not prioritize yet:
 - complex multi-agent orchestration
 - replacing the UI framework
 - replacing PostgreSQL memory
-

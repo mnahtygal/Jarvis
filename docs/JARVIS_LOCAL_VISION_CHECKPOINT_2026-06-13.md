@@ -1,5 +1,8 @@
 # Jarvis Local Vision Checkpoint
 
+> **Historical checkpoint — current camera and service behavior may differ.**
+> See [Vision](VISION.md) and [Ubuntu startup](UBUNTU_STARTUP.md).
+
 Date: 2026-06-13
 Project: Jarvis Local AI Assistant
 Host: NVIDIA Thor

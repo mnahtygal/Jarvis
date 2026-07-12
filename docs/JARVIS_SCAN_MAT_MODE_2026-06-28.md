@@ -1,5 +1,9 @@
 # Jarvis Scan Mat Mode Checkpoint
 
+> **Historical checkpoint — current behavior differs.** Jarvis now uses the
+> Logitech C920 `workbench` role with dynamic V4L2 resolution. See
+> [Vision](VISION.md) and [API](API.md) for current behavior.
+
 Date: 2026-06-28
 Project: Jarvis Local AI Assistant
 Host: NVIDIA Thor

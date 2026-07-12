@@ -1,6 +1,6 @@
 # Ubuntu Startup On Thor
 
-Last updated: 2026-07-03
+Last updated: 2026-07-12
 
 This document describes how Jarvis starts on the Ubuntu environment used by Thor.
 
@@ -191,7 +191,6 @@ CLI checks:
 
 ```bash
 jarvis status
-./scripts/jarvis-status.sh
 ./scripts/jarvis-smoke-test.sh
 pgrep -af '/home/mnahtygal/jarvis/.venv/bin/python /home/mnahtygal/jarvis/api.py'
 cat /tmp/jarvis-api.pid
@@ -201,6 +200,13 @@ tail -n 100 /tmp/jarvis-api.log
 `jarvis status` checks the API, UI, text LLM, and vision LLM over HTTP. API
 readiness is determined by a successful `GET http://127.0.0.1:5000/health`;
 camera hardware is not required for that readiness check.
+
+After readiness, startup also requests `GET /api/cameras` to confirm that the
+loaded API includes the current camera-role routes. That check is informative:
+unplugged cameras may be reported unavailable without making API health fail.
+
+Camera paths are dynamically resolved from V4L2 names. Do not use a remembered
+`/dev/video0` or `/dev/video2` number as a permanent workbench/face mapping.
 
 ## Running Services And Ports
 

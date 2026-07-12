@@ -1,5 +1,9 @@
 # Jarvis Architecture Review
 
+> **Historical review — recommendations and device-path observations below
+> predate camera roles and the current restart lifecycle.** See
+> [Architecture](ARCHITECTURE.md).
+
 Date: 2026-07-03  
 Project: Jarvis Local-First AI Engineering Assistant  
 Host target: NVIDIA Jetson AGX Thor  

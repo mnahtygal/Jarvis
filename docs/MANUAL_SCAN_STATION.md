@@ -1,5 +1,10 @@
 # Manual Scan Station
 
+> **Historical workflow.** This document records the earlier Insta360 overhead
+> setup. The current workbench camera is the role-selected Logitech C920; see
+> [Vision](VISION.md) and [Architecture](ARCHITECTURE.md). Device paths are not
+> permanent assignments.
+
 Last updated: 2026-07-04
 
 ## Purpose
@@ -141,4 +146,3 @@ Calibration should record:
 - calibration confidence
 - timestamp
 - notes about lighting, height, zoom, and alignment
-

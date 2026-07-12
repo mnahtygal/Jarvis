@@ -1,5 +1,8 @@
 # Jarvis Camera Snapshot Checkpoint
 
+> **Historical checkpoint — fixed `/dev/video*` mappings below are not current
+> assignments.** See [Vision](VISION.md) and [API](API.md).
+
 Date: 2026-06-13
 Project: Jarvis Local AI Assistant
 Host: NVIDIA Thor

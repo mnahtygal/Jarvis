@@ -1,5 +1,8 @@
 # Jarvis Services Checkpoint
 
+> **Historical checkpoint — the current `jarvis` lifecycle does not use the
+> service layout recorded below.** See [Ubuntu startup](UBUNTU_STARTUP.md).
+
 Date: 2026-06-24
 Last updated: 2026-06-28
 Project: Jarvis Local AI Assistant

@@ -1,180 +1,109 @@
 # Jarvis Vision
 
-Last updated: 2026-07-04
+Last updated: 2026-07-12
 
-## What Is Jarvis?
+Vision Lab is Jarvis's primary camera, Scan Mat, calibration, and inspection
+workspace. It remains local-first: captures and derived artifacts stay on Thor,
+and image analysis uses the local Gemma 3 4B Vision server on port 8081.
 
-Jarvis is a local-first AI engineering assistant for software development, workshop projects, 3D printing, laser engraving, electronics, Raspberry Pi builds, SDR, data engineering, and practical maker work.
+## Camera Roles
 
-Jarvis is not just a chatbot. It is a local AI workbench that combines:
+| Role | Camera | Purpose |
+| --- | --- | --- |
+| `workbench` | Logitech HD Pro Webcam C920 | Fixed Scan Mat and workshop capture |
+| `face` | Insta360 Link | Face/general camera use |
 
-- local language models
-- local vision models
-- voice input/output
-- PostgreSQL memory
-- pgvector semantic memory
-- camera workflows
-- Scan Mat analysis
-- calibration
-- bounding-box measurement foundations
-- a React operations dashboard
-- command-line startup and health tools
+The camera resolver discovers V4L2 devices and matches configured camera names.
+Linux paths such as `/dev/video0` and `/dev/video2` may swap after restart and
+must not be treated as permanent camera assignments. Vision Lab exposes a role
+selector and Scan Mat capture always requests the default `workbench` role.
 
-## Why Jarvis Exists
+The earlier Insta360 overhead workflow and gimbal investigation remain useful
+historical references, but they do not define the current workbench camera.
 
-Jarvis exists to make a local workstation feel like an intelligent engineering partner while keeping control, data, and tooling on the user's own machine.
+## Implemented Features
 
-The project is built for tasks where context matters:
+- camera discovery, availability, active-role selection, and role switching
+- snapshots from the active role or an explicitly requested role/device
+- local image analysis through Gemma 3 4B Vision
+- Scan Mat capture from the workbench role
+- OpenCV mat detection and corner diagnostics
+- perspective correction to a top-down view
+- raw, annotated, and rectified artifact URLs
+- calibration profile, pixel/unit ratios, and confidence
+- bounding-box measurement foundation for rectified images
+- Vision Lab calibration and measurement result panels
 
-- remembering project decisions
-- inspecting parts and workbench images
-- debugging local systems
-- writing code
-- documenting experiments
-- generating starter maker artifacts
-- keeping a long-running workshop assistant recoverable
+## Scan Mat Pipeline
 
-## Problems Jarvis Solves
+```text
+Logitech C920 workbench role
+  -> raw capture
+  -> OpenCV 24 × 18 inch mat detection
+  -> annotated corner/detection artifact
+  -> perspective-rectified top-down artifact
+  -> calibration metadata
+  -> optional bounding-box measurement analysis
+```
 
-Jarvis is intended to help with:
+Canonical mat dimensions:
 
-- local software engineering workflows
-- camera-based inspection and documentation
-- Scan Mat capture and measurement foundations
-- interactive calibration
-- object bounding-box measurement from rectified scans
-- maker project memory
-- local model experimentation
-- voice-driven assistant workflows
-- operational visibility into a local AI stack
+| Dimension | Imperial | Metric |
+| --- | --- | --- |
+| Width | 24 inches | 609.6 mm |
+| Height | 18 inches | 457.2 mm |
 
-## Who Jarvis Is For
+Calibration quality must accompany measurement results. A detected mat does not
+by itself prove precision; camera position, contour quality, shadows, and object
+segmentation can still affect results.
 
-Jarvis is for builders who want an AI assistant that can live with their tools:
+## Vision Lab Analysis Modes
 
-- software engineers
-- makers
-- 3D printing users
-- electronics hobbyists
-- Raspberry Pi builders
-- data engineers
-- local AI experimenters
-- workshop owners who need practical project memory
+The UI currently offers general scan, object-on-mat, measurement-helper, OCR
+(`Read Text / Label`), 3D-print inspection, marine-part, and workbench-status
+prompts.
 
-## Why Local-First?
+These are experimental vision prompts. In particular:
 
-Local-first is a core principle, not a convenience.
+- Measurement Helper asks the vision model for a cautious visual estimate; it
+  is not the calibrated measurement engine.
+- OCR asks the multimodal model to read visible markings; a dedicated validated
+  OCR pipeline is still planned.
+- 3D Print Inspect provides qualitative inspection, not dimensional metrology.
 
-Local operation means:
+## Measurement Status
 
-- private project data stays local
-- camera captures stay local
-- memory stays inspectable
-- model behavior can be debugged
-- the system can keep working without cloud services
-- hardware and workflow assumptions are explicit
+Implemented foundation:
 
-Cloud services may be useful in some projects, but Jarvis should not depend on them unless explicitly requested.
+- calibration derived from known mat corners and dimensions
+- millimeters-per-pixel and pixels-per-millimeter values
+- calibration confidence and timestamp
+- largest-contour bounding-box measurement v0
+- pixel and millimeter dimensions, area, method, confidence, and diagnostics
 
-## How Jarvis Differs From ChatGPT, Claude, Gemini, and Copilot
+Active work:
 
-Jarvis is not trying to compete as a general cloud assistant. Its value is different.
+- reliable automatic object isolation
+- measurement overlays on rectified images
+- validation against known reference objects
+- diameter and feature estimation
+- OCR validation and structured marking extraction
+- measurement and scan history
 
-| Jarvis | Cloud assistants |
-| --- | --- |
-| Runs locally | Run remotely |
-| Uses local files, devices, and models | Use provider infrastructure |
-| Has project/workshop memory in PostgreSQL | Usually session/account memory |
-| Can inspect local camera workflows | Usually detached from local hardware |
-| Has boot, status, and recovery scripts | Hidden operations |
-| Designed for a specific workstation and maker lab | Designed for broad general use |
+Measurements must not be presented as precise until calibration and object
+detection quality support that claim.
 
-Jarvis can use ideas from cloud assistants, but it should remain understandable, modular, and locally recoverable.
+## Planned Maker Workflow
 
-## Guiding Principles
+After measurement validation, the intended sequence is feature detection,
+reverse-engineering assistance, editable OpenSCAD starter geometry, and Maker
+Lab project/history integration. Generated geometry will remain a documented
+starting point, not production-ready CAD.
 
-- Local-first.
-- Offline-capable where practical.
-- Modular.
-- Maintainable.
-- Understandable.
-- Testable.
-- Recoverable.
-- GitHub-synchronized.
-- Boring, reliable code over clever code.
-- Useful failures over hidden failures.
-- Proven calibration before measurement claims.
+## Related Documentation
 
-## Long-Term Vision
-
-The long-term vision is a personal AI operating system for engineering and making:
-
-- a local assistant that can talk, see, remember, and help build
-- a maker lab that connects scans, notes, measurements, and generated starter models
-- a memory system that records useful project context
-- a dashboard that makes the local AI stack visible and recoverable
-- practical agentic workflows for engineering tasks
-
-Jarvis should become a trustworthy local companion for repeated work, not a novelty demo.
-
-## Current Vision Foundation
-
-The July 3-4 development sprint moved Jarvis from a promising Vision Lab prototype toward a real workshop foundation.
-
-Completed foundations:
-
-- Professional React architecture with pages, components, hooks, services, config, and types.
-- Mission Control as a read-only operations view.
-- Vision Lab as the primary camera, Scan Mat, calibration, diagnostics, and measurement workspace.
-- Camera diagnostics and manual overhead scan station profile.
-- UVC Extension Unit investigation for the Insta360 Link.
-- Calibration engine, API, profile storage, and interactive calibration UI.
-- Scan Mat diagnostics for understanding detection success and failure.
-- Measurement Engine foundation with bounding-box measurement v0.
-
-The next practical step is Phase 2.3B Measurement Overlay: showing bounding boxes and measurement labels directly on rectified Scan Mat artifacts.
-
-## Known Camera Limitations
-
-Jarvis currently assumes the Insta360 Link is manually positioned overhead for Scan Mat work.
-
-Known findings:
-
-- `/dev/video0` is the video capture node.
-- `/dev/video1` is the metadata node.
-- Standard V4L2 pan/tilt controls exist and accept values.
-- Those controls do not physically move the Insta360 Link gimbal on Thor.
-- No Insta360 HID interface is exposed.
-- A UVC Extension Unit exists and likely controls vendor-specific gimbal behavior.
-
-Gimbal automation is not part of the current workflow. Manual overhead mode remains the stable path until vendor-specific UVC extension commands are mapped.
-
-## Phase 3 Direction
-
-Phase 3 planning should build on the Vision Foundation:
-
-- Measurement Overlay.
-- Feature Detection.
-- CAD Automation.
-- OpenSCAD Generator.
-- STL Generation.
-- Laser/CNC workflow.
-- Multiple camera support.
-- Plugin architecture.
-- Future Maker Lab vision.
-
-## Intentionally Out Of Scope
-
-For the current phase, Jarvis should not prioritize:
-
-- cloud sync
-- robotics
-- uncontrolled automation
-- production CAD claims
-- replacing PostgreSQL + pgvector
-- large UI framework rewrites
-- complex autonomous agents
-- hidden startup behavior
-- restart/shutdown controls in Mission Control
-
-Those may be revisited later, but only after Scan Mat, Vision Lab, memory, and Maker Lab foundations are stable.
+- [Architecture](ARCHITECTURE.md)
+- [API](API.md)
+- [Ubuntu startup](UBUNTU_STARTUP.md)
+- [Scan Mat calibration design](Architecture/SCANMAT_CALIBRATION.md)
+- [Historical Insta360 gimbal investigation](CAMERA_GIMBAL_INVESTIGATION.md)

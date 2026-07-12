@@ -1,5 +1,9 @@
 # Jarvis API/UI Dashboard Checkpoint
 
+> **Historical checkpoint — current behavior may differ.** See the
+> [documentation index](README.md), [API](API.md), and
+> [architecture](ARCHITECTURE.md).
+
 Date: 2026-06-11
 Platform: NVIDIA Thor
 Status: Functional checkpoint

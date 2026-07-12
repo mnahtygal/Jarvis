@@ -1,124 +1,83 @@
 # Jarvis
 
-## Local-First AI Engineering Assistant
+Jarvis is a local-first AI engineering assistant running on an NVIDIA Jetson
+AGX Thor. It combines local language and vision models, voice, persistent
+memory, camera workflows, and workshop tools without requiring cloud services.
 
-> Build. Analyze. Design. Remember. All locally.
+## Current Status
 
-## Mission
+- Current phase: Phase 2, Maker & Workshop Assistant
+- Current milestone: calibrated automatic object measurement and validation
+- Vision Lab multi-camera and camera-role foundations are complete
+- Scan Mat capture, detection, calibration, and raw/annotated/rectified artifacts are stable foundations
+- Measurement analysis and UI foundations exist; automatic object isolation,
+  overlays, and accuracy validation remain active work
 
-Jarvis is a local-first AI engineering assistant built around the NVIDIA
-Jetson AGX Thor. It combines local LLMs, vision, voice, memory, and
-engineering tools into a modular platform.
+## Runtime Architecture
 
-## Status
+| Service | Implementation | Address |
+| --- | --- | --- |
+| UI | React/Vite | `http://localhost:5173` |
+| API | Flask | `http://127.0.0.1:5000` |
+| Text model | Qwen3 30B via llama.cpp | `http://127.0.0.1:8080` |
+| Vision model | Gemma 3 4B Vision via llama.cpp | `http://127.0.0.1:8081` |
+| Memory | PostgreSQL + pgvector | local database |
 
-- Phase 1: Complete
-- Phase 2: Architecture substantially complete
-- Current version: 2.3.0-dev, Vision Foundation
-- Current focus: Measurement Overlay, Phase 3 architecture planning, and Maker Lab foundations
+Camera devices are selected by role and resolved dynamically from their V4L2
+names. The Logitech HD Pro Webcam C920 is the fixed `workbench` camera; the
+Insta360 Link is the `face` camera. `/dev/video*` paths may change after a
+restart and are never permanent role assignments.
 
-## Features
+Voice input prefers the Samson Q2U, resolved by its stable PipeWire device
+name. Webcam microphones are not preferred.
 
-- React/Vite dashboard with Home, Mission Control, Vision Lab, Maker Lab, Memory, and System views
-- Professional frontend architecture using pages, components, hooks, services, config, and shared types
-- Flask API for text, voice, dashboard status, camera, vision, scan-mat, calibration, and measurement workflows
-- Local llama.cpp text model on port 8080
-- Local llama.cpp vision model on port 8081
-- PostgreSQL exact memory
-- PostgreSQL + pgvector semantic memory
-- Camera snapshot and local image analysis
-- Camera diagnostics for Insta360 Link and Thor device mapping
-- Scan Mat raw, annotated, and rectified artifact workflow
-- Scan Mat diagnostics for contour/corner detection reliability
-- Manual overhead scan station profile and camera profiles
-- Calibration engine with profile-backed pixel-to-mm scale storage
-- Interactive Vision Lab calibration UI
-- Measurement engine foundation with bounding-box measurement v0
-- Vision Lab measurement UI
-- Boot V3 Thor startup environment
-- Operational CLI and health scripts
-- Maker Lab and Phase 3 architecture planned
+## Vision Lab
 
-## Current Architecture
+Vision Lab supports camera-role selection, workshop prompts, and Scan Mat
+analysis on a 24 × 18 inch (609.6 × 457.2 mm) mat. A successful scan preserves:
 
-```text
-React/Vite UI
-  -> Flask API
-  -> core.brain / core.router
-  -> skills
-  -> PostgreSQL / pgvector
-  -> llama.cpp text and vision servers
+- raw camera capture
+- annotated OpenCV detection
+- rectified top-down image
+- calibration and diagnostic metadata
+
+Object-on-mat, measurement-helper, OCR, and 3D-print inspection prompts are
+analysis aids. They do not imply calibrated automatic measurement.
+
+## Service Commands
+
+```bash
+jarvis start
+jarvis stop
+jarvis restart
+jarvis status
 ```
 
-Frontend structure:
+`jarvis restart` reloads Flask API and Vite UI source while preserving healthy
+text and vision model processes. API startup must pass `GET /health`; the
+camera-role surface is verified with `GET /api/cameras`. The API PID and log are
+stored at `/tmp/jarvis-api.pid` and `/tmp/jarvis-api.log`.
 
-```text
-ui-app/src/pages/       Page-level UI
-ui-app/src/components/  Reusable UI primitives
-ui-app/src/hooks/       React state/effect hooks
-ui-app/src/services/    Frontend HTTP client
-ui-app/src/config/      Frontend constants
-ui-app/src/types/       Shared TypeScript types
-```
-
-Key frontend capabilities:
-
-- Mission Control is a read-only operations view backed by `/api/status/dashboard`.
-- Vision Lab owns camera capture, local vision analysis, Scan Mat artifacts, calibration, diagnostics, and measurement UI.
-- Reusable hooks now own dashboard status, API health, calibration, and measurement state.
-- `services/jarvisApi.ts` is the centralized frontend HTTP client.
-
-Backend structure:
+## Repository Layout
 
 ```text
 api.py       Flask API entry point
-core/        Brain, router, memory, context, DB, boot, calibration, measurement
-skills/      Task-specific capabilities and status wrappers
-scripts/     Startup, status, smoke-test, and CLI helpers
-docs/        Architecture and operations documentation
+core/        Brain, routing, memory, camera/audio resolution, calibration
+skills/      Vision, Scan Mat, measurement, model, and status capabilities
+ui-app/      React/Vite dashboard
+scripts/     Startup, restart, status, and operational helpers
+hardware/    OpenSCAD sources, STL revisions, and hardware notes
+docs/        Current, operational, design, and historical documentation
 ```
-
-Current backend capability areas:
-
-- Camera diagnostics and snapshot capture
-- Scan Mat detection, diagnostics, and artifacts
-- Calibration computation and active camera profile persistence
-- Measurement engine foundation using rectified scan images
-- Dashboard aggregation for Mission Control
-
-## Startup
-
-Start Jarvis services:
-
-```bash
-cd ~/jarvis
-./scripts/start-jarvis.sh
-```
-
-Run the Thor Boot V3 sequence:
-
-```bash
-jarvis startup
-```
-
-Useful commands:
-
-```bash
-jarvis status
-jarvis logs
-jarvis restart
-```
-
-Boot V3 intentionally does not launch Firefox. Firefox restores its own session.
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Development Guide](docs/DEVELOPMENT.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Vision](docs/VISION.md)
-- [Phase 2 Summary](docs/PHASE2_SUMMARY.md)
-- [Phase 3 Architecture](docs/PHASE3_ARCHITECTURE.md)
-- [Ubuntu Startup](docs/UBUNTU_STARTUP.md)
-- [Boot History](docs/BOOT_HISTORY.md)
-- [Changelog](docs/CHANGELOG.md)
+Start with the [documentation index](docs/README.md), then use:
+
+- [Current architecture](docs/ARCHITECTURE.md)
+- [Vision and Scan Mat](docs/VISION.md)
+- [API reference](docs/API.md)
+- [Ubuntu startup and service lifecycle](docs/UBUNTU_STARTUP.md)
+- [Development guide](docs/DEVELOPMENT.md)
+- [Roadmap](ROADMAP.md)
+- [Version history](VERSION.md)

@@ -1,100 +1,96 @@
 # Jarvis API
 
-## Purpose
-The Flask API is the bridge between Jarvis backend capabilities and the React dashboard.
+Last verified against `api.py`: 2026-07-12
 
-## Current Responsibilities
-- Health/status checks
-- Chat and LLM routing
-- Vision workflows
-- Camera capture
-- Scan Mat mode
-- Memory operations
-- Dashboard data
+The Flask API runs at `http://127.0.0.1:5000`. Routes return structured JSON
+unless they explicitly serve text or image artifacts.
 
-## API Design Rules
-- Preserve backward compatibility
-- Return structured JSON
-- Include clear error messages
-- Avoid hidden side effects
-- Keep endpoints small and focused
+## Health and Core Routes
 
-## Documentation Standard
-Every new endpoint should document:
-- route
-- method
-- request body
-- response body
-- failure cases
-- related frontend component
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/` | Plain-text API confirmation |
+| GET | `/health` | Lightweight readiness response: `{"status":"ok"}` |
+| POST | `/text` | Run a typed command; accepts `command`, optional `use_voice` |
+| GET | `/listen` | Capture microphone input and return recognized text |
+| POST | `/ask` | Listen, process through Jarvis, optionally speak response |
+
+`GET /health` is the service lifecycle readiness check.
 
 ## Camera Roles
 
-### `GET /api/cameras`
+Camera roles are resolved dynamically from V4L2 device names. Current roles are
+Logitech C920=`workbench` and Insta360 Link=`face`. `/dev/video*` paths are not
+stable assignments.
 
-Returns discovered V4L2 cameras, configured Jarvis camera roles, the active role, and the active camera.
+| Method | Route | Behavior |
+| --- | --- | --- |
+| GET | `/api/cameras` | Discovered devices, configured roles, active role/camera |
+| GET | `/api/camera/active` | Active role and resolved camera record |
+| POST | `/api/camera/active` | Switch active role using `{"role":"workbench"}` |
+| POST | `/api/camera/snapshot` | Capture active role, optional `role` or explicit `device` |
+| GET | `/api/camera/latest` | Serve latest raw snapshot or return 404 |
 
-Response body:
+Role switching returns `400` for a missing role and `409` for an unknown or
+unavailable role. Explicit `device` remains available for diagnostics and
+backward compatibility; normal UI workflows should use roles.
 
-```json
-{
-  "ok": true,
-  "default_role": "workbench",
-  "active_role": "workbench",
-  "active_camera": {},
-  "cameras": [],
-  "devices": []
-}
+## Vision and Scan Mat
+
+| Method | Route | Request/behavior |
+| --- | --- | --- |
+| POST | `/api/camera/analyze` | Analyze latest snapshot; optional `prompt` |
+| POST | `/api/camera/capture-analyze` | Capture then analyze; optional `prompt`, `mode`, `role`, `device` |
+| POST | `/api/vision/scan-mat` | Analyze latest snapshot with OpenCV |
+| POST | `/api/vision/capture-scan-mat` | Capture `workbench` role then analyze Scan Mat |
+| GET | `/api/vision/artifacts/raw/<artifact_name>` | Serve a raw capture artifact |
+| GET | `/api/vision/artifacts/mat-analysis/<artifact_name>` | Serve annotated/rectified artifact |
+
+Scan Mat responses include raw, annotated, and rectified artifact URLs when
+available, detection diagnostics, and the canonical 609.6 × 457.2 mm mat
+metadata. Physical cameras may be unavailable without making `/health` fail.
+
+## Calibration
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/calibration/profile` | Return active camera profile |
+| POST | `/api/calibration/apply` | Compute and persist calibration |
+
+Calibration apply requires `corners`, `known_width_mm`, and `known_height_mm`;
+`image_width_px` and `image_height_px` are optional. Current Scan Mat values are
+609.6 mm wide and 457.2 mm high.
+
+## Measurement
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/status/measurement` | Measurement readiness/status |
+| POST | `/api/measurement/analyze` | Analyze a permitted rectified artifact |
+
+Measurement analysis requires `{"image_path":"..."}`. The path must resolve
+to an existing Jarvis `runtime/camera` artifact or `/tmp` file. The current
+method is bounding-box measurement v0, not validated precision metrology.
+
+## Status Routes
+
+All are `GET` routes:
+
+```text
+/api/status/dashboard
+/api/status/brain
+/api/status/model
+/api/status/memory
+/api/status/martybench
+/api/status/devices
+/api/status/camera-diagnostics
+/api/status/calibration
+/api/status/measurement
 ```
 
-Related frontend component: Vision Lab camera selector.
+## Compatibility Rules
 
-### `GET /api/camera/active`
-
-Returns the active camera role and active camera record.
-
-Response body:
-
-```json
-{
-  "ok": true,
-  "active_role": "workbench",
-  "active_camera": {}
-}
-```
-
-### `POST /api/camera/active`
-
-Switches the active camera role without restarting Jarvis.
-
-Request body:
-
-```json
-{
-  "role": "workbench"
-}
-```
-
-Response body: same shape as `GET /api/cameras`.
-
-Failure cases:
-- `400` when `role` is missing.
-- `409` when the requested role is unknown or the camera is unavailable.
-
-### `POST /api/camera/snapshot`
-
-Backward compatible. With no body, captures from the active camera role. Optional request fields:
-
-```json
-{
-  "role": "workbench",
-  "device": "/dev/video2"
-}
-```
-
-Explicit `device` is retained for diagnostics and compatibility, but Vision Lab should prefer roles.
-
-## Future Work
-- Formal endpoint table
-- OpenAPI export
-- API smoke tests
+- Preserve existing routes and request fields unless migration is documented.
+- Return clear error messages and appropriate status codes.
+- Prefer camera roles over fixed device paths.
+- Do not add cloud dependencies to local camera, model, or memory workflows.
