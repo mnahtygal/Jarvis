@@ -117,7 +117,11 @@ scripts/start-jarvis.sh
 
 Purpose:
 
-Start the local Jarvis service stack if ports are free.
+Start the local Jarvis service stack if ports are free. The API is launched with
+`~/jarvis/.venv/bin/python ~/jarvis/api.py`, recorded in
+`/tmp/jarvis-api.pid`, logged to `/tmp/jarvis-api.log`, and must pass
+`GET /health` before startup reports success. The UI keeps its existing Vite
+startup behavior and logs to `/tmp/jarvis_ui.log`.
 
 Current startup targets:
 
@@ -145,8 +149,9 @@ Common commands:
 | `jarvis startup` | Run full Thor startup |
 | `jarvis boot` | Alias for Boot V3 startup |
 | `jarvis start` | Start Jarvis services |
+| `jarvis stop` | Stop the repo-specific Jarvis API and UI; preserve model servers |
 | `jarvis status` | Run health checks |
-| `jarvis restart` | Stop then run startup |
+| `jarvis restart` | Restart API and UI source; preserve healthy model servers |
 | `jarvis logs` | Follow startup log |
 | `jarvis edit` | Open VS Code |
 | `jarvis ui` | Open UI in Firefox |
@@ -188,7 +193,14 @@ CLI checks:
 jarvis status
 ./scripts/jarvis-status.sh
 ./scripts/jarvis-smoke-test.sh
+pgrep -af '/home/mnahtygal/jarvis/.venv/bin/python /home/mnahtygal/jarvis/api.py'
+cat /tmp/jarvis-api.pid
+tail -n 100 /tmp/jarvis-api.log
 ```
+
+`jarvis status` checks the API, UI, text LLM, and vision LLM over HTTP. API
+readiness is determined by a successful `GET http://127.0.0.1:5000/health`;
+camera hardware is not required for that readiness check.
 
 ## Running Services And Ports
 
@@ -260,4 +272,3 @@ Dashboard device status is available through:
 ```bash
 curl http://127.0.0.1:5000/api/status/devices
 ```
-

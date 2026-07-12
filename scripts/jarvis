@@ -13,7 +13,6 @@ case "$1" in
 
   restart)
     bash "$HOME/jarvis/scripts/stop-jarvis.sh"
-    sleep 2
     bash "$HOME/jarvis/scripts/startup.sh"
     ;;
 
@@ -36,8 +35,8 @@ case "$1" in
     echo "  jarvis start     Start Jarvis services"
     echo "  jarvis startup   Run full Thor startup
   jarvis boot      Run Boot V3 sequence"
-    echo "  jarvis stop      Stop Jarvis UI
-  jarvis restart   Restart Jarvis UI
+    echo "  jarvis stop      Stop Jarvis API and UI
+  jarvis restart   Restart Jarvis API and UI
   jarvis status    Check Jarvis health"
     echo "  jarvis logs      Watch startup logs"
     echo "  jarvis edit      Open Jarvis in VS Code"
