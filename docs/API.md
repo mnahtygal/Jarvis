@@ -1,6 +1,6 @@
 # Jarvis API
 
-Last verified against `api.py`: 2026-07-12
+Last verified against `api.py`: 2026-07-14
 
 The Flask API runs at `http://127.0.0.1:5000`. Routes return structured JSON
 unless they explicitly serve text or image artifacts.
@@ -19,9 +19,11 @@ unless they explicitly serve text or image artifacts.
 
 ## Camera Roles
 
-Camera roles are resolved dynamically from V4L2 device names. Current roles are
-Logitech C920=`workbench` and Insta360 Link=`face`. `/dev/video*` paths are not
-stable assignments.
+Camera roles are resolved dynamically from stable V4L2 identity. Current roles
+are Logitech C920=`workbench` and Insta360 Link=`face`. `/dev/video*` paths are
+transient runtime results, not stable assignments. `/dev/v4l/by-id` is
+preferred, with exact card name plus `bus_info` and optional `/dev/v4l/by-path`
+fallbacks.
 
 | Method | Route | Behavior |
 | --- | --- | --- |
@@ -33,7 +35,23 @@ stable assignments.
 
 Role switching returns `400` for a missing role and `409` for an unknown or
 unavailable role. Explicit `device` remains available for diagnostics and
-backward compatibility; normal UI workflows should use roles.
+backward compatibility, but a metadata-only node is rejected; normal UI
+workflows should use roles.
+
+`GET /api/cameras` preserves `active_camera`, `active_role`, `cameras`,
+`devices`, `available`, `display_name`, `id`, `role`, `resolved_device_path`,
+`matched_device`, and preferred capture settings. Camera records also report
+`capture_device`, `metadata_device`, `capture_by_id`, `metadata_by_id`,
+`by_path`, `card_name`, `bus_info`, `device_caps`, `interface_type`,
+`stable_identity`, `resolution_method`, and any `resolution_error`.
+`resolution_method` is one of `by_id`, `card_name_and_bus_info`, `by_path`,
+`legacy_hint`, or `unresolved`.
+
+Each physical USB camera may expose both Video Capture and Metadata Capture
+interfaces. Node-specific V4L2 `Device Caps` determines which is which even
+when the broad `Capabilities` block lists both. Only Video Capture nodes are
+used for snapshots, Scan Mat, vision analysis, and streaming; metadata nodes
+are diagnostic output only.
 
 ## Vision and Scan Mat
 

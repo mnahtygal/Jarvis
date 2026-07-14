@@ -163,7 +163,9 @@ def get_camera_diagnostics_status() -> Dict[str, Any]:
     camera_status = get_camera_roles_status()
     active_camera = camera_status.get("active_camera") or {}
     capture_device = active_camera.get("resolved_device_path") or ""
+    metadata_device = active_camera.get("metadata_device") or ""
     capture_present = bool(capture_device and Path(capture_device).exists())
+    metadata_present = bool(metadata_device and Path(metadata_device).exists())
 
     capture_all_result = (
         _run_command(["v4l2-ctl", "-d", capture_device, "--all"])
@@ -175,13 +177,20 @@ def get_camera_diagnostics_status() -> Dict[str, Any]:
         if capture_device
         else {"ok": False, "text": ""}
     )
+    metadata_all_result = (
+        _run_command(["v4l2-ctl", "-d", metadata_device, "--all"])
+        if metadata_device
+        else {"ok": False, "text": ""}
+    )
     extension_probe_result = _run_command(["lsusb", "-v", "-d", INSTA360_USB_ID], timeout=5.0)
 
     capture_all = capture_all_result.get("text", "")
     controls_text = controls_result.get("text", "")
+    metadata_all = metadata_all_result.get("text", "")
     extension_probe = extension_probe_result.get("text", "")
 
     device_info = _parse_device_info(capture_all)
+    metadata_info = _parse_device_info(metadata_all)
     controls = _parse_controls(controls_text)
     standard_controls_present = all(
         controls[control_name]["present"]
@@ -200,6 +209,7 @@ def get_camera_diagnostics_status() -> Dict[str, Any]:
         "cameras": camera_status.get("cameras", []),
         "capture_device": {
             "path": capture_device or None,
+            "stable_path": active_camera.get("capture_by_id"),
             "present": capture_present,
             "role": active_camera.get("role") or "video_capture",
             "driver": device_info.get("driver"),
@@ -208,12 +218,13 @@ def get_camera_diagnostics_status() -> Dict[str, Any]:
             "format": _parse_format(capture_all),
         },
         "metadata_device": {
-            "path": None,
-            "present": False,
+            "path": metadata_device or None,
+            "stable_path": active_camera.get("metadata_by_id"),
+            "present": metadata_present,
             "role": "metadata_capture",
-            "driver": None,
-            "card": None,
-            "bus_info": None,
+            "driver": metadata_info.get("driver"),
+            "card": metadata_info.get("card"),
+            "bus_info": metadata_info.get("bus_info"),
         },
         "controls": controls,
         "gimbal": {
@@ -229,7 +240,7 @@ def get_camera_diagnostics_status() -> Dict[str, Any]:
         "raw": {
             "v4l2_all": capture_all,
             "v4l2_ctrls": controls_text,
-            "metadata_v4l2_all": "",
+            "metadata_v4l2_all": metadata_all,
             "extension_probe": extension_probe,
         },
     }

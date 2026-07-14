@@ -1,6 +1,6 @@
 # Jarvis Architecture
 
-Last updated: 2026-07-12
+Last updated: 2026-07-14
 
 Jarvis is a local-first AI engineering assistant. It runs a React/Vite dashboard, a Flask API, local llama.cpp model servers, PostgreSQL exact memory, PostgreSQL + pgvector semantic memory, camera, vision, calibration, measurement workflows, and Boot V3 startup automation on Thor.
 
@@ -207,8 +207,9 @@ Vision Lab is the main workshop workflow surface.
 ### Camera Roles
 
 `core/camera_roles.py` separates stable purposes from unstable Linux device
-paths. It discovers V4L2 nodes, reads their device names, and matches configured
-cameras at runtime:
+paths. It inventories each V4L2 node, reads card name, `bus_info`, driver,
+capabilities, node-specific `Device Caps`, and stable symlinks, then groups the
+capture and metadata interfaces for each physical camera:
 
 | Role | Camera | Use |
 | --- | --- | --- |
@@ -220,6 +221,19 @@ the active role through `POST /api/camera/active`. Scan Mat capture explicitly
 uses the default `workbench` role. `/dev/video0`, `/dev/video2`, and other node
 numbers may change after restart and are never permanent role mappings.
 
+Profile resolution order is `/dev/v4l/by-id`, exact card name plus `bus_info`,
+optional `/dev/v4l/by-path`, then an exact unique legacy name hint for backward
+compatibility. The transient `/dev/videoX` capture node is returned at runtime
+as `resolved_device_path`; stable symlinks and identity details are reported
+alongside it. Broad substring matching cannot silently choose between similar
+cameras.
+
+Many USB cameras expose one Video Capture node and one Metadata Capture node.
+The broad V4L2 `Capabilities` block can list both types for either node, so only
+`Device Caps` determines the interface type. Image acquisition code receives
+only the Video Capture node. A metadata-only match is unavailable for capture
+and is surfaced as a resolution error.
+
 The Insta360 gimbal investigation remains historical/reference information; it
 does not define the current Scan Mat camera.
 
@@ -229,8 +243,9 @@ Camera configuration lives in:
 config/camera_profiles.json
 ```
 
-The configuration stores role matching names, active role, preferred capture
-settings, scan-mat assumptions, and calibration values.
+The configuration stores stable identity hints, active role, preferred capture
+settings, scan-mat assumptions, and calibration values. Fixed `/dev/video`
+numbers are not authoritative configuration.
 
 ### Microphone Resolution
 

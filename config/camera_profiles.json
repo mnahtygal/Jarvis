@@ -6,6 +6,11 @@
       "id": "logitech_c920",
       "display_name": "Logitech HD Pro Webcam C920",
       "detected_v4l2_name": "HD Pro Webcam C920",
+      "preferred_card_name": "HD Pro Webcam C920",
+      "preferred_bus_info": "usb-a80aa10000.usb-2.3",
+      "preferred_by_id_capture_match": "usb-046d_HD_Pro_Webcam_C920_963B013F-video-index0",
+      "preferred_by_id_metadata_match": "usb-046d_HD_Pro_Webcam_C920_963B013F-video-index1",
+      "preferred_by_path_match": "platform-a80aa10000.usb-usb-0:2.3:1.0-video-index0",
       "role": "workbench",
       "enabled": true,
       "preferred_resolution": {
@@ -22,7 +27,12 @@
     {
       "id": "insta360_link",
       "display_name": "Insta360 Link",
-      "detected_v4l2_name": "Insta360 Link",
+      "detected_v4l2_name": "Insta360 Link: Insta360 Link",
+      "preferred_card_name": "Insta360 Link: Insta360 Link",
+      "preferred_bus_info": "usb-a80aa10000.usb-2.2.2",
+      "preferred_by_id_capture_match": "usb-Amba_Insta360_Link-video-index0",
+      "preferred_by_id_metadata_match": "usb-Amba_Insta360_Link-video-index1",
+      "preferred_by_path_match": "platform-a80aa10000.usb-usb-0:2.2.2:1.0-video-index0",
       "role": "face",
       "enabled": true,
       "preferred_resolution": {
@@ -42,8 +52,9 @@
       "name": "Thor Manual Overhead Scan Station",
       "status": "draft",
       "camera": {
-        "device": "/dev/video0",
-        "metadata_device": "/dev/video1",
+        "logical_camera_id": "insta360_link",
+        "device_resolution": "runtime_stable_identity",
+        "device_note": "Capture and metadata nodes are discovered at runtime; /dev/video numbers are non-authoritative.",
         "model": "Insta360 Link",
         "mode": "manual_overhead",
         "resolution": {

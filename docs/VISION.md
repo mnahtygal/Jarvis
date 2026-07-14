@@ -1,6 +1,6 @@
 # Jarvis Vision
 
-Last updated: 2026-07-12
+Last updated: 2026-07-14
 
 Vision Lab is Jarvis's primary camera, Scan Mat, calibration, and inspection
 workspace. It remains local-first: captures and derived artifacts stay on Thor,
@@ -13,10 +13,19 @@ and image analysis uses the local Gemma 3 4B Vision server on port 8081.
 | `workbench` | Logitech HD Pro Webcam C920 | Fixed Scan Mat and workshop capture |
 | `face` | Insta360 Link | Face/general camera use |
 
-The camera resolver discovers V4L2 devices and matches configured camera names.
-Linux paths such as `/dev/video0` and `/dev/video2` may swap after restart and
-must not be treated as permanent camera assignments. Vision Lab exposes a role
-selector and Scan Mat capture always requests the default `workbench` role.
+The camera resolver discovers every V4L2 node and groups the interfaces that
+belong to each physical camera. Linux paths such as `/dev/video0` and
+`/dev/video2` are transient runtime results; they may swap after a reboot, dock
+change, USB move, or reconnect and are not stored as permanent assignments.
+Resolution prefers `/dev/v4l/by-id`, then exact V4L2 card name plus `bus_info`,
+then an optional `/dev/v4l/by-path` hint. Vision Lab exposes a role selector and
+Scan Mat capture always requests the default `workbench` role.
+
+A USB camera may expose separate Video Capture and Metadata Capture nodes. The
+resolver uses the node-specific V4L2 `Device Caps` field—not the broader
+`Capabilities` field—to classify them. Only a Video Capture node is passed to
+ffmpeg, OpenCV, snapshots, Scan Mat, local vision, or streaming. Diagnostics
+report the metadata node separately when one is present.
 
 The earlier Insta360 overhead workflow and gimbal investigation remain useful
 historical references, but they do not define the current workbench camera.
