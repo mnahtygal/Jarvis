@@ -72,7 +72,6 @@ def _serve_artifact(base_dir: Path, artifact_name: str):
 
     return send_file(
         artifact_path,
-        mimetype="image/jpeg",
         conditional=True,
         max_age=0,
     )
@@ -91,20 +90,14 @@ def _resolve_measurement_image_path(raw_path: str) -> Path | None:
     except Exception:
         return None
 
-    allowed_roots = [
-        CAPTURE_DIR.resolve(),
-        MAT_ANALYSIS_DIR.resolve(),
-        (PROJECT_ROOT / "runtime").resolve(),
-        Path("/tmp").resolve(),
-    ]
-    for allowed_root in allowed_roots:
-        try:
-            resolved_path.relative_to(allowed_root)
-            return resolved_path if resolved_path.is_file() else None
-        except ValueError:
-            continue
+    try:
+        resolved_path.relative_to(MAT_ANALYSIS_DIR.resolve())
+    except ValueError:
+        return None
 
-    return None
+    if not resolved_path.name.endswith("_mat_rectified.jpg"):
+        return None
+    return resolved_path if resolved_path.is_file() else None
 
 
 def _raw_artifact_url(snapshot_path: Path) -> str:
@@ -428,7 +421,24 @@ def api_measurement_analyze():
             "error": "image_path must point to an existing Jarvis runtime/camera artifact or /tmp file.",
         }), 400
 
-    return jsonify(measure_object_bbox_from_image(str(resolved_path)))
+    result = measure_object_bbox_from_image(str(resolved_path))
+    measurement = result.get("measurement") or {}
+    artifacts = measurement.get("artifacts") or {}
+    if artifacts:
+        artifacts["mask_url"] = _mat_artifact_url(artifacts.get("mask_path"))
+        artifacts["overlay_url"] = _mat_artifact_url(artifacts.get("overlay_path"))
+
+    if result.get("ok"):
+        status_code = 200
+    else:
+        failure_reason = (result.get("diagnostics") or {}).get("failure_reason")
+        status_code = 422 if failure_reason in {
+            "calibration_not_ready",
+            "no_object_found",
+            "ambiguous_object_candidates",
+            "object_touching_image_boundary",
+        } else 500
+    return jsonify(result), status_code
 
 
 @app.route("/api/calibration/profile", methods=["GET"])

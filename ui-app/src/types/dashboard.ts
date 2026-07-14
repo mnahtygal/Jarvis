@@ -219,10 +219,37 @@ export type MeasurementResult = {
       width?: number;
       height?: number;
     };
+    contour_px?: Array<{ x?: number; y?: number }>;
+    rotated_box_px?: {
+      points?: Array<{ x?: number; y?: number }>;
+      center?: { x?: number; y?: number };
+      long_side?: number;
+      short_side?: number;
+      rotation_degrees?: number;
+    };
+    dimensions_mm?: {
+      long_side?: number;
+      short_side?: number;
+      width?: number;
+      height?: number;
+    };
+    center_px?: { x?: number; y?: number };
+    center_mm?: { x?: number; y?: number };
     area_px?: number;
     area_mm2?: number;
+    contour_area_px?: number;
+    contour_area_mm2?: number;
+    axis_aligned_bbox_area_mm2?: number;
+    rotated_bbox_area_mm2?: number;
     confidence?: number;
     method?: string;
+    angle_convention?: string;
+    artifacts?: {
+      mask_path?: string;
+      overlay_path?: string;
+      mask_url?: string | null;
+      overlay_url?: string | null;
+    };
   };
   calibration?: {
     ready?: boolean;
@@ -239,8 +266,17 @@ export type MeasurementResult = {
     image_width?: number | null;
     image_height?: number | null;
     contour_count?: number;
+    total_contour_count?: number;
     candidate_count?: number;
+    threshold_strategies_attempted?: string[];
+    rejected_candidate_counts?: Record<string, number>;
+    candidate_scores?: Array<Record<string, unknown>>;
+    selected_candidate_score?: number | null;
     selected_area_ratio?: number | null;
+    selected_solidity?: number | null;
+    selected_extent?: number | null;
+    border_contact_ratio?: number | null;
+    calibration_confidence?: number | null;
     failure_reason?: string | null;
     suggestions?: string[];
   };

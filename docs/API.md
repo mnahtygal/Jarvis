@@ -69,8 +69,19 @@ Calibration apply requires `corners`, `known_width_mm`, and `known_height_mm`;
 | POST | `/api/measurement/analyze` | Analyze a permitted rectified artifact |
 
 Measurement analysis requires `{"image_path":"..."}`. The path must resolve
-to an existing Jarvis `runtime/camera` artifact or `/tmp` file. The current
-method is bounding-box measurement v0, not validated precision metrology.
+to an existing `*_mat_rectified.jpg` artifact inside the Scan Mat artifact
+directory. Arbitrary runtime and `/tmp` paths are rejected.
+
+The response preserves legacy `bbox_px`, `bbox_mm`, `area_px`, and `area_mm2`
+fields and adds selected-contour and rotated-box points, calibrated long/short dimensions, angle,
+center, contour and bounding-box areas, candidate diagnostics, confidence, and
+mask/overlay artifact paths and browser-safe URLs. The method is
+`rotated_contour_measurement_v1`. Canonical units remain millimeters; inch
+conversion is display-only in Vision Lab.
+
+Successful analysis returns `200`. Invalid input paths return `400`.
+Calibration/object-selection failures return `422`; unexpected processing or
+artifact-write failures return `500`.
 
 ## Status Routes
 

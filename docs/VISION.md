@@ -31,7 +31,9 @@ historical references, but they do not define the current workbench camera.
 - perspective correction to a top-down view
 - raw, annotated, and rectified artifact URLs
 - calibration profile, pixel/unit ratios, and confidence
-- bounding-box measurement foundation for rectified images
+- single flat-object contour measurement on rectified images
+- rotated minimum-area rectangle with anisotropic X/Y calibration
+- binary object mask and annotated measurement overlay artifacts
 - Vision Lab calibration and measurement result panels
 
 ## Scan Mat Pipeline
@@ -43,7 +45,7 @@ Logitech C920 workbench role
   -> annotated corner/detection artifact
   -> perspective-rectified top-down artifact
   -> calibration metadata
-  -> optional bounding-box measurement analysis
+  -> optional rotated-contour measurement, mask, and overlay
 ```
 
 Canonical mat dimensions:
@@ -73,21 +75,28 @@ These are experimental vision prompts. In particular:
 
 ## Measurement Status
 
-Implemented foundation:
+Implemented Phase 2.3B workflow:
 
 - calibration derived from known mat corners and dimensions
 - millimeters-per-pixel and pixels-per-millimeter values
 - calibration confidence and timestamp
-- largest-contour bounding-box measurement v0
-- pixel and millimeter dimensions, area, method, confidence, and diagnostics
+- scored single-object isolation from threshold, HSV, and edge candidates
+- border/frame rejection and candidate-score diagnostics
+- axis-aligned and rotated bounding boxes
+- calibrated long/short sides using anisotropic X/Y scale
+- rotation, center, contour area, bounding-box areas, and confidence
+- saved binary mask and annotated overlay artifacts
+- millimeter/inch display selection in Vision Lab (backend remains millimeters)
 
 Active work:
 
-- reliable automatic object isolation
-- measurement overlays on rectified images
 - validation against known reference objects
+- multiple-object measurement
+- holes and internal-feature measurement
 - diameter and feature estimation
-- OCR validation and structured marking extraction
+- OCR-assisted validation and structured marking extraction
+- depth and thickness measurement
+- full reverse engineering and production-CAD accuracy
 - measurement and scan history
 
 Measurements must not be presented as precise until calibration and object

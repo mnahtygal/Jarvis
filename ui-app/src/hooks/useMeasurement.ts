@@ -50,8 +50,8 @@ export function useMeasurement({
         throw new Error(data.error || `HTTP ${res.status}`);
       }
 
-      const width = data.measurement?.bbox_mm?.width;
-      const height = data.measurement?.bbox_mm?.height;
+      const width = data.measurement?.dimensions_mm?.long_side ?? data.measurement?.bbox_mm?.width;
+      const height = data.measurement?.dimensions_mm?.short_side ?? data.measurement?.bbox_mm?.height;
       const message =
         width != null && height != null
           ? `Measurement complete: ${width} mm x ${height} mm`

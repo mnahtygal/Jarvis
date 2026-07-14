@@ -39,15 +39,16 @@ Exit criteria:
 
 ### Phase 2B: Calibration and Measurement
 
-Status: active. Calibration and bounding-box measurement foundations exist;
-automatic object measurement, overlays, and validation are next.
+Status: active. Phase 2.3B single-object rotated measurement, mask/overlay
+artifacts, diagnostics, and mm/in display are implemented. Physical validation
+against known objects remains next; Phase 2.3 is not complete.
 
 Goals:
 
 - Use mat dimensions for pixel-to-inch/mm conversion.
 - Estimate calibration quality.
-- Add measurement overlays.
-- Support basic object dimensions.
+- Add measurement overlays. ✅
+- Support basic single-object dimensions and rotation. ✅
 - Store measurement metadata.
 - Validate measurements against known reference objects.
 - Add OCR for labels, markings, and dimensions.
@@ -56,6 +57,10 @@ Exit criteria:
 
 - Jarvis can produce useful first-pass measurements from rectified images.
 - Measurement output includes assumptions and confidence indicators.
+
+Remaining scope includes multiple objects, holes/internal features,
+diameter-specific fitting, OCR-assisted validation, depth/thickness, and full
+reverse engineering.
 
 ### Phase 2C: Scan History and Project Memory
 

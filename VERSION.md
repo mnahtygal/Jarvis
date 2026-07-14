@@ -10,13 +10,13 @@ This document tracks major project milestones rather than individual Git commits
 
 **Version:** 2.3.0-dev
 
-**Codename:** Measurement Validation
+**Codename:** 2D Object Measurement
 
 **Sprint:** Phase 2 Maker & Workshop Assistant
 
 **Status:** Phase 2 active
 
-Vision and Scan Mat foundations stable; measurement refinement in progress
+Phase 2.3B implementation complete; physical measurement validation remains
 
 ## Platform
 
@@ -33,12 +33,12 @@ Vision and Scan Mat foundations stable; measurement refinement in progress
 
 ## Current Milestone
 
-Vision Lab multi-camera and Scan Mat stabilization complete
+Single-object rotated measurement and visual overlay implemented
 
 ## Next Milestone
 
 Phase 2.3B  
-Automatic object measurement, overlays, and validation
+Validate measurements against known physical reference objects
 
 ---
 
@@ -127,9 +127,13 @@ Phase 2 – Professional Architecture
 - ✅ Samson Q2U PipeWire preference
 - ✅ Scan Mat stabilization at 609.6 × 457.2 mm
 - ✅ Reliable API/UI restart lifecycle with API readiness checks
-- ☐ 2.3B Measurement Overlay
-- ☐ Automatic object isolation and measurement refinement
+- ✅ 2.3B single-object rotated measurement and overlay
+- ✅ Candidate-scored object isolation with border rejection
+- ✅ Binary mask and measurement overlay artifacts
+- ✅ Anisotropic X/Y rotated-edge calibration math
+- ✅ Vision Lab millimeter/inch display
 - ☐ Measurement validation against known objects
+- ☐ Multiple-object and internal-feature measurement
 - ☐ Diameter estimation
 - ☐ Measurement history
 

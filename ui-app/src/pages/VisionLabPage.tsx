@@ -1,4 +1,4 @@
-import type { Dispatch, ReactNode, SetStateAction } from "react";
+import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { Camera, RefreshCw, ScanEye } from "lucide-react";
 import type {
   CameraRolesStatus,
@@ -102,6 +102,7 @@ export default function VisionLabPage({
   promptPreview,
   logs,
 }: VisionLabPageProps) {
+  const [measurementUnit, setMeasurementUnit] = useState<"mm" | "in">("mm");
   const widthValue = Number(calibrationWidthMm);
   const heightValue = Number(calibrationHeightMm);
   const calibrationDimensionsValid =
@@ -119,6 +120,14 @@ export default function VisionLabPage({
   const measurementDisabled =
     measuring || !measurementStatus?.calibration_ready || !rectifiedImageAvailable;
   const measurement = measurementResult?.measurement;
+  const unitScale = measurementUnit === "in" ? 1 / 25.4 : 1;
+  const areaUnitScale = measurementUnit === "in" ? 1 / (25.4 * 25.4) : 1;
+  const lengthUnitLabel = measurementUnit === "in" ? "in" : "mm";
+  const areaUnitLabel = measurementUnit === "in" ? "in²" : "mm²";
+  const formatLength = (value?: number | null) =>
+    value == null ? "unknown" : `${(value * unitScale).toFixed(measurementUnit === "in" ? 3 : 2)} ${lengthUnitLabel}`;
+  const formatArea = (value?: number | null) =>
+    value == null ? "unknown" : `${(value * areaUnitScale).toFixed(measurementUnit === "in" ? 3 : 2)} ${areaUnitLabel}`;
   const measurementDiagnostics = measurementResult?.diagnostics;
   const measurementFailureReason = measurementResult
     ? measurementDiagnostics?.failure_reason || "none"
@@ -430,6 +439,21 @@ export default function VisionLabPage({
             <div style={{ opacity: 0.72, fontSize: 13 }}>
               {rectifiedImageAvailable ? "Rectified scan ready" : "No rectified scan yet"}
             </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+              Units
+              <select
+                value={measurementUnit}
+                onChange={(event) => setMeasurementUnit(event.target.value as "mm" | "in")}
+                style={{ background: "#111827", color: "#e5e7eb", border: "1px solid #374151", borderRadius: 6, padding: "5px 8px" }}
+              >
+                <option value="mm">millimeters</option>
+                <option value="in">inches</option>
+              </select>
+            </label>
+          </div>
+
+          <div style={{ marginTop: 12, fontWeight: 800, color: "#67e8f9" }}>
+            2D calibrated measurement
           </div>
 
           <div
@@ -442,10 +466,11 @@ export default function VisionLabPage({
               opacity: 0.78,
             }}
           >
-            <div>Width: {measurement?.bbox_mm?.width ?? "unknown"} mm</div>
-            <div>Height: {measurement?.bbox_mm?.height ?? "unknown"} mm</div>
-            <div>Area: {measurement?.area_mm2 ?? "unknown"} mm²</div>
-            <div>Confidence: {measurement?.confidence ?? "unknown"}</div>
+            <div>Long side: {formatLength(measurement?.dimensions_mm?.long_side)}</div>
+            <div>Short side: {formatLength(measurement?.dimensions_mm?.short_side)}</div>
+            <div>Rotation: {measurement?.rotated_box_px?.rotation_degrees?.toFixed(2) ?? "unknown"}°</div>
+            <div>Contour area: {formatArea(measurement?.contour_area_mm2 ?? measurement?.area_mm2)}</div>
+            <div>Confidence: {measurement?.confidence == null ? "unknown" : `${(measurement.confidence * 100).toFixed(1)}%`}</div>
             <div>Method: {measurement?.method || "unknown"}</div>
             <div>
               Bounding Box:{" "}
@@ -454,6 +479,22 @@ export default function VisionLabPage({
                 : "unknown"}
             </div>
             <div>Measurement status: {measurementFailureReason}</div>
+          </div>
+
+          {measurement?.artifacts?.overlay_url && (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Measurement overlay</div>
+              <img
+                src={measurement.artifacts.overlay_url}
+                alt="2D calibrated measurement overlay"
+                style={{ display: "block", width: "100%", maxHeight: 560, objectFit: "contain", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)" }}
+              />
+            </div>
+          )}
+
+          <div style={{ marginTop: 12, color: "#fbbf24", fontSize: 12, lineHeight: 1.45 }}>
+            Measurement accuracy depends on calibration, lighting, object contrast, camera alignment,
+            and the object lying flat on the Scan Mat.
           </div>
 
           {measurementMessage && (
