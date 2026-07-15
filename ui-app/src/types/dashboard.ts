@@ -282,6 +282,19 @@ export type MeasurementResult = {
   };
 };
 
+export type ArchitectureStatus = {
+  available?: boolean;
+  ready?: boolean;
+  status?: string;
+  nodes?: number;
+  edges?: number;
+  generated_at?: string | null;
+  tree_available?: boolean;
+  callflow_available?: boolean;
+  graph_path?: string;
+  detail?: string;
+};
+
 export type DashboardStatus = {
   brain?: {
     overall?: string;
@@ -358,4 +371,5 @@ export type DashboardStatus = {
   camera_diagnostics?: CameraDiagnosticsStatus;
   calibration?: CalibrationStatus;
   measurement?: MeasurementStatus;
+  architecture?: ArchitectureStatus;
 };

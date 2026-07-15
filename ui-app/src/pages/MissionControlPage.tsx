@@ -28,6 +28,15 @@ function formatControlStatus(control?: CameraControlStatus) {
   return `present / value ${value}`;
 }
 
+function formatGeneratedAt(generatedAt?: string | null) {
+  if (!generatedAt) {
+    return "Never";
+  }
+
+  const date = new Date(generatedAt);
+  return Number.isNaN(date.getTime()) ? "Never" : date.toLocaleString();
+}
+
 export default function MissionControlPage({
   dashboard,
   martybenchScore,
@@ -207,6 +216,45 @@ export default function MissionControlPage({
             {
               label: "Verdict",
               value: martybenchScore?.verdict || "Unknown",
+            },
+          ]}
+        />
+
+        <MissionSection
+          title="Architecture"
+          rows={[
+            {
+              label: "Status",
+              value: dashboard?.architecture?.status || "Unknown",
+              ok: dashboard?.architecture?.ready,
+            },
+            {
+              label: "Nodes",
+              value:
+                dashboard?.architecture?.nodes != null
+                  ? String(dashboard.architecture.nodes)
+                  : "Unknown",
+            },
+            {
+              label: "Edges",
+              value:
+                dashboard?.architecture?.edges != null
+                  ? String(dashboard.architecture.edges)
+                  : "Unknown",
+            },
+            {
+              label: "Project Tree",
+              value: dashboard?.architecture?.tree_available ? "Available" : "Missing",
+              ok: dashboard?.architecture?.tree_available,
+            },
+            {
+              label: "Call Flow",
+              value: dashboard?.architecture?.callflow_available ? "Available" : "Missing",
+              ok: dashboard?.architecture?.callflow_available,
+            },
+            {
+              label: "Last Generated",
+              value: formatGeneratedAt(dashboard?.architecture?.generated_at),
             },
           ]}
         />

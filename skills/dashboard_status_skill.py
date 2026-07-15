@@ -10,6 +10,7 @@ from urllib.request import urlopen
 
 from core.memory import get_all_memories
 from core.session import get_last_topic, get_recent_history
+from skills.architecture_status_skill import get_architecture_status
 from skills.brain_status_skill import (
     _check_embedding_model,
     _check_llm_endpoint,
@@ -252,4 +253,5 @@ def get_dashboard_status() -> Dict[str, Any]:
         "camera_diagnostics": get_camera_diagnostics_status(),
         "calibration": get_calibration_status(),
         "measurement": get_measurement_status(),
+        "architecture": get_architecture_status(),
     }
