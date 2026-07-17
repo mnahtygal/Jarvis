@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Clock3,
   Database,
@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Usb,
   ScanEye,
+  Network,
 } from "lucide-react";
 import { appConfig } from "./config/appConfig";
 import StatusCard from "./components/StatusCard";
@@ -16,6 +17,7 @@ import { useCalibration } from "./hooks/useCalibration";
 import { useDashboardStatus } from "./hooks/useDashboardStatus";
 import { useMeasurement } from "./hooks/useMeasurement";
 import HomePage from "./pages/HomePage";
+import ArchitectureLabPage from "./pages/ArchitectureLabPage";
 import MissionControlPage from "./pages/MissionControlPage";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import VisionLabPage from "./pages/VisionLabPage";
@@ -35,7 +37,7 @@ import type {
   ScanMatDiagnostics,
 } from "./types/dashboard";
 
-type AppPage = "home" | "mission" | "vision" | "maker" | "memory" | "system";
+type AppPage = "home" | "mission" | "vision" | "maker" | "architecture" | "memory" | "system";
 type ScanMode = "general" | "object" | "measurement" | "ocr" | "print" | "jetski" | "workbench";
 
 type CameraSnapshotResponse = {
@@ -764,11 +766,12 @@ export default function JarvisUI() {
     </div>
   );
 
-  const navItems: Array<{ id: AppPage; label: string }> = [
+  const navItems: Array<{ id: AppPage; label: string; icon?: ReactNode }> = [
     { id: "home", label: "Home" },
     { id: "mission", label: "Mission Control" },
     { id: "vision", label: "Vision Lab" },
     { id: "maker", label: "Maker Lab" },
+    { id: "architecture", label: "Architecture Lab", icon: <Network size={15} /> },
     { id: "memory", label: "Memory" },
     { id: "system", label: "System" },
   ];
@@ -779,6 +782,10 @@ export default function JarvisUI() {
       martybenchScore={martybenchScore}
       refreshDashboard={refreshDashboard}
     />
+  );
+
+  const architectureLabPage = (
+    <ArchitectureLabPage initialStatus={dashboard?.architecture} />
   );
 
   const homePage = (
@@ -852,51 +859,57 @@ export default function JarvisUI() {
     />
   );
 
-  const currentPage =
-    activePage === "vision"
-      ? visionPage
-      : activePage === "mission"
-        ? missionControlPage
-      : activePage === "maker"
-        ? (
-            <PlaceholderPage
-              title="Maker Lab"
-              description="Future home for OpenSCAD, 3D printing, laser engraving, jet ski parts, and workshop projects."
-              items={[
-                "OpenSCAD generation",
-                "3D print inspection",
-                "Laser engraving review",
-                "Jet ski part reverse engineering",
-              ]}
-            />
-          )
-        : activePage === "memory"
-          ? (
-              <PlaceholderPage
-                title="Memory"
-                description="Future home for exact facts, semantic memory, project notes, and scanned-object history."
-                items={[
-                  "Exact memory facts",
-                  "Semantic memory search",
-                  "Project memory categories",
-                  "Vision scan history",
-                ]}
-              />
-            )
-          : activePage === "system"
-            ? (
-                <PlaceholderPage
-                  title="System"
-                  description="Future home for services, models, smoke tests, logs, and runtime controls."
-                  items={[
-                    "jarvis-status",
-                    "jarvis-smoke-test",
-                    "Model health",
-                    "Service logs",
-                  ]}
-                />
-              )
-            : homePage;
+  const currentPage = (() => {
+    switch (activePage) {
+      case "mission":
+        return missionControlPage;
+      case "vision":
+        return visionPage;
+      case "maker":
+        return (
+          <PlaceholderPage
+            title="Maker Lab"
+            description="Future home for OpenSCAD, 3D printing, laser engraving, jet ski parts, and workshop projects."
+            items={[
+              "OpenSCAD generation",
+              "3D print inspection",
+              "Laser engraving review",
+              "Jet ski part reverse engineering",
+            ]}
+          />
+        );
+      case "architecture":
+        return architectureLabPage;
+      case "memory":
+        return (
+          <PlaceholderPage
+            title="Memory"
+            description="Future home for exact facts, semantic memory, project notes, and scanned-object history."
+            items={[
+              "Exact memory facts",
+              "Semantic memory search",
+              "Project memory categories",
+              "Vision scan history",
+            ]}
+          />
+        );
+      case "system":
+        return (
+          <PlaceholderPage
+            title="System"
+            description="Future home for services, models, smoke tests, logs, and runtime controls."
+            items={[
+              "jarvis-status",
+              "jarvis-smoke-test",
+              "Model health",
+              "Service logs",
+            ]}
+          />
+        );
+      default:
+        return homePage;
+    }
+  })();
 
   return (
     <div
@@ -958,8 +971,12 @@ export default function JarvisUI() {
                   color: "white",
                   cursor: "pointer",
                   fontWeight: active ? 800 : 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
                 }}
               >
+                {item.icon}
                 {item.label}
               </button>
             );

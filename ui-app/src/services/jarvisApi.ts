@@ -20,6 +20,18 @@ export async function getDashboardStatus() {
   return fetch(`${API_BASE}/api/status/dashboard`);
 }
 
+export async function getArchitectureStatus() {
+  return fetch(`${API_BASE}/api/status/architecture`);
+}
+
+export function getArchitectureTreeUrl() {
+  return `${API_BASE}/api/architecture/tree`;
+}
+
+export function getArchitectureCallflowUrl() {
+  return `${API_BASE}/api/architecture/callflow`;
+}
+
 export async function getCalibrationStatus() {
   return fetch(`${API_BASE}/api/status/calibration`);
 }

@@ -2,6 +2,21 @@
 
 This changelog summarizes major project milestones. It is not yet tied to formal tagged releases.
 
+## Unreleased - Architecture Lab v1
+
+### Added
+
+- Added Architecture Lab with Overview, Project Tree, Call Flow, and Statistics views.
+- Added fixed read-only API routes for the generated Graphify project-tree and call-flow HTML artifacts.
+- Added a dedicated architecture status endpoint while preserving architecture status in the dashboard payload.
+- Added centralized frontend architecture API helpers and Architecture Lab navigation.
+- Added focused tests for allowed, missing, and arbitrary architecture artifact requests.
+
+### Notes
+
+- Graphify remains a separate local installation and generated output remains under ignored runtime storage.
+- Graphify execution and refresh controls are intentionally deferred.
+
 ## Unreleased - July 3-4 Phase 2 Development Sprint
 
 ### Project Architecture

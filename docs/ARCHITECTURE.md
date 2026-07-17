@@ -1,6 +1,6 @@
 # Jarvis Architecture
 
-Last updated: 2026-07-14
+Last updated: 2026-07-17
 
 Jarvis is a local-first AI engineering assistant. It runs a React/Vite dashboard, a Flask API, local llama.cpp model servers, PostgreSQL exact memory, PostgreSQL + pgvector semantic memory, camera, vision, calibration, measurement workflows, and Boot V3 startup automation on Thor.
 
@@ -32,6 +32,9 @@ Flask API -------------------- operational checks
   |
   +--> PipeWire microphone resolver -> Samson Q2U preference
   |
+  +--> Architecture Lab -> read-only Graphify HTML artifacts
+  |                    +--> runtime/graphify/graphify-out
+  |
   +--> Dashboard status aggregation
                        |
                        +--> text model :8080
@@ -61,10 +64,11 @@ ui-app/src/
 pages/HomePage.tsx
 pages/MissionControlPage.tsx
 pages/VisionLabPage.tsx
+pages/ArchitectureLabPage.tsx
 pages/PlaceholderPage.tsx
 ```
 
-Home provides command, voice, camera, quick-command, and live-detail views. Mission Control is a read-only operations page backed by `/api/status/dashboard`. Vision Lab handles camera snapshots, prompt modes, scan-mat artifacts, local vision analysis, calibration, Scan Mat diagnostics, and measurement. Maker Lab, Memory, and System currently use a reusable placeholder page.
+Home provides command, voice, camera, quick-command, and live-detail views. Mission Control is a read-only operations page backed by `/api/status/dashboard`. Vision Lab handles camera snapshots, prompt modes, scan-mat artifacts, local vision analysis, calibration, Scan Mat diagnostics, and measurement. Architecture Lab displays Graphify status, statistics, the generated project tree, and the generated call-flow diagram. Maker Lab, Memory, and System currently use a reusable placeholder page.
 
 ### Components
 
@@ -130,12 +134,13 @@ The backend entry point is `api.py`, a Flask app with CORS enabled for the local
 | --- | --- |
 | Health | `/`, `/health` |
 | Text and voice | `/text`, `/listen`, `/ask` |
-| Dashboard status | `/api/status/dashboard`, `/api/status/brain`, `/api/status/model`, `/api/status/memory`, `/api/status/martybench`, `/api/status/devices`, `/api/status/camera-diagnostics`, `/api/status/calibration`, `/api/status/measurement` |
+| Dashboard status | `/api/status/dashboard`, `/api/status/architecture`, `/api/status/brain`, `/api/status/model`, `/api/status/memory`, `/api/status/martybench`, `/api/status/devices`, `/api/status/camera-diagnostics`, `/api/status/calibration`, `/api/status/measurement` |
 | Camera | `/api/cameras`, `/api/camera/active`, `/api/camera/snapshot`, `/api/camera/latest` |
 | Vision | `/api/camera/analyze`, `/api/camera/capture-analyze` |
 | Scan Mat | `/api/vision/scan-mat`, `/api/vision/capture-scan-mat` |
 | Calibration | `/api/calibration/profile`, `/api/calibration/apply` |
 | Measurement | `/api/measurement/analyze` |
+| Architecture | `/api/architecture/tree`, `/api/architecture/callflow` |
 | Artifacts | `/api/vision/artifacts/raw/<artifact_name>`, `/api/vision/artifacts/mat-analysis/<artifact_name>` |
 
 ### Brain
@@ -165,6 +170,7 @@ The `skills/` layer contains task-specific logic. Current important skills inclu
 
 | Skill | Responsibility |
 | --- | --- |
+| `architecture_status_skill.py` | Reads Graphify graph and artifact availability |
 | `dashboard_status_skill.py` | Aggregates dashboard status |
 | `device_status_skill.py` | Checks microphone, camera, PipeWire, and dock note |
 | `model_runtime.py` | Reads active llama.cpp model information |
@@ -176,6 +182,15 @@ The `skills/` layer contains task-specific logic. Current important skills inclu
 | `measurement_skill.py` | Reports measurement readiness |
 | `semantic_memory_skill.py` | Semantic memory status/search responses |
 | `llm_skill.py`, `llama_cpp_skill.py` | Local text model calls |
+
+## Architecture Lab and Graphify
+
+Graphify is installed separately from Jarvis at `/home/mnahtygal/repos/graphify`
+and is not a Jarvis Python dependency. Generated output remains untracked under
+`runtime/graphify/graphify-out/`. Architecture Lab reads graph status and embeds
+only the explicitly allowed `JARVIS_TREE.html` and `graphify-callflow.html`
+artifacts through fixed Flask routes. It does not execute Graphify or refresh
+generated output.
 
 ## Memory
 

@@ -1,6 +1,6 @@
 # Jarvis API
 
-Last verified against `api.py`: 2026-07-14
+Last verified against `api.py`: 2026-07-17
 
 The Flask API runs at `http://127.0.0.1:5000`. Routes return structured JSON
 unless they explicitly serve text or image artifacts.
@@ -101,12 +101,28 @@ Successful analysis returns `200`. Invalid input paths return `400`.
 Calibration/object-selection failures return `422`; unexpected processing or
 artifact-write failures return `500`.
 
+## Architecture Lab
+
+Graphify is installed separately at `/home/mnahtygal/repos/graphify`. Jarvis
+reads its generated output from `runtime/graphify/graphify-out`; these routes do
+not execute Graphify or modify artifacts.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/status/architecture` | Return graph counts, timestamp, paths, and artifact availability |
+| GET | `/api/architecture/tree` | Serve `JARVIS_TREE.html` or return 404 |
+| GET | `/api/architecture/callflow` | Serve `graphify-callflow.html` or return 404 |
+
+The HTML routes use conditional responses with cache age zero. They expose only
+the two fixed filenames; arbitrary Graphify runtime paths are not routed.
+
 ## Status Routes
 
 All are `GET` routes:
 
 ```text
 /api/status/dashboard
+/api/status/architecture
 /api/status/brain
 /api/status/model
 /api/status/memory

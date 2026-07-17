@@ -13,6 +13,7 @@ from core.calibration import (
     get_active_camera_profile,
 )
 from core.measurement import measure_object_bbox_from_image
+from skills.architecture_status_skill import get_architecture_status
 from skills.calibration_skill import get_calibration_status
 from skills.camera_diagnostics_skill import get_camera_diagnostics_status
 from skills.camera_skill import CAPTURE_DIR, capture_snapshot
@@ -33,6 +34,7 @@ CORS(app)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 MAT_ANALYSIS_DIR = CAPTURE_DIR / "mat_analysis"
+GRAPHIFY_OUTPUT_DIR = PROJECT_ROOT / "runtime" / "graphify" / "graphify-out"
 
 
 def _latest_snapshot_path() -> Path | None:
@@ -227,6 +229,16 @@ def api_scan_mat_artifact(artifact_name: str):
     return _serve_artifact(MAT_ANALYSIS_DIR, artifact_name)
 
 
+@app.route("/api/architecture/tree", methods=["GET"])
+def api_architecture_tree():
+    return _serve_artifact(GRAPHIFY_OUTPUT_DIR, "JARVIS_TREE.html")
+
+
+@app.route("/api/architecture/callflow", methods=["GET"])
+def api_architecture_callflow():
+    return _serve_artifact(GRAPHIFY_OUTPUT_DIR, "graphify-callflow.html")
+
+
 @app.route("/api/camera/analyze", methods=["POST"])
 def api_camera_analyze():
     snapshot_path = _latest_snapshot_path()
@@ -356,6 +368,11 @@ def health():
 @app.route("/api/status/dashboard", methods=["GET"])
 def api_status_dashboard():
     return jsonify(get_dashboard_status())
+
+
+@app.route("/api/status/architecture", methods=["GET"])
+def api_status_architecture():
+    return jsonify(get_architecture_status())
 
 
 @app.route("/api/status/brain", methods=["GET"])
