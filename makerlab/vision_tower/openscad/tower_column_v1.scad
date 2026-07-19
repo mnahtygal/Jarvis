@@ -21,7 +21,7 @@ wall_thickness = 3;       // primary wall thickness, mm
 column_height = 200;      // full column height, mm
 fit_test_height = 30;     // short validation coupon, mm
 
-corner_radius = 3;        // outside corner radius, mm
+corner_radius = 4;        // outside corner radius, mm
 inside_corner_radius = 1; // inside corner radius, mm
 
 rib_depth = 2.0;          // internal stiffening rib projection, mm
