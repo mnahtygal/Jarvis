@@ -1,0 +1,16 @@
+{
+  "pixels_per_mm": 10.0,
+  "cleanup_kernel_size": 3,
+  "calibration_source": "preserved metric warp generated at 10 pixels/mm",
+  "calibration_quality": "experimental_physically_referenced",
+  "samples": [
+    {
+      "object_name": "SIM868 development board",
+      "caliper_length_mm": 65.1,
+      "caliper_width_mm": 32.0,
+      "rotation_degrees": 0.0,
+      "mask_path": "/tmp/grounded_sam_image_sam/metric_warped_mask.png",
+      "image_path": "/tmp/grounded_sam_image_sam/metric_warped_image.png"
+    }
+  ]
+}
