@@ -174,7 +174,7 @@ The `skills/` layer contains task-specific logic. Current important skills inclu
 | `dashboard_status_skill.py` | Aggregates dashboard status |
 | `device_status_skill.py` | Checks microphone, camera, PipeWire, and dock note |
 | `model_runtime.py` | Reads active llama.cpp model information |
-| `camera_skill.py` | Captures snapshots with ffmpeg |
+| `camera_skill.py` | Captures snapshots through explicit OpenCV V4L2 mode negotiation |
 | `camera_diagnostics_skill.py` | Reports read-only camera diagnostics |
 | `vision_skill.py` | Sends images to local vision model |
 | `scan_mat_skill.py` | OpenCV scan-mat detection and artifact generation |

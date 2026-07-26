@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from core import camera_roles
 from skills import camera_skill
@@ -285,22 +285,29 @@ HD Pro Webcam C920 (usb-a80aa10000.usb-2.3):
         self.assertEqual(saved["active_camera_role"], "face")
         self.assertEqual(status["active_role"], "face")
 
-    def test_capture_skill_passes_only_resolved_capture_node_to_ffmpeg(self) -> None:
+    def test_capture_skill_opens_only_resolved_capture_node_with_v4l2(self) -> None:
         resolved = {
             "role": "workbench",
             "resolved_device_path": "/dev/video8",
             "display_name": "Logitech HD Pro Webcam C920",
         }
-        completed = Completed(returncode=1, stderr="test capture failure")
+        capture = MagicMock()
+        capture.isOpened.return_value = False
         with (
             patch("skills.camera_skill.resolve_camera", return_value=resolved),
-            patch("skills.camera_skill.Path.exists", side_effect=[True, False]),
-            patch("skills.camera_skill.subprocess.run", return_value=completed) as run,
+            patch("skills.camera_skill.Path.exists", return_value=True),
+            patch(
+                "skills.camera_skill.cv2.VideoCapture",
+                return_value=capture,
+            ) as video_capture,
         ):
             result = camera_skill.capture_snapshot(role="workbench")
-        command = run.call_args.args[0]
-        self.assertEqual(command[command.index("-i") + 1], "/dev/video8")
+        video_capture.assert_called_once_with(
+            "/dev/video8",
+            camera_skill.cv2.CAP_V4L2,
+        )
         self.assertEqual(result["device"], "/dev/video8")
+        self.assertEqual(result["backend"], "opencv_v4l2")
 
 
 if __name__ == "__main__":

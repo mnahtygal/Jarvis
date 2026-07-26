@@ -33,6 +33,13 @@ fallbacks.
 | POST | `/api/camera/snapshot` | Capture active role, optional `role` or explicit `device` |
 | GET | `/api/camera/latest` | Serve latest raw snapshot or return 404 |
 
+Snapshot capture uses the stable role-resolved capture node and the explicit
+OpenCV V4L2 backend. The configured pixel format is requested before width and
+height. Responses include `requested_mode`, `property_requests`,
+`negotiated_mode`, `mode_status`, and `mode_mismatches`. A successful capture
+that cannot obtain the requested mode returns `mode_status: "fallback"` with a
+warning and the actual FOURCC, dimensions, FPS, and frame dimensions.
+
 Role switching returns `400` for a missing role and `409` for an unknown or
 unavailable role. Explicit `device` remains available for diagnostics and
 backward compatibility, but a metadata-only node is rejected; normal UI
