@@ -1,0 +1,705 @@
+{
+  "schema_version": 1,
+  "status": "completed",
+  "object": {
+    "id": "golden_corral_gift_card",
+    "name": "Golden Corral gift card"
+  },
+  "device": "cpu",
+  "models": {
+    "detector": "IDEA-Research/grounding-dino-base",
+    "segmenter": "facebook/sam2-hiera-base-plus"
+  },
+  "prompt_set": [
+    "a Golden Corral gift card"
+  ],
+  "caliper_ground_truth_mm": {
+    "length": 85.45,
+    "width": 53.67
+  },
+  "robust_trim_percentile": 1.0,
+  "production_default_changed": false,
+  "samples": [
+    {
+      "sample": "snapshot_20260726_130132_mat_rectified",
+      "source_image_path": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130132.jpg",
+      "rectified_image_path": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130132_mat_rectified.jpg",
+      "provenance_sidecar_path": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130132_mat_rectified.metadata.json",
+      "prompt_set": [
+        "a Golden Corral gift card"
+      ],
+      "prompt_selection_rule": "highest-confidence accepted DINO candidate; caliper dimensions are not used for prompt or box selection",
+      "selected_prompt": "a Golden Corral gift card",
+      "dino_confidence": 0.25891897082328796,
+      "dino_box": [
+        594.2688598632812,
+        463.99468994140625,
+        804.8410034179688,
+        597.9893188476562
+      ],
+      "sam2_confidence": 0.9876235723495483,
+      "raw_mask_area_pixels": 26574,
+      "cleaned_mask_area_pixels": 26571,
+      "connected_component_decisions": [
+        {
+          "label": 1,
+          "area_pixels": 26571,
+          "bbox": {
+            "x": 596,
+            "y": 467,
+            "width": 208,
+            "height": 130
+          },
+          "gap_from_primary_pixels": 0.0,
+          "kept": true,
+          "reason": "primary_component"
+        }
+      ],
+      "principal_axis_angle_degrees": -0.39840708994508994,
+      "maximum_occupied_envelope": {
+        "length_mm": 87.62998708089194,
+        "width_mm": 54.60998708089193,
+        "angle_degrees": 0.0,
+        "box": [
+          [
+            802.9999389648438,
+            596.0
+          ],
+          [
+            595.9999389648438,
+            596.0
+          ],
+          [
+            595.9999389648438,
+            467.0
+          ],
+          [
+            802.9999389648438,
+            467.0
+          ]
+        ],
+        "errors_against_caliper": {
+          "length": {
+            "signed_mm": 2.1799870808919337,
+            "absolute_mm": 2.1799870808919337,
+            "signed_percent": 2.551184412980613,
+            "absolute_percent": 2.551184412980613
+          },
+          "width": {
+            "signed_mm": 0.9399870808919317,
+            "absolute_mm": 0.9399870808919317,
+            "signed_percent": 1.7514199383117788,
+            "absolute_percent": 1.7514199383117788
+          }
+        }
+      },
+      "robust_board_body": {
+        "length_mm": 86.78417892609471,
+        "width_mm": 54.611623402121204,
+        "angle_degrees": -0.39840708994508994,
+        "trim_percentile": 1.0,
+        "box": [
+          [
+            596.5599211150333,
+            467.71233015534085
+          ],
+          [
+            801.5569625337274,
+            466.28685707929833
+          ],
+          [
+            802.453985467654,
+            595.2875731434626
+          ],
+          [
+            597.4569440489598,
+            596.713046219505
+          ]
+        ],
+        "errors_against_caliper": {
+          "length": {
+            "signed_mm": 1.3341789260947081,
+            "absolute_mm": 1.3341789260947081,
+            "signed_percent": 1.5613562622524377,
+            "absolute_percent": 1.5613562622524377
+          },
+          "width": {
+            "signed_mm": 0.941623402121202,
+            "absolute_mm": 0.941623402121202,
+            "signed_percent": 1.7544687947106428,
+            "absolute_percent": 1.7544687947106428
+          }
+        }
+      },
+      "timings_seconds": {
+        "dino": 5.184405773994513,
+        "sam2": 2.7283805920160376,
+        "measurement": 0.02137282898183912
+      },
+      "calibration": {
+        "profile_id": "logitech_c920_overhead_scan_mat",
+        "logical_camera_id": "logitech_c920",
+        "camera_role": "workbench",
+        "pixels_per_mm_x": 2.3622047244094486,
+        "pixels_per_mm_y": 2.362204724409449,
+        "mm_per_pixel_x": 0.4233333333333334,
+        "mm_per_pixel_y": 0.4233333333333333,
+        "confidence": 0.9404,
+        "geometry_version": "scan_mat_geometry_v1",
+        "homography_version": "opencv_perspective_outer_boundary_v1",
+        "timestamp": "2026-07-26T13:01:33.434265+00:00"
+      },
+      "capture_provenance": {
+        "stable_camera_identity": {
+          "bus_info": "usb-a80aa10000.usb-2.3",
+          "by_id_prefix": "usb-046d_HD_Pro_Webcam_C920_963B013F",
+          "by_path_prefix": "platform-a80aa10000.usb-usb-0:2.3:1.0",
+          "card_name": "HD Pro Webcam C920"
+        },
+        "requested_mode": {
+          "fps": 30,
+          "height": 1080,
+          "pixel_format": "MJPG",
+          "width": 1920
+        },
+        "negotiated_mode": {
+          "fps": 30.0,
+          "frame_height": 1080,
+          "frame_width": 1920,
+          "height": 1080,
+          "pixel_format": "MJPG",
+          "width": 1920
+        },
+        "source_image_dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "rectified_output_dimensions": {
+          "width": 1440,
+          "height": 1080
+        },
+        "corners": [
+          [
+            306.0,
+            11.0
+          ],
+          [
+            1598.0,
+            12.0
+          ],
+          [
+            1765.0,
+            1047.0
+          ],
+          [
+            129.0,
+            1036.0
+          ]
+        ],
+        "homography": [
+          [
+            1.127118527674,
+            0.194634126242,
+            -347.03924485689
+          ],
+          [
+            -0.001035306332,
+            1.33761578141,
+            -14.396969857812
+          ],
+          [
+            5.622675e-06,
+            0.000260731193,
+            1.0
+          ]
+        ]
+      },
+      "artifacts": {
+        "raw_mask": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130132_mat_rectified_sam2_raw_mask.png",
+        "cleaned_mask": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130132_mat_rectified_sam2_cleaned_mask.png",
+        "diagnostic_overlay": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130132_mat_rectified_grounded_sam_diagnostic.png",
+        "sample_json": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130132_mat_rectified_grounded_sam.json"
+      }
+    },
+    {
+      "sample": "snapshot_20260726_130133_mat_rectified",
+      "source_image_path": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130133.jpg",
+      "rectified_image_path": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130133_mat_rectified.jpg",
+      "provenance_sidecar_path": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130133_mat_rectified.metadata.json",
+      "prompt_set": [
+        "a Golden Corral gift card"
+      ],
+      "prompt_selection_rule": "highest-confidence accepted DINO candidate; caliper dimensions are not used for prompt or box selection",
+      "selected_prompt": "a Golden Corral gift card",
+      "dino_confidence": 0.2595948874950409,
+      "dino_box": [
+        593.7050170898438,
+        462.10546875,
+        804.2424926757812,
+        596.716796875
+      ],
+      "sam2_confidence": 0.9873758554458618,
+      "raw_mask_area_pixels": 26572,
+      "cleaned_mask_area_pixels": 26568,
+      "connected_component_decisions": [
+        {
+          "label": 1,
+          "area_pixels": 26568,
+          "bbox": {
+            "x": 596,
+            "y": 464,
+            "width": 207,
+            "height": 130
+          },
+          "gap_from_primary_pixels": 0.0,
+          "kept": true,
+          "reason": "primary_component"
+        }
+      ],
+      "principal_axis_angle_degrees": -0.5127691394264416,
+      "maximum_occupied_envelope": {
+        "length_mm": 87.2066537475586,
+        "width_mm": 54.60998708089193,
+        "angle_degrees": 0.0,
+        "box": [
+          [
+            801.9999389648438,
+            593.0
+          ],
+          [
+            595.9999389648438,
+            593.0
+          ],
+          [
+            595.9999389648438,
+            464.0
+          ],
+          [
+            801.9999389648438,
+            464.0
+          ]
+        ],
+        "errors_against_caliper": {
+          "length": {
+            "signed_mm": 1.7566537475586017,
+            "absolute_mm": 1.7566537475586017,
+            "signed_percent": 2.0557679901212422,
+            "absolute_percent": 2.0557679901212422
+          },
+          "width": {
+            "signed_mm": 0.9399870808919317,
+            "absolute_mm": 0.9399870808919317,
+            "signed_percent": 1.7514199383117788,
+            "absolute_percent": 1.7514199383117788
+          }
+        }
+      },
+      "robust_board_body": {
+        "length_mm": 86.78743510676549,
+        "width_mm": 54.18828525038529,
+        "angle_degrees": -0.5127691394264416,
+        "trim_percentile": 1.0,
+        "box": [
+          [
+            595.6783154001549,
+            465.5565774886965
+          ],
+          [
+            800.6797946886551,
+            463.7218657605124
+          ],
+          [
+            801.8253508668826,
+            591.7205630692916
+          ],
+          [
+            596.8238715783824,
+            593.5552747974758
+          ]
+        ],
+        "errors_against_caliper": {
+          "length": {
+            "signed_mm": 1.3374351067654828,
+            "absolute_mm": 1.3374351067654828,
+            "signed_percent": 1.5651668891345616,
+            "absolute_percent": 1.5651668891345616
+          },
+          "width": {
+            "signed_mm": 0.5182852503852899,
+            "absolute_mm": 0.5182852503852899,
+            "signed_percent": 0.9656889330823364,
+            "absolute_percent": 0.9656889330823364
+          }
+        }
+      },
+      "timings_seconds": {
+        "dino": 4.786170290957671,
+        "sam2": 3.1003100980306044,
+        "measurement": 0.012896430969703943
+      },
+      "calibration": {
+        "profile_id": "logitech_c920_overhead_scan_mat",
+        "logical_camera_id": "logitech_c920",
+        "camera_role": "workbench",
+        "pixels_per_mm_x": 2.3622047244094486,
+        "pixels_per_mm_y": 2.362204724409449,
+        "mm_per_pixel_x": 0.4233333333333334,
+        "mm_per_pixel_y": 0.4233333333333333,
+        "confidence": 0.9404,
+        "geometry_version": "scan_mat_geometry_v1",
+        "homography_version": "opencv_perspective_outer_boundary_v1",
+        "timestamp": "2026-07-26T13:01:34.621189+00:00"
+      },
+      "capture_provenance": {
+        "stable_camera_identity": {
+          "bus_info": "usb-a80aa10000.usb-2.3",
+          "by_id_prefix": "usb-046d_HD_Pro_Webcam_C920_963B013F",
+          "by_path_prefix": "platform-a80aa10000.usb-usb-0:2.3:1.0",
+          "card_name": "HD Pro Webcam C920"
+        },
+        "requested_mode": {
+          "fps": 30,
+          "height": 1080,
+          "pixel_format": "MJPG",
+          "width": 1920
+        },
+        "negotiated_mode": {
+          "fps": 30.0,
+          "frame_height": 1080,
+          "frame_width": 1920,
+          "height": 1080,
+          "pixel_format": "MJPG",
+          "width": 1920
+        },
+        "source_image_dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "rectified_output_dimensions": {
+          "width": 1440,
+          "height": 1080
+        },
+        "corners": [
+          [
+            306.0,
+            11.0
+          ],
+          [
+            1598.0,
+            12.0
+          ],
+          [
+            1765.0,
+            1047.0
+          ],
+          [
+            129.0,
+            1036.0
+          ]
+        ],
+        "homography": [
+          [
+            1.127118527674,
+            0.194634126242,
+            -347.03924485689
+          ],
+          [
+            -0.001035306332,
+            1.33761578141,
+            -14.396969857812
+          ],
+          [
+            5.622675e-06,
+            0.000260731193,
+            1.0
+          ]
+        ]
+      },
+      "artifacts": {
+        "raw_mask": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130133_mat_rectified_sam2_raw_mask.png",
+        "cleaned_mask": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130133_mat_rectified_sam2_cleaned_mask.png",
+        "diagnostic_overlay": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130133_mat_rectified_grounded_sam_diagnostic.png",
+        "sample_json": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130133_mat_rectified_grounded_sam.json"
+      }
+    },
+    {
+      "sample": "snapshot_20260726_130134_mat_rectified",
+      "source_image_path": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130134.jpg",
+      "rectified_image_path": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130134_mat_rectified.jpg",
+      "provenance_sidecar_path": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130134_mat_rectified.metadata.json",
+      "prompt_set": [
+        "a Golden Corral gift card"
+      ],
+      "prompt_selection_rule": "highest-confidence accepted DINO candidate; caliper dimensions are not used for prompt or box selection",
+      "selected_prompt": "a Golden Corral gift card",
+      "dino_confidence": 0.2693406343460083,
+      "dino_box": [
+        594.3062133789062,
+        464.0160827636719,
+        804.624755859375,
+        598.0670166015625
+      ],
+      "sam2_confidence": 0.9877775311470032,
+      "raw_mask_area_pixels": 26587,
+      "cleaned_mask_area_pixels": 26585,
+      "connected_component_decisions": [
+        {
+          "label": 1,
+          "area_pixels": 26585,
+          "bbox": {
+            "x": 596,
+            "y": 467,
+            "width": 208,
+            "height": 130
+          },
+          "gap_from_primary_pixels": 0.0,
+          "kept": true,
+          "reason": "primary_component"
+        }
+      ],
+      "principal_axis_angle_degrees": -0.404530416873194,
+      "maximum_occupied_envelope": {
+        "length_mm": 87.63000000000001,
+        "width_mm": 54.61000000000001,
+        "angle_degrees": 0.0,
+        "box": [
+          [
+            803.0,
+            596.0
+          ],
+          [
+            596.0,
+            596.0
+          ],
+          [
+            596.0,
+            467.0
+          ],
+          [
+            803.0,
+            467.0
+          ]
+        ],
+        "errors_against_caliper": {
+          "length": {
+            "signed_mm": 2.180000000000007,
+            "absolute_mm": 2.180000000000007,
+            "signed_percent": 2.5511995318900023,
+            "absolute_percent": 2.5511995318900023
+          },
+          "width": {
+            "signed_mm": 0.9400000000000048,
+            "absolute_mm": 0.9400000000000048,
+            "signed_percent": 1.7514440096888482,
+            "absolute_percent": 1.7514440096888482
+          }
+        }
+      },
+      "robust_board_body": {
+        "length_mm": 86.78415918052318,
+        "width_mm": 54.61162774930311,
+        "angle_degrees": -0.404530416873194,
+        "trim_percentile": 1.0,
+        "box": [
+          [
+            596.5533344214157,
+            467.73744620655344
+          ],
+          [
+            801.5501756840195,
+            466.2900649799043
+          ],
+          [
+            802.4609852776997,
+            595.2906947092158
+          ],
+          [
+            597.4641440150959,
+            596.7380759358649
+          ]
+        ],
+        "errors_against_caliper": {
+          "length": {
+            "signed_mm": 1.334159180523173,
+            "absolute_mm": 1.334159180523173,
+            "signed_percent": 1.5613331545034206,
+            "absolute_percent": 1.5613331545034206
+          },
+          "width": {
+            "signed_mm": 0.9416277493031089,
+            "absolute_mm": 0.9416277493031089,
+            "signed_percent": 1.7544768945465044,
+            "absolute_percent": 1.7544768945465044
+          }
+        }
+      },
+      "timings_seconds": {
+        "dino": 5.316842550993897,
+        "sam2": 2.6081901739817113,
+        "measurement": 0.012181152997072786
+      },
+      "calibration": {
+        "profile_id": "logitech_c920_overhead_scan_mat",
+        "logical_camera_id": "logitech_c920",
+        "camera_role": "workbench",
+        "pixels_per_mm_x": 2.3622047244094486,
+        "pixels_per_mm_y": 2.362204724409449,
+        "mm_per_pixel_x": 0.4233333333333334,
+        "mm_per_pixel_y": 0.4233333333333333,
+        "confidence": 0.9404,
+        "geometry_version": "scan_mat_geometry_v1",
+        "homography_version": "opencv_perspective_outer_boundary_v1",
+        "timestamp": "2026-07-26T13:01:35.741940+00:00"
+      },
+      "capture_provenance": {
+        "stable_camera_identity": {
+          "bus_info": "usb-a80aa10000.usb-2.3",
+          "by_id_prefix": "usb-046d_HD_Pro_Webcam_C920_963B013F",
+          "by_path_prefix": "platform-a80aa10000.usb-usb-0:2.3:1.0",
+          "card_name": "HD Pro Webcam C920"
+        },
+        "requested_mode": {
+          "fps": 30,
+          "height": 1080,
+          "pixel_format": "MJPG",
+          "width": 1920
+        },
+        "negotiated_mode": {
+          "fps": 30.0,
+          "frame_height": 1080,
+          "frame_width": 1920,
+          "height": 1080,
+          "pixel_format": "MJPG",
+          "width": 1920
+        },
+        "source_image_dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "rectified_output_dimensions": {
+          "width": 1440,
+          "height": 1080
+        },
+        "corners": [
+          [
+            306.0,
+            11.0
+          ],
+          [
+            1598.0,
+            12.0
+          ],
+          [
+            1765.0,
+            1047.0
+          ],
+          [
+            129.0,
+            1036.0
+          ]
+        ],
+        "homography": [
+          [
+            1.127118527674,
+            0.194634126242,
+            -347.03924485689
+          ],
+          [
+            -0.001035306332,
+            1.33761578141,
+            -14.396969857812
+          ],
+          [
+            5.622675e-06,
+            0.000260731193,
+            1.0
+          ]
+        ]
+      },
+      "artifacts": {
+        "raw_mask": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130134_mat_rectified_sam2_raw_mask.png",
+        "cleaned_mask": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130134_mat_rectified_sam2_cleaned_mask.png",
+        "diagnostic_overlay": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130134_mat_rectified_grounded_sam_diagnostic.png",
+        "sample_json": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/plain_rectangle/rotation_000/snapshot_20260726_130134_mat_rectified_grounded_sam.json"
+      }
+    }
+  ],
+  "aggregate": {
+    "maximum_occupied_envelope": {
+      "length": {
+        "individual_mm": [
+          87.62998708089194,
+          87.2066537475586,
+          87.63000000000001
+        ],
+        "mean_mm": 87.48888027615018,
+        "minimum_mm": 87.2066537475586,
+        "maximum_mm": 87.63000000000001,
+        "range_mm": 0.4233462524414051,
+        "sample_standard_deviation_mm": 0.24441534346756114,
+        "error_against_caliper": {
+          "signed_mm": 2.0388802761501807,
+          "absolute_mm": 2.0388802761501807,
+          "signed_percent": 2.386050644997286,
+          "absolute_percent": 2.386050644997286
+        }
+      },
+      "width": {
+        "individual_mm": [
+          54.60998708089193,
+          54.60998708089193,
+          54.61000000000001
+        ],
+        "mean_mm": 54.60999138726129,
+        "minimum_mm": 54.60998708089193,
+        "maximum_mm": 54.61000000000001,
+        "range_mm": 1.2919108073106145e-05,
+        "sample_standard_deviation_mm": 7.4588505236977e-06,
+        "error_against_caliper": {
+          "signed_mm": 0.9399913872612871,
+          "absolute_mm": 0.9399913872612871,
+          "signed_percent": 1.7514279621041309,
+          "absolute_percent": 1.7514279621041309
+        }
+      }
+    },
+    "robust_board_body": {
+      "length": {
+        "individual_mm": [
+          86.78417892609471,
+          86.78743510676549,
+          86.78415918052318
+        ],
+        "mean_mm": 86.78525773779445,
+        "minimum_mm": 86.78415918052318,
+        "maximum_mm": 86.78743510676549,
+        "range_mm": 0.003275926242309879,
+        "sample_standard_deviation_mm": 0.001885682687754253,
+        "error_against_caliper": {
+          "signed_mm": 1.33525773779445,
+          "absolute_mm": 1.33525773779445,
+          "signed_percent": 1.5626187686301345,
+          "absolute_percent": 1.5626187686301345
+        }
+      },
+      "width": {
+        "individual_mm": [
+          54.611623402121204,
+          54.18828525038529,
+          54.61162774930311
+        ],
+        "mean_mm": 54.47051213393654,
+        "minimum_mm": 54.18828525038529,
+        "maximum_mm": 54.61162774930311,
+        "range_mm": 0.42334249891781894,
+        "sample_standard_deviation_mm": 0.24441565079595443,
+        "error_against_caliper": {
+          "signed_mm": 0.800512133936536,
+          "absolute_mm": 0.800512133936536,
+          "signed_percent": 1.4915448741131656,
+          "absolute_percent": 1.4915448741131656
+        }
+      }
+    }
+  }
+}

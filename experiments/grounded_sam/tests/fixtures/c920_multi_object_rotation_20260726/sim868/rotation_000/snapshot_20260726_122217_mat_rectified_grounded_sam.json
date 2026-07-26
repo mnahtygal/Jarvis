@@ -1,0 +1,201 @@
+{
+  "sample": "snapshot_20260726_122217_mat_rectified",
+  "source_image_path": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/sim868/rotation_000/snapshot_20260726_122217.jpg",
+  "rectified_image_path": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/sim868/rotation_000/snapshot_20260726_122217_mat_rectified.jpg",
+  "provenance_sidecar_path": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/sim868/rotation_000/snapshot_20260726_122217_mat_rectified.metadata.json",
+  "prompt_set": [
+    "a SIM868 cellular GPS development board"
+  ],
+  "prompt_selection_rule": "highest-confidence accepted DINO candidate; caliper dimensions are not used for prompt or box selection",
+  "selected_prompt": "a SIM868 cellular GPS development board",
+  "dino_confidence": 0.31903764605522156,
+  "dino_box": [
+    636.1659545898438,
+    480.4291687011719,
+    798.9990234375,
+    565.4769287109375
+  ],
+  "sam2_confidence": 0.9758414030075073,
+  "raw_mask_area_pixels": 12131,
+  "cleaned_mask_area_pixels": 12131,
+  "connected_component_decisions": [
+    {
+      "label": 1,
+      "area_pixels": 12131,
+      "bbox": {
+        "x": 638,
+        "y": 483,
+        "width": 160,
+        "height": 81
+      },
+      "gap_from_primary_pixels": 0.0,
+      "kept": true,
+      "reason": "primary_component"
+    }
+  ],
+  "principal_axis_angle_degrees": -1.60401977575726,
+  "maximum_occupied_envelope": {
+    "length_mm": 67.33800862630208,
+    "width_mm": 33.480437011718756,
+    "angle_degrees": -0.5208563804626465,
+    "box": [
+      [
+        638.54736328125,
+        563.2041625976562
+      ],
+      [
+        637.828369140625,
+        484.1197814941406
+      ],
+      [
+        796.887939453125,
+        482.67376708984375
+      ],
+      [
+        797.60693359375,
+        561.7581787109375
+      ]
+    ],
+    "errors_against_caliper": {
+      "length": {
+        "signed_mm": 2.0980086263020894,
+        "absolute_mm": 2.0980086263020894,
+        "signed_percent": 3.2158317386604685,
+        "absolute_percent": 3.2158317386604685
+      },
+      "width": {
+        "signed_mm": 0.9204370117187537,
+        "absolute_mm": 0.9204370117187537,
+        "signed_percent": 2.826894999136221,
+        "absolute_percent": 2.826894999136221
+      }
+    }
+  },
+  "robust_board_body": {
+    "length_mm": 66.91970661583086,
+    "width_mm": 31.761258576506485,
+    "angle_degrees": -1.60401977575726,
+    "trim_percentile": 1.0,
+    "box": [
+      [
+        637.758513565417,
+        488.0209350533561
+      ],
+      [
+        795.7746183828394,
+        483.5960507757636
+      ],
+      [
+        797.8747455474509,
+        558.5932469405661
+      ],
+      [
+        639.8586407300285,
+        563.0181312181587
+      ]
+    ],
+    "errors_against_caliper": {
+      "length": {
+        "signed_mm": 1.6797066158308667,
+        "absolute_mm": 1.6797066158308667,
+        "signed_percent": 2.5746575963072758,
+        "absolute_percent": 2.5746575963072758
+      },
+      "width": {
+        "signed_mm": -0.7987414234935173,
+        "absolute_mm": 0.7987414234935173,
+        "signed_percent": -2.453137050041515,
+        "absolute_percent": 2.453137050041515
+      }
+    }
+  },
+  "timings_seconds": {
+    "dino": 0.7579624720383435,
+    "sam2": 0.2837947949883528,
+    "measurement": 0.01583843497792259
+  },
+  "calibration": {
+    "profile_id": "logitech_c920_overhead_scan_mat",
+    "logical_camera_id": "logitech_c920",
+    "camera_role": "workbench",
+    "pixels_per_mm_x": 2.3622047244094486,
+    "pixels_per_mm_y": 2.362204724409449,
+    "mm_per_pixel_x": 0.4233333333333334,
+    "mm_per_pixel_y": 0.4233333333333333,
+    "confidence": 0.9404,
+    "geometry_version": "scan_mat_geometry_v1",
+    "homography_version": "opencv_perspective_outer_boundary_v1",
+    "timestamp": "2026-07-26T12:22:18.714921+00:00"
+  },
+  "capture_provenance": {
+    "stable_camera_identity": {
+      "bus_info": "usb-a80aa10000.usb-2.3",
+      "by_id_prefix": "usb-046d_HD_Pro_Webcam_C920_963B013F",
+      "by_path_prefix": "platform-a80aa10000.usb-usb-0:2.3:1.0",
+      "card_name": "HD Pro Webcam C920"
+    },
+    "requested_mode": {
+      "fps": 30,
+      "height": 1080,
+      "pixel_format": "MJPG",
+      "width": 1920
+    },
+    "negotiated_mode": {
+      "fps": 30.0,
+      "frame_height": 1080,
+      "frame_width": 1920,
+      "height": 1080,
+      "pixel_format": "MJPG",
+      "width": 1920
+    },
+    "source_image_dimensions": {
+      "width": 1920,
+      "height": 1080
+    },
+    "rectified_output_dimensions": {
+      "width": 1440,
+      "height": 1080
+    },
+    "corners": [
+      [
+        306.0,
+        11.0
+      ],
+      [
+        1598.0,
+        12.0
+      ],
+      [
+        1765.0,
+        1047.0
+      ],
+      [
+        129.0,
+        1036.0
+      ]
+    ],
+    "homography": [
+      [
+        1.127118527674,
+        0.194634126242,
+        -347.03924485689
+      ],
+      [
+        -0.001035306332,
+        1.33761578141,
+        -14.396969857812
+      ],
+      [
+        5.622675e-06,
+        0.000260731193,
+        1.0
+      ]
+    ]
+  },
+  "artifacts": {
+    "raw_mask": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/sim868/rotation_000/snapshot_20260726_122217_mat_rectified_sam2_raw_mask.png",
+    "cleaned_mask": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/sim868/rotation_000/snapshot_20260726_122217_mat_rectified_sam2_cleaned_mask.png",
+    "diagnostic_overlay": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/sim868/rotation_000/snapshot_20260726_122217_mat_rectified_grounded_sam_diagnostic.png",
+    "sample_json": "experiments/grounded_sam/tests/fixtures/c920_multi_object_rotation_20260726/sim868/rotation_000/snapshot_20260726_122217_mat_rectified_grounded_sam.json"
+  }
+}

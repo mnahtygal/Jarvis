@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-07-26T12:43:17.454879+00:00",
+  "calibration_profile_id": "logitech_c920_overhead_scan_mat",
+  "calibration_status": "calibrated",
+  "calibration_confidence": 0.9404,
+  "logical_camera_id": "logitech_c920",
+  "camera_role": "workbench",
+  "stable_camera_identity": {
+    "bus_info": "usb-a80aa10000.usb-2.3",
+    "by_id_prefix": "usb-046d_HD_Pro_Webcam_C920_963B013F",
+    "by_path_prefix": "platform-a80aa10000.usb-usb-0:2.3:1.0",
+    "card_name": "HD Pro Webcam C920"
+  },
+  "runtime_device": "/dev/video2",
+  "backend": "opencv_v4l2",
+  "requested_mode": {
+    "fps": 30,
+    "height": 1080,
+    "pixel_format": "MJPG",
+    "width": 1920
+  },
+  "negotiated_mode": {
+    "fps": 30.0,
+    "frame_height": 1080,
+    "frame_width": 1920,
+    "height": 1080,
+    "pixel_format": "MJPG",
+    "width": 1920
+  },
+  "mode_status": "requested",
+  "mode_mismatches": [],
+  "source_image_dimensions": {
+    "width": 1920,
+    "height": 1080
+  },
+  "rectified_output_dimensions": {
+    "width": 1440,
+    "height": 1080
+  },
+  "physical_mat": {
+    "width_inches": 24.0,
+    "height_inches": 18.0,
+    "width_mm": 609.5999999999999,
+    "height_mm": 457.2,
+    "boundary": "physical_outer_boundary"
+  },
+  "corners": [
+    [
+      306.0,
+      11.0
+    ],
+    [
+      1598.0,
+      12.0
+    ],
+    [
+      1765.0,
+      1047.0
+    ],
+    [
+      129.0,
+      1036.0
+    ]
+  ],
+  "detected_mat_confidence": 0.9404,
+  "homography": [
+    [
+      1.127118527674,
+      0.194634126242,
+      -347.03924485689
+    ],
+    [
+      -0.001035306332,
+      1.33761578141,
+      -14.396969857812
+    ],
+    [
+      5.622675e-06,
+      0.000260731193,
+      1.0
+    ]
+  ],
+  "homography_version": "opencv_perspective_outer_boundary_v1",
+  "geometry_version": "scan_mat_geometry_v1",
+  "rectification_source": "frozen_calibrated_homography",
+  "reference_provenance_path": "/home/mnahtygal/jarvis-grounded-sam/experiments/grounded_sam/tests/fixtures/c920_sim868_20260726/snapshot_20260726_105242_mat_rectified.metadata.json"
+}

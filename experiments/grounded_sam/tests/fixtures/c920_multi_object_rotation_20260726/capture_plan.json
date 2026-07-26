@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "status": "completed",
+  "created_date": "2026-07-26",
+  "calibration_contract": {
+    "profile_id": "logitech_c920_overhead_scan_mat",
+    "logical_camera_id": "logitech_c920",
+    "camera_role": "workbench",
+    "stable_camera_discovery_required": true,
+    "runtime_device_is_identity": false,
+    "requested_mode": {
+      "pixel_format": "MJPG",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30
+    },
+    "rectified_dimensions": {
+      "width": 1440,
+      "height": 1080
+    },
+    "physical_mat_mm": {
+      "width": 609.6,
+      "height": 457.2
+    },
+    "pixels_per_mm": 2.3622047244094486,
+    "mm_per_pixel": 0.42333333333333334,
+    "geometry_version": "scan_mat_geometry_v1",
+    "homography_version": "opencv_perspective_outer_boundary_v1"
+  },
+  "acceptance_targets": {
+    "maximum_mean_dimension_error_percent": 2.0,
+    "maximum_dimension_range_mm": 1.5,
+    "maximum_orientation_drift_percent": 2.0,
+    "long_short_axis_assignment_through_90_degrees": true
+  },
+  "groups": [
+    {
+      "object_id": "sim868",
+      "object_name": "SIM868 cellular GPS development board",
+      "caliper_length_mm": 65.24,
+      "caliper_width_mm": 32.56,
+      "prompt": "a SIM868 cellular GPS development board",
+      "rotation_degrees": 0,
+      "capture_count": 3,
+      "status": "completed",
+      "artifact_directory": "sim868/rotation_000",
+      "rectification_source": "frozen_calibrated_homography",
+      "robust_body_summary": {
+        "mean_length_mm": 66.77888690190005,
+        "mean_width_mm": 32.051804950297395,
+        "length_range_mm": 0.4228980886410625,
+        "width_range_mm": 0.43625100236794623,
+        "length_absolute_error_percent": 2.358808862507751,
+        "width_absolute_error_percent": 1.560795607194739
+      }
+    },
+    {
+      "object_id": "sim868",
+      "object_name": "SIM868 cellular GPS development board",
+      "caliper_length_mm": 65.24,
+      "caliper_width_mm": 32.56,
+      "prompt": "a SIM868 cellular GPS development board",
+      "rotation_degrees": 30,
+      "capture_count": 3,
+      "status": "completed",
+      "artifact_directory": "sim868/rotation_030",
+      "rectification_source": "frozen_calibrated_homography",
+      "robust_body_summary": {
+        "mean_length_mm": 66.55567107131368,
+        "mean_width_mm": 32.711166704976364,
+        "length_range_mm": 0.17624361503528974,
+        "width_range_mm": 0.3847751070537555,
+        "length_absolute_error_percent": 2.0166631994385154,
+        "width_absolute_error_percent": 0.46427120692985757,
+        "mean_principal_axis_angle_degrees": 24.570339014498117,
+        "principal_axis_angle_range_degrees": 0.13029040845700757
+      }
+    },
+    {
+      "object_id": "sim868",
+      "object_name": "SIM868 cellular GPS development board",
+      "caliper_length_mm": 65.24,
+      "caliper_width_mm": 32.56,
+      "prompt": "a SIM868 cellular GPS development board",
+      "rotation_degrees": 60,
+      "capture_count": 3,
+      "status": "completed",
+      "artifact_directory": "sim868/rotation_060",
+      "rectification_source": "frozen_calibrated_homography",
+      "robust_body_summary": {
+        "mean_length_mm": 66.64166497586339,
+        "mean_width_mm": 32.816396785794595,
+        "length_range_mm": 0.6407868011143023,
+        "width_range_mm": 0.31896011538891145,
+        "length_absolute_error_percent": 2.148474825051192,
+        "width_absolute_error_percent": 0.7874594158310583,
+        "mean_principal_axis_angle_degrees": 49.21475530067546,
+        "principal_axis_angle_range_degrees": 1.050154829963976
+      }
+    },
+    {
+      "object_id": "sim868",
+      "object_name": "SIM868 cellular GPS development board",
+      "caliper_length_mm": 65.24,
+      "caliper_width_mm": 32.56,
+      "prompt": "a SIM868 cellular GPS development board",
+      "rotation_degrees": 90,
+      "capture_count": 3,
+      "status": "completed",
+      "artifact_directory": "sim868/rotation_090",
+      "rectification_source": "frozen_calibrated_homography",
+      "robust_body_summary": {
+        "mean_length_mm": 65.79774398044546,
+        "mean_width_mm": 31.75270347146294,
+        "length_range_mm": 0.4227518679299038,
+        "width_range_mm": 0.00028703881306313406,
+        "length_absolute_error_percent": 0.8549110675129761,
+        "width_absolute_error_percent": 2.4794119426813945,
+        "mean_principal_axis_angle_degrees": 89.10444125983555,
+        "principal_axis_angle_range_degrees": 0.1976363545092772
+      }
+    },
+    {
+      "object_id": "plain_rectangle",
+      "object_name": "Golden Corral gift card",
+      "caliper_length_mm": 85.45,
+      "caliper_width_mm": 53.67,
+      "prompt": "a Golden Corral gift card",
+      "rotation_degrees": 0,
+      "capture_count": 3,
+      "status": "completed",
+      "artifact_directory": "plain_rectangle/rotation_000",
+      "rectification_source": "frozen_calibrated_homography",
+      "robust_body_summary": {
+        "mean_length_mm": 86.78525773779445,
+        "mean_width_mm": 54.47051213393654,
+        "length_range_mm": 0.003275926242309879,
+        "width_range_mm": 0.42334249891781894,
+        "length_absolute_error_percent": 1.5626187686301345,
+        "width_absolute_error_percent": 1.4915448741131656,
+        "mean_principal_axis_angle_degrees": -0.4385688820815752,
+        "principal_axis_angle_range_degrees": 0.11436204948135166
+      }
+    },
+    {
+      "object_id": "irregular_object",
+      "object_name": "Raspberry Pi NVMe HAT",
+      "caliper_length_mm": 87.48,
+      "caliper_width_mm": 55.81,
+      "overall_envelope_length_mm": 87.48,
+      "overall_envelope_width_mm": 55.81,
+      "maximum_height_mm": 16.39,
+      "prompt": "a Raspberry Pi NVMe HAT",
+      "rotation_degrees": 0,
+      "capture_count": 3,
+      "status": "completed",
+      "artifact_directory": "irregular_object/rotation_000",
+      "rectification_source": "frozen_calibrated_homography",
+      "robust_body_summary": {
+        "mean_length_mm": 89.81676429309562,
+        "mean_width_mm": 58.23745225763345,
+        "length_range_mm": 0.03195589016125666,
+        "width_range_mm": 0.40381955980711837,
+        "length_absolute_error_percent": 2.6711983231545635,
+        "width_absolute_error_percent": 4.349493384041296,
+        "mean_principal_axis_angle_degrees": -2.2908783282144937,
+        "principal_axis_angle_range_degrees": 0.5657643630722613
+      }
+    }
+  ],
+  "validation_summary": {
+    "sample_count": 18,
+    "artifact_file_count": 152,
+    "all_group_dimension_ranges_pass": true,
+    "correct_long_short_axis_assignment_through_90_degrees": true,
+    "sim868_orientation_drift": {
+      "length_mm": 0.981142921454591,
+      "length_percent_of_caliper": 1.503897794994775,
+      "width_mm": 1.0636933143316547,
+      "width_percent_of_caliper": 3.2668713585124527
+    },
+    "all_mean_dimension_errors_within_2_percent": false,
+    "orientation_drift_within_2_percent": false,
+    "overall_acceptance_passed": false,
+    "recommendation": "refine_further"
+  },
+  "production_default_changed": false,
+  "live_integration_performed": false
+}
