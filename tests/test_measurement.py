@@ -8,7 +8,12 @@ import cv2
 import numpy as np
 
 import api
-from core.measurement import measure_object_bbox_from_image, rotated_box_physical_dimensions
+from core.calibration import apply_calibration_to_active_profile
+from core.measurement import (
+    _measurement_scale,
+    measure_object_bbox_from_image,
+    rotated_box_physical_dimensions,
+)
 
 
 CALIBRATION = {
@@ -77,6 +82,56 @@ class MeasurementEngineTests(unittest.TestCase):
         dimensions = result["measurement"]["dimensions_mm"]
         self.assertAlmostEqual(dimensions["long_side"], 120, delta=4)
         self.assertAlmostEqual(dimensions["short_side"], 100, delta=4)
+
+    def test_rectified_mat_dimensions_override_raw_frame_pixel_scale(self) -> None:
+        calibration = {
+            **CALIBRATION,
+            "mm_per_pixel_x": 0.9,
+            "mm_per_pixel_y": 1.2,
+            "known_width_mm": 250.0,
+            "known_height_mm": 200.0,
+        }
+        path = self._write("scaled_mat_rectified.jpg", self._rectangle(235, 25))
+
+        result = measure_object_bbox_from_image(str(path), calibration)
+
+        self.assertTrue(result["ok"], result)
+        dimensions = result["measurement"]["dimensions_mm"]
+        self.assertAlmostEqual(dimensions["long_side"], 100, delta=3)
+        self.assertAlmostEqual(dimensions["short_side"], 60, delta=3)
+        self.assertEqual(
+            result["diagnostics"]["calibration_source"],
+            "rectified_mat_dimensions",
+        )
+        self.assertAlmostEqual(result["measurement"]["mm_per_pixel_x"], 0.5)
+
+    def test_canonical_rectified_size_uses_mat_geometry_scale(self) -> None:
+        scale = _measurement_scale(CALIBRATION, 1440, 1080)
+
+        self.assertEqual(scale["source"], "canonical_rectified_mat_geometry")
+        self.assertAlmostEqual(scale["mm_per_pixel_x"], 25.4 / 60.0, places=8)
+        self.assertAlmostEqual(scale["mm_per_pixel_y"], 25.4 / 60.0, places=8)
+
+    def test_future_calibration_save_preserves_known_mat_dimensions(self) -> None:
+        calibration = {
+            "known_width_mm": 609.6,
+            "known_height_mm": 457.2,
+            "pixel_to_mm_x": 0.4,
+            "pixel_to_mm_y": 0.4,
+            "mm_per_pixel_x": 0.4,
+            "mm_per_pixel_y": 0.4,
+            "pixels_per_mm_x": 2.5,
+            "pixels_per_mm_y": 2.5,
+            "confidence": 0.95,
+        }
+        with patch(
+            "core.calibration.update_active_camera_profile",
+            side_effect=lambda updates: updates,
+        ):
+            updated = apply_calibration_to_active_profile(calibration)
+
+        self.assertEqual(updated["calibration"]["known_width_mm"], 609.6)
+        self.assertEqual(updated["calibration"]["known_height_mm"], 457.2)
 
     def test_small_noise_is_ignored(self) -> None:
         image = self._rectangle(235, 25)

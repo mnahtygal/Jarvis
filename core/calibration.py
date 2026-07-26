@@ -7,6 +7,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from core.scan_mat_geometry import (
+    MAT_HEIGHT_INCHES,
+    MAT_HEIGHT_MM,
+    MAT_WIDTH_INCHES,
+    MAT_WIDTH_MM,
+    RECTIFIED_HEIGHT_PX,
+    RECTIFIED_WIDTH_PX,
+    SCAN_MAT_GEOMETRY_VERSION,
+    SCAN_MAT_HOMOGRAPHY_VERSION,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CAMERA_PROFILES_PATH = PROJECT_ROOT / "config" / "camera_profiles.json"
 
@@ -52,6 +63,169 @@ def get_active_camera_profile() -> dict:
             return deepcopy(profile)
 
     raise ValueError(f"Active camera profile not found: {active_profile_id}")
+
+
+def get_camera_profile(
+    *,
+    profile_id: str | None = None,
+    logical_camera_id: str | None = None,
+    role: str | None = None,
+) -> dict:
+    """Select one calibration profile without relying on a device node number."""
+    data = load_camera_profiles()
+    profiles = data.get("profiles", [])
+    if not isinstance(profiles, list):
+        raise ValueError("Camera profiles file must define profiles as a list.")
+
+    matches = []
+    for profile in profiles:
+        if not isinstance(profile, dict):
+            continue
+        camera = profile.get("camera") or {}
+        if profile_id and profile.get("id") != profile_id:
+            continue
+        if logical_camera_id and camera.get("logical_camera_id") != logical_camera_id:
+            continue
+        if role and camera.get("role") != role:
+            continue
+        matches.append(profile)
+
+    if len(matches) != 1:
+        criteria = {
+            "profile_id": profile_id,
+            "logical_camera_id": logical_camera_id,
+            "role": role,
+        }
+        raise ValueError(
+            f"Expected exactly one camera calibration profile for {criteria}; "
+            f"found {len(matches)}."
+        )
+    return deepcopy(matches[0])
+
+
+def rectified_metadata_path(image_path: Path) -> Path:
+    return image_path.with_suffix(".metadata.json")
+
+
+def build_scan_mat_provenance(
+    *,
+    capture: dict,
+    corners: list[list[float]],
+    source_width: int,
+    source_height: int,
+    rectified_width: int,
+    rectified_height: int,
+    homography: list[list[float]],
+    detected_confidence: float | None,
+) -> dict:
+    camera = capture.get("camera") or {}
+    logical_camera_id = camera.get("id")
+    role = camera.get("role") or capture.get("role")
+    profile = get_camera_profile(logical_camera_id=logical_camera_id, role=role)
+    calibration = profile.get("calibration") or {}
+    stable_identity = camera.get("stable_identity") or {}
+    return {
+        "schema_version": 1,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "calibration_profile_id": profile.get("id"),
+        "calibration_status": calibration.get("status"),
+        "calibration_confidence": calibration.get("confidence"),
+        "logical_camera_id": logical_camera_id,
+        "camera_role": role,
+        "stable_camera_identity": stable_identity,
+        "runtime_device": capture.get("device"),
+        "backend": capture.get("backend"),
+        "requested_mode": capture.get("requested_mode"),
+        "negotiated_mode": capture.get("negotiated_mode"),
+        "mode_status": capture.get("mode_status"),
+        "mode_mismatches": capture.get("mode_mismatches") or [],
+        "source_image_dimensions": {
+            "width": int(source_width),
+            "height": int(source_height),
+        },
+        "rectified_output_dimensions": {
+            "width": int(rectified_width),
+            "height": int(rectified_height),
+        },
+        "physical_mat": {
+            "width_inches": MAT_WIDTH_INCHES,
+            "height_inches": MAT_HEIGHT_INCHES,
+            "width_mm": MAT_WIDTH_MM,
+            "height_mm": MAT_HEIGHT_MM,
+            "boundary": "physical_outer_boundary",
+        },
+        "corners": corners,
+        "detected_mat_confidence": detected_confidence,
+        "homography": homography,
+        "homography_version": SCAN_MAT_HOMOGRAPHY_VERSION,
+        "geometry_version": SCAN_MAT_GEOMETRY_VERSION,
+    }
+
+
+def validate_rectified_provenance(
+    metadata: dict,
+    *,
+    active_camera: dict,
+) -> tuple[dict | None, list[str]]:
+    """Validate artifact/profile/runtime geometry; device numbers are ignored."""
+    mismatches: list[str] = []
+    profile_id = metadata.get("calibration_profile_id")
+    try:
+        profile = get_camera_profile(profile_id=profile_id)
+    except ValueError as exc:
+        return None, [str(exc)]
+
+    camera = profile.get("camera") or {}
+    calibration = profile.get("calibration") or {}
+    scan_mat = profile.get("scan_mat") or {}
+    expected_camera_id = camera.get("logical_camera_id")
+    expected_role = camera.get("role")
+
+    _match_value(mismatches, "artifact logical camera", expected_camera_id, metadata.get("logical_camera_id"))
+    _match_value(mismatches, "active logical camera", expected_camera_id, active_camera.get("id"))
+    _match_value(mismatches, "artifact camera role", expected_role, metadata.get("camera_role"))
+    _match_value(mismatches, "active camera role", expected_role, active_camera.get("role"))
+    _match_mapping(
+        mismatches,
+        "stable camera identity",
+        camera.get("stable_identity") or {},
+        metadata.get("stable_camera_identity") or {},
+    )
+    _match_mapping(
+        mismatches,
+        "active stable camera identity",
+        camera.get("stable_identity") or {},
+        active_camera.get("stable_identity") or {},
+    )
+    _match_mapping(mismatches, "requested capture mode", camera.get("requested_mode") or {}, metadata.get("requested_mode") or {})
+    _match_mapping(mismatches, "negotiated capture mode", camera.get("negotiated_mode") or {}, metadata.get("negotiated_mode") or {})
+    _match_mapping(mismatches, "source image dimensions", camera.get("source_image_dimensions") or {}, metadata.get("source_image_dimensions") or {})
+    _match_mapping(mismatches, "rectified output dimensions", scan_mat.get("rectified_output_dimensions") or {}, metadata.get("rectified_output_dimensions") or {})
+    _match_value(mismatches, "geometry version", SCAN_MAT_GEOMETRY_VERSION, metadata.get("geometry_version"))
+    _match_value(mismatches, "homography version", SCAN_MAT_HOMOGRAPHY_VERSION, metadata.get("homography_version"))
+    if metadata.get("mode_status") != "requested" or metadata.get("mode_mismatches"):
+        mismatches.append("capture mode did not match the requested calibrated mode")
+    if calibration.get("status") != "calibrated":
+        mismatches.append("calibration profile is not calibrated")
+    if metadata.get("calibration_status") != "calibrated":
+        mismatches.append("artifact was not produced with a calibrated profile")
+    return profile, mismatches
+
+
+def _match_value(mismatches: list[str], label: str, expected: Any, actual: Any) -> None:
+    if expected != actual:
+        mismatches.append(f"{label} mismatch: expected={expected!r} actual={actual!r}")
+
+
+def _match_mapping(
+    mismatches: list[str], label: str, expected: dict, actual: dict
+) -> None:
+    for key, expected_value in expected.items():
+        if actual.get(key) != expected_value:
+            mismatches.append(
+                f"{label}.{key} mismatch: expected={expected_value!r} "
+                f"actual={actual.get(key)!r}"
+            )
 
 
 def update_active_camera_profile(updates: dict) -> dict:
@@ -157,6 +331,8 @@ def apply_calibration_to_active_profile(calibration: dict) -> dict:
     calibration_update = {
         "calibration": {
             "status": "calibrated",
+            "known_width_mm": calibration.get("known_width_mm"),
+            "known_height_mm": calibration.get("known_height_mm"),
             "pixel_to_mm_x": calibration["pixel_to_mm_x"],
             "pixel_to_mm_y": calibration["pixel_to_mm_y"],
             "mm_per_pixel_x": calibration["mm_per_pixel_x"],

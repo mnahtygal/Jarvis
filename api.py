@@ -342,7 +342,7 @@ def api_vision_capture_scan_mat():
             }), 503
         snapshot_path = latest_snapshot
 
-    mat_result = analyze_scan_mat(snapshot_path)
+    mat_result = analyze_scan_mat(snapshot_path, capture_metadata=capture_result)
     scan_metadata = _scan_mat_metadata(snapshot_path, mat_result)
     status_code = 200 if mat_result.get("ok") else 422
     return jsonify({

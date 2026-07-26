@@ -4,7 +4,18 @@ import math
 from pathlib import Path
 from typing import Any, Dict
 
-from core.calibration import get_active_camera_profile
+from core.calibration import (
+    get_active_camera_profile,
+    rectified_metadata_path,
+    validate_rectified_provenance,
+)
+from core.camera_roles import get_camera_roles_status
+from core.scan_mat_geometry import (
+    MAT_HEIGHT_MM,
+    MAT_WIDTH_MM,
+    RECTIFIED_HEIGHT_PX,
+    RECTIFIED_WIDTH_PX,
+)
 
 MEASUREMENT_METHOD = "rotated_contour_measurement_v1"
 MIN_AREA_PX = 150.0
@@ -22,13 +33,16 @@ MEASUREMENT_SUGGESTIONS = [
 ]
 
 
-def get_active_calibration() -> dict:
+def get_active_calibration(image_path: str | Path | None = None) -> dict:
+    if image_path is not None:
+        return _calibration_for_rectified_artifact(Path(image_path))
     try:
         profile = get_active_camera_profile()
     except Exception as exc:
         return _unready_calibration(str(exc))
 
     calibration = profile.get("calibration", {})
+    scan_mat = profile.get("scan_mat", {})
     mm_per_pixel_x = calibration.get("mm_per_pixel_x")
     mm_per_pixel_y = calibration.get("mm_per_pixel_y")
     pixels_per_mm_x = calibration.get("pixels_per_mm_x")
@@ -50,6 +64,12 @@ def get_active_calibration() -> dict:
         "pixels_per_mm_x": pixels_per_mm_x,
         "pixels_per_mm_y": pixels_per_mm_y,
         "confidence": confidence,
+        "known_width_mm": (
+            scan_mat.get("known_width_mm") or calibration.get("known_width_mm")
+        ),
+        "known_height_mm": (
+            scan_mat.get("known_height_mm") or calibration.get("known_height_mm")
+        ),
         "error": None if ready else "Active camera profile is not calibrated.",
     }
 
@@ -58,7 +78,7 @@ def measure_object_bbox_from_image(
     image_path: str,
     calibration: dict | None = None,
 ) -> Dict[str, Any]:
-    active_calibration = calibration or get_active_calibration()
+    active_calibration = calibration or get_active_calibration(image_path)
     if not active_calibration.get("ready"):
         return _failure_result(
             "Calibration is required before measurement.",
@@ -93,6 +113,16 @@ def measure_object_bbox_from_image(
         )
 
     image_height, image_width = image.shape[:2]
+    expected_rectified = active_calibration.get("rectified_output_dimensions")
+    if expected_rectified and (
+        int(expected_rectified.get("width", 0)) != image_width
+        or int(expected_rectified.get("height", 0)) != image_height
+    ):
+        return _failure_result(
+            "Rectified image geometry does not match its calibration profile.",
+            "calibration_geometry_mismatch",
+            calibration=active_calibration,
+        )
     image_area = float(image_width * image_height)
     masks = _candidate_masks(image, cv2, np)
     rejected = {
@@ -159,8 +189,9 @@ def measure_object_bbox_from_image(
     contour = selected["contour"]
     rect = cv2.minAreaRect(contour)
     box = cv2.boxPoints(rect).astype(float)
-    mm_x = float(active_calibration["mm_per_pixel_x"])
-    mm_y = float(active_calibration["mm_per_pixel_y"])
+    scale = _measurement_scale(active_calibration, image_width, image_height)
+    mm_x = scale["mm_per_pixel_x"]
+    mm_y = scale["mm_per_pixel_y"]
     edge_measurement = rotated_box_physical_dimensions(box, mm_x, mm_y)
     x, y, width, height = cv2.boundingRect(contour)
     center_x, center_y = float(rect[0][0]), float(rect[0][1])
@@ -195,6 +226,9 @@ def measure_object_bbox_from_image(
         "selected_extent": _round_float(selected["extent"]),
         "border_contact_ratio": _round_float(selected["border_contact_ratio"]),
         "selected_strategy": selected["strategy"],
+        "calibration_source": scale["source"],
+        "measurement_mm_per_pixel_x": _round_float(mm_x, 8),
+        "measurement_mm_per_pixel_y": _round_float(mm_y, 8),
         "failure_reason": None,
         "suggestions": [],
     })
@@ -235,6 +269,9 @@ def measure_object_bbox_from_image(
             "axis_aligned_bbox_area_mm2": _round_float(axis_area_mm2),
             "rotated_bbox_area_mm2": _round_float(rotated_area_mm2),
             "confidence": confidence,
+            "calibration_source": scale["source"],
+            "mm_per_pixel_x": _round_float(mm_x, 8),
+            "mm_per_pixel_y": _round_float(mm_y, 8),
             "method": MEASUREMENT_METHOD,
             "angle_convention": "clockwise degrees from image +X to the physical long side, normalized to [-90, 90)",
             "artifacts": {"mask_path": str(mask_path), "overlay_path": str(overlay_path)},
@@ -444,7 +481,50 @@ def _unready_calibration(error: str) -> dict:
         "ready": False, "profile_id": None, "profile_name": None,
         "mm_per_pixel_x": None, "mm_per_pixel_y": None,
         "pixels_per_mm_x": None, "pixels_per_mm_y": None,
-        "confidence": None, "error": error,
+        "confidence": None, "known_width_mm": None, "known_height_mm": None,
+        "error": error,
+    }
+
+
+def _calibration_for_rectified_artifact(path: Path) -> dict:
+    metadata_path = rectified_metadata_path(path)
+    if not metadata_path.is_file():
+        return _unready_calibration(
+            f"Calibration provenance metadata is missing: {metadata_path}"
+        )
+    try:
+        import json
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        camera_status = get_camera_roles_status()
+        active_camera = camera_status.get("active_camera") or {}
+        profile, mismatches = validate_rectified_provenance(
+            metadata, active_camera=active_camera
+        )
+    except Exception as exc:
+        return _unready_calibration(f"Calibration provenance validation failed: {exc}")
+    if profile is None or mismatches:
+        result = _unready_calibration("; ".join(mismatches))
+        result["validation_mismatches"] = mismatches
+        return result
+    calibration = profile.get("calibration") or {}
+    scan_mat = profile.get("scan_mat") or {}
+    return {
+        "ready": True,
+        "profile_id": profile.get("id"),
+        "profile_name": profile.get("name"),
+        "logical_camera_id": metadata.get("logical_camera_id"),
+        "camera_role": metadata.get("camera_role"),
+        "mm_per_pixel_x": calibration.get("mm_per_pixel_x"),
+        "mm_per_pixel_y": calibration.get("mm_per_pixel_y"),
+        "pixels_per_mm_x": calibration.get("pixels_per_mm_x"),
+        "pixels_per_mm_y": calibration.get("pixels_per_mm_y"),
+        "confidence": calibration.get("confidence"),
+        "known_width_mm": scan_mat.get("known_width_mm"),
+        "known_height_mm": scan_mat.get("known_height_mm"),
+        "rectified_output_dimensions": scan_mat.get("rectified_output_dimensions"),
+        "provenance_path": str(metadata_path),
+        "provenance": metadata,
+        "error": None,
     }
 
 
@@ -453,6 +533,28 @@ def _positive_number(value: Any) -> bool:
         return float(value) > 0
     except (TypeError, ValueError):
         return False
+
+
+def _measurement_scale(calibration: dict, image_width: int, image_height: int) -> dict:
+    known_width = calibration.get("known_width_mm")
+    known_height = calibration.get("known_height_mm")
+    if _positive_number(known_width) and _positive_number(known_height):
+        return {
+            "mm_per_pixel_x": float(known_width) / float(image_width),
+            "mm_per_pixel_y": float(known_height) / float(image_height),
+            "source": "rectified_mat_dimensions",
+        }
+    if image_width == RECTIFIED_WIDTH_PX and image_height == RECTIFIED_HEIGHT_PX:
+        return {
+            "mm_per_pixel_x": MAT_WIDTH_MM / float(RECTIFIED_WIDTH_PX),
+            "mm_per_pixel_y": MAT_HEIGHT_MM / float(RECTIFIED_HEIGHT_PX),
+            "source": "canonical_rectified_mat_geometry",
+        }
+    return {
+        "mm_per_pixel_x": float(calibration["mm_per_pixel_x"]),
+        "mm_per_pixel_y": float(calibration["mm_per_pixel_y"]),
+        "source": "profile_pixel_scale_fallback",
+    }
 
 
 def _round_float(value: float, digits: int = 4) -> float:

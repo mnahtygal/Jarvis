@@ -15,7 +15,8 @@
       "enabled": true,
       "preferred_resolution": {
         "width": 1920,
-        "height": 1080
+        "height": 1080,
+        "fps": 30
       },
       "preferred_pixel_format": "MJPG",
       "match_names": [
@@ -47,6 +48,96 @@
     }
   ],
   "profiles": [
+    {
+      "id": "logitech_c920_overhead_scan_mat",
+      "name": "Logitech C920 Overhead Scan Mat",
+      "status": "calibrated",
+      "camera": {
+        "logical_camera_id": "logitech_c920",
+        "role": "workbench",
+        "device_resolution": "runtime_stable_identity",
+        "device_note": "The capture node is discovered at runtime; /dev/video numbers are non-authoritative.",
+        "model": "Logitech HD Pro Webcam C920",
+        "mode": "fixed_overhead",
+        "stable_identity": {
+          "bus_info": "usb-a80aa10000.usb-2.3",
+          "by_id_prefix": "usb-046d_HD_Pro_Webcam_C920_963B013F",
+          "by_path_prefix": "platform-a80aa10000.usb-usb-0:2.3:1.0",
+          "card_name": "HD Pro Webcam C920"
+        },
+        "requested_mode": {
+          "pixel_format": "MJPG",
+          "width": 1920,
+          "height": 1080,
+          "fps": 30
+        },
+        "negotiated_mode": {
+          "pixel_format": "MJPG",
+          "width": 1920,
+          "height": 1080,
+          "fps": 30.0,
+          "frame_width": 1920,
+          "frame_height": 1080
+        },
+        "source_image_dimensions": {
+          "width": 1920,
+          "height": 1080
+        }
+      },
+      "scan_mat": {
+        "name": "Workbench Scan Mat",
+        "status": "fixed_outer_boundary",
+        "boundary": "physical_outer_boundary",
+        "known_width_inches": 24.0,
+        "known_height_inches": 18.0,
+        "known_width_mm": 609.6,
+        "known_height_mm": 457.2,
+        "rectified_output_dimensions": {
+          "width": 1440,
+          "height": 1080
+        },
+        "rectified_pixels_per_inch": 60
+      },
+      "mounting": {
+        "angle": "overhead",
+        "fixed_position": true,
+        "notes": "Camera and 24x18-inch mat are fixed in their final overhead positions."
+      },
+      "calibration": {
+        "status": "calibrated",
+        "source": "physical_scan_mat_outer_boundary_24x18_inches",
+        "confidence": 0.9404,
+        "last_calibrated_at": "2026-07-26T10:44:23.920334+00:00",
+        "geometry_version": "scan_mat_geometry_v1",
+        "homography_version": "opencv_perspective_outer_boundary_v1",
+        "pixel_to_mm_x": 0.42333333333333334,
+        "pixel_to_mm_y": 0.42333333333333334,
+        "mm_per_pixel_x": 0.42333333333333334,
+        "mm_per_pixel_y": 0.42333333333333334,
+        "pixels_per_mm_x": 2.3622047244094486,
+        "pixels_per_mm_y": 2.3622047244094486,
+        "known_width_mm": 609.6,
+        "known_height_mm": 457.2,
+        "reference_corners": [
+          [305.6667, 14.0],
+          [1597.0, 13.3333],
+          [1759.3333, 1050.0],
+          [130.6667, 1040.6667]
+        ],
+        "reference_corner_coordinate_ranges_px": [
+          [2.0, 3.0],
+          [3.0, 2.0],
+          [2.0, 3.0],
+          [1.0, 1.0]
+        ],
+        "reference_max_corner_displacement_px": 3.6056,
+        "reference_capture_timestamps": [
+          "2026-07-26T10:43:36.297844+00:00",
+          "2026-07-26T10:43:37.717964+00:00",
+          "2026-07-26T10:44:23.920334+00:00"
+        ]
+      }
+    },
     {
       "id": "thor_manual_overhead_scan_station",
       "name": "Thor Manual Overhead Scan Station",
@@ -96,5 +187,5 @@
       }
     }
   ],
-  "active_profile_id": "thor_manual_overhead_scan_station"
+  "active_profile_id": "logitech_c920_overhead_scan_mat"
 }

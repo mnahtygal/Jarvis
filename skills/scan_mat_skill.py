@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-MAT_WIDTH_INCHES = 24.0
-MAT_HEIGHT_INCHES = 18.0
+from core.calibration import (
+    build_scan_mat_provenance,
+    rectified_metadata_path,
+)
+
+from core.scan_mat_geometry import (
+    MAT_HEIGHT_INCHES,
+    MAT_WIDTH_INCHES,
+    RECTIFIED_HEIGHT_PX,
+    RECTIFIED_WIDTH_PX,
+)
+
 DETECTOR_EPSILON_RATIOS = [0.015, 0.02, 0.03, 0.04, 0.05]
 MIN_MAT_AREA_RATIO = 0.08
 MIN_RECTANGULARITY = 0.45
@@ -373,7 +384,11 @@ def _grid_estimate(image) -> Dict[str, Any]:
     }
 
 
-def analyze_scan_mat(image_path: Path, output_dir: Path | None = None) -> Dict[str, Any]:
+def analyze_scan_mat(
+    image_path: Path,
+    output_dir: Path | None = None,
+    capture_metadata: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
     try:
         import cv2
         import numpy as np
@@ -453,14 +468,33 @@ def analyze_scan_mat(image_path: Path, output_dir: Path | None = None) -> Dict[s
     cv2.putText(annotated, quality_label, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
     cv2.imwrite(str(annotated_path), annotated)
 
-    px_per_inch = 60
-    warped_width = int(MAT_WIDTH_INCHES * px_per_inch)
-    warped_height = int(MAT_HEIGHT_INCHES * px_per_inch)
+    warped_width = RECTIFIED_WIDTH_PX
+    warped_height = RECTIFIED_HEIGHT_PX
     dst = np.array([[0, 0], [warped_width - 1, 0], [warped_width - 1, warped_height - 1], [0, warped_height - 1]], dtype="float32")
     transform = cv2.getPerspectiveTransform(rect.astype("float32"), dst)
     warped = cv2.warpPerspective(image, transform, (warped_width, warped_height))
     rectified_path = output_dir / f"{image_path.stem}_mat_rectified.jpg"
     cv2.imwrite(str(rectified_path), warped)
+    provenance = None
+    metadata_path = rectified_metadata_path(rectified_path)
+    if capture_metadata:
+        try:
+            provenance = build_scan_mat_provenance(
+                capture=capture_metadata,
+                corners=rect.astype(float).round(3).tolist(),
+                source_width=width,
+                source_height=height,
+                rectified_width=warped_width,
+                rectified_height=warped_height,
+                homography=transform.astype(float).round(12).tolist(),
+                detected_confidence=diagnostics.get("mat_confidence"),
+            )
+            metadata_path.write_text(
+                json.dumps(provenance, indent=2) + "\n",
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            diagnostics["calibration_provenance_error"] = str(exc)
     diagnostics = {
         **diagnostics,
         "rectified_available": rectified_path.is_file(),
@@ -487,6 +521,8 @@ def analyze_scan_mat(image_path: Path, output_dir: Path | None = None) -> Dict[s
         "diagnostics": diagnostics,
         "annotated_path": str(annotated_path),
         "rectified_path": str(rectified_path),
+        "metadata_path": str(metadata_path) if provenance else None,
+        "calibration_provenance": provenance,
     }
 
 

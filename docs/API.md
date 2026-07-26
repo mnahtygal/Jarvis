@@ -104,6 +104,19 @@ mask/overlay artifact paths and browser-safe URLs. The method is
 `rotated_contour_measurement_v1`. Canonical units remain millimeters; inch
 conversion is display-only in Vision Lab.
 
+New calibration saves retain the submitted known mat width and height. Existing
+standard 1440×1080 rectified artifacts can use the centralized 24×18-inch
+rectification geometry when an older profile has null known-dimension fields.
+
+The fixed Logitech C920 `workbench` station uses the
+`logitech_c920_overhead_scan_mat` profile. Its 1440×1080 rectified output maps
+the physical 24×18-inch outer mat boundary at 60 pixels/inch, or
+0.4233333333 mm/pixel on both axes. New capture-and-scan artifacts include a
+`*.metadata.json` provenance sidecar. Production measurement fails closed when
+the logical camera, stable identity, requested/negotiated capture mode, source
+dimensions, rectified dimensions, geometry version, or profile do not match.
+Runtime `/dev/videoN` values are diagnostic only and are not calibration keys.
+
 Successful analysis returns `200`. Invalid input paths return `400`.
 Calibration/object-selection failures return `422`; unexpected processing or
 artifact-write failures return `500`.
