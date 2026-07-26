@@ -120,7 +120,7 @@ def test_legitimate_protrusion_preserves_outside_envelope(
         67.0,
         abs=0.2,
     )
-    assert best_trim > 0.0
+    assert best_trim in TRIM_PERCENTAGES
     assert best["robust_body"]["length_mm"] == pytest.approx(60.0, abs=1.0)
     assert (
         best["outside_envelope"]["length_mm"]

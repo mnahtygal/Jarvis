@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-07-26T10:53:05.596057+00:00",
+  "calibration_profile_id": "logitech_c920_overhead_scan_mat",
+  "calibration_status": "calibrated",
+  "calibration_confidence": 0.9404,
+  "logical_camera_id": "logitech_c920",
+  "camera_role": "workbench",
+  "stable_camera_identity": {
+    "by_id_prefix": "usb-046d_HD_Pro_Webcam_C920_963B013F",
+    "card_name": "HD Pro Webcam C920",
+    "bus_info": "usb-a80aa10000.usb-2.3",
+    "by_path_prefix": "platform-a80aa10000.usb-usb-0:2.3:1.0"
+  },
+  "runtime_device": "/dev/video2",
+  "backend": "opencv_v4l2",
+  "requested_mode": {
+    "pixel_format": "MJPG",
+    "width": 1920,
+    "height": 1080,
+    "fps": 30
+  },
+  "negotiated_mode": {
+    "pixel_format": "MJPG",
+    "width": 1920,
+    "height": 1080,
+    "fps": 30.0,
+    "frame_width": 1920,
+    "frame_height": 1080
+  },
+  "mode_status": "requested",
+  "mode_mismatches": [],
+  "source_image_dimensions": {
+    "width": 1920,
+    "height": 1080
+  },
+  "rectified_output_dimensions": {
+    "width": 1440,
+    "height": 1080
+  },
+  "physical_mat": {
+    "width_inches": 24.0,
+    "height_inches": 18.0,
+    "width_mm": 609.5999999999999,
+    "height_mm": 457.2,
+    "boundary": "physical_outer_boundary"
+  },
+  "corners": [
+    [
+      307.0,
+      10.0
+    ],
+    [
+      1598.0,
+      12.0
+    ],
+    [
+      1763.0,
+      1046.0
+    ],
+    [
+      132.0,
+      1036.0
+    ]
+  ],
+  "detected_mat_confidence": 0.9409,
+  "homography": [
+    [
+      1.125052570976,
+      0.191894931697,
+      -347.3100886067
+    ],
+    [
+      -0.002064105798,
+      1.332380292604,
+      -12.690122446058
+    ],
+    [
+      4.079459e-06,
+      0.000257462016,
+      1.0
+    ]
+  ],
+  "homography_version": "opencv_perspective_outer_boundary_v1",
+  "geometry_version": "scan_mat_geometry_v1"
+}

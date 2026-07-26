@@ -1,0 +1,27 @@
+{
+  "pixels_per_mm": 2.3622047244094486,
+  "trim_percentile": 1.0,
+  "samples": [
+    {
+      "stamp": "105242",
+      "outside_length_mm": 66.67173792521159,
+      "outside_width_mm": 39.831787058512376,
+      "robust_length_mm": 65.6171549011817,
+      "robust_width_mm": 33.44330592127139
+    },
+    {
+      "stamp": "105303",
+      "outside_length_mm": 67.32223439534506,
+      "outside_width_mm": 34.614243774414064,
+      "robust_length_mm": 66.0613731054472,
+      "robust_width_mm": 33.0306865527236
+    },
+    {
+      "stamp": "105304",
+      "outside_length_mm": 66.66215194702148,
+      "outside_width_mm": 34.75211972554525,
+      "robust_length_mm": 66.0612680355482,
+      "robust_width_mm": 32.607403078261164
+    }
+  ]
+}
