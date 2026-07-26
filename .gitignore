@@ -30,3 +30,4 @@ models/
 
 # MartyBench generated outputs
 benchmarks/results/
+.venv-grounded-sam/
