@@ -129,11 +129,16 @@ export default function VisionLabPage({
   const formatArea = (value?: number | null) =>
     value == null ? "unknown" : `${(value * areaUnitScale).toFixed(measurementUnit === "in" ? 3 : 2)} ${areaUnitLabel}`;
   const measurementDiagnostics = measurementResult?.diagnostics;
-  const measurementFailureReason = measurementResult
-    ? measurementDiagnostics?.failure_reason || "none"
+  const measurementStatusLabel = measurementResult
+    ? measurementResult.status || (measurementResult.ok ? "ready" : "unknown")
     : rectifiedImageAvailable
       ? "Measurement not run"
       : "Waiting for rectified scan";
+  const measurementDetailLabel = measurementResult
+    ? measurementDiagnostics?.failure_reason
+      || measurementResult.error
+      || (measurementResult.ok ? "none" : "Unknown measurement failure")
+    : "none";
   const cameras = cameraRoles?.cameras || dashboard?.devices?.camera?.cameras || [];
   const activeCameraRole = cameraRoles?.active_role || dashboard?.devices?.camera?.active_role || "unknown";
   const activeCamera = cameraRoles?.active_camera || dashboard?.devices?.camera?.active_camera;
@@ -478,8 +483,66 @@ export default function VisionLabPage({
                 ? `${measurement.bbox_px.x ?? "?"}, ${measurement.bbox_px.y ?? "?"}, ${measurement.bbox_px.width ?? "?"}x${measurement.bbox_px.height ?? "?"}`
                 : "unknown"}
             </div>
-            <div>Measurement status: {measurementFailureReason}</div>
+            <div>Measurement status: {measurementStatusLabel}</div>
+            <div>Measurement detail: {measurementDetailLabel}</div>
           </div>
+
+          <details
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid rgba(255,255,255,0.08)",
+              background: "rgba(255,255,255,0.03)",
+              fontSize: 13,
+            }}
+          >
+            <summary style={{ cursor: "pointer", fontWeight: 700 }}>
+              Measurement diagnostics
+            </summary>
+            <div
+              style={{
+                marginTop: 10,
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 8,
+                opacity: 0.76,
+              }}
+            >
+              <div>Pipeline: {measurementDiagnostics?.pipeline || "unknown"}</div>
+              <div>
+                Strategy: {measurementDiagnostics?.selected_strategies?.join(", ") || measurementDiagnostics?.selected_strategy || "none"}
+              </div>
+              <div>Candidates: {measurementDiagnostics?.candidate_count ?? 0}</div>
+              <div>
+                Selected score: {measurementDiagnostics?.selected_candidate_score?.toFixed(3) ?? "none"}
+              </div>
+              <div>
+                Minimum score: {measurementDiagnostics?.minimum_candidate_score?.toFixed(3) ?? "unknown"}
+              </div>
+              <div>
+                Failure reason: {measurementDiagnostics?.failure_reason || "none"}
+              </div>
+              <div>
+                Grid pixels suppressed: {measurementDiagnostics?.grid_line_pixels_suppressed ?? 0}
+              </div>
+              <div>
+                Usable border: {measurementDiagnostics?.usable_border_margin_px ?? "unknown"} px
+              </div>
+              <div>
+                Processing: {measurementDiagnostics?.processing_ms?.toFixed(2) ?? "unknown"} ms
+              </div>
+              <div>
+                Calibration profile: {measurementDiagnostics?.calibration_profile_id || "unknown"}
+              </div>
+              <div>
+                Calibration source: {measurementDiagnostics?.calibration_source || "unknown"}
+              </div>
+              <div>
+                Measurement mm/px: x {measurementDiagnostics?.measurement_mm_per_pixel_x ?? "unknown"} · y {measurementDiagnostics?.measurement_mm_per_pixel_y ?? "unknown"}
+              </div>
+            </div>
+          </details>
 
           {measurement?.artifacts?.overlay_url && (
             <div style={{ marginTop: 14 }}>
@@ -553,6 +616,9 @@ export default function VisionLabPage({
             <div>Candidate quads: {formatCount(scanMatDiagnostics?.candidate_quad_count)}</div>
             <div>Largest area: {formatRatio(scanMatDiagnostics?.largest_contour_area_ratio)}</div>
             <div>Selected area: {formatRatio(scanMatDiagnostics?.selected_quad_area_ratio)}</div>
+            <div>Detection method: {scanMatDiagnostics?.selected_method || "none"}</div>
+            <div>Mat confidence: {formatRatio(scanMatDiagnostics?.mat_confidence)}</div>
+            <div>Processing: {scanMatDiagnostics?.processing_ms?.toFixed(2) ?? "unknown"} ms</div>
           </div>
 
           {scanMatDiagnostics?.suggestions?.length ? (

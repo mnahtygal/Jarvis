@@ -188,6 +188,10 @@ export type ScanMatDiagnostics = {
   largest_contour_area_ratio?: number | null;
   selected_quad_area?: number | null;
   selected_quad_area_ratio?: number | null;
+  selected_method?: string | null;
+  selected_score?: number | null;
+  mat_confidence?: number | null;
+  processing_ms?: number | null;
   corners_detected?: boolean;
   rectified_available?: boolean;
   failure_reason?: string | null;
@@ -207,6 +211,9 @@ export type MeasurementStatus = {
 
 export type MeasurementResult = {
   ok?: boolean;
+  status?: string;
+  calibrated?: boolean;
+  unit?: string;
   error?: string;
   measurement?: {
     bbox_px?: {
@@ -220,6 +227,7 @@ export type MeasurementResult = {
       height?: number;
     };
     contour_px?: Array<{ x?: number; y?: number }>;
+    simplified_contour_px?: Array<{ x?: number; y?: number }>;
     rotated_box_px?: {
       points?: Array<{ x?: number; y?: number }>;
       center?: { x?: number; y?: number };
@@ -242,6 +250,9 @@ export type MeasurementResult = {
     axis_aligned_bbox_area_mm2?: number;
     rotated_bbox_area_mm2?: number;
     confidence?: number;
+    calibration_source?: string;
+    mm_per_pixel_x?: number;
+    mm_per_pixel_y?: number;
     method?: string;
     angle_convention?: string;
     artifacts?: {
@@ -259,6 +270,8 @@ export type MeasurementResult = {
     mm_per_pixel_y?: number | null;
     pixels_per_mm_x?: number | null;
     pixels_per_mm_y?: number | null;
+    known_width_mm?: number | null;
+    known_height_mm?: number | null;
     confidence?: number | null;
     error?: string | null;
   };
@@ -276,7 +289,28 @@ export type MeasurementResult = {
     selected_solidity?: number | null;
     selected_extent?: number | null;
     border_contact_ratio?: number | null;
+    selected_strategy?: string | null;
+    selected_strategies?: string[];
+    selected_strategy_count?: number;
+    selected_aspect_ratio?: number | null;
+    selected_border_distance_px?: number | null;
+    selected_geometry?: Record<string, unknown> | null;
+    selected_contour_point_count?: number | null;
+    usable_border_margin_px?: number | null;
+    usable_area_px?: number | null;
+    grid_line_pixels_suppressed?: number;
+    background_structure_detected?: boolean;
+    minimum_candidate_score?: number;
     calibration_confidence?: number | null;
+    calibration_profile_id?: string | null;
+    calibration_source?: string | null;
+    measurement_mm_per_pixel_x?: number | null;
+    measurement_mm_per_pixel_y?: number | null;
+    measurement_unit?: string;
+    mat_detected?: boolean;
+    rectified_image?: boolean;
+    processing_ms?: number | null;
+    pipeline?: string;
     failure_reason?: string | null;
     suggestions?: string[];
   };
