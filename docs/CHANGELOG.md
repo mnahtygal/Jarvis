@@ -2,6 +2,25 @@
 
 This changelog summarizes major project milestones. It is not yet tied to formal tagged releases.
 
+## Unreleased - Vision Lab Accuracy v2
+
+### Improved
+
+- Added mat confidence, clipped/full-frame rejection, stricter fallback geometry, and processing diagnostics.
+- Added a proportional rectified-mat search boundary and conservative grid-line suppression.
+- Added bounded CLAHE/Otsu, adaptive, saturation, and local-background segmentation strategies.
+- Added normalized contour filtering, thin-line rejection, cross-strategy consensus, and explainable candidate scoring.
+- Added a normalized `0.35` candidate-score floor distinct from ambiguity rejection.
+- Preserved complete `contour_px` compatibility and added a capped `simplified_contour_px` display field.
+- Added structured Scan Mat/measurement outcomes, consistent endpoint status handling, and compact Vision Lab diagnostics.
+- Expanded deterministic synthetic coverage for lighting, grid, noise, boundaries, multiple candidates, narrow parts, and rotation stability.
+- Accuracy v2 uses the C920 calibration, provenance, and rectified-image scale already committed in `1bb9787`.
+
+### Deferred
+
+- Temporal stabilization remains deferred until a safe per-camera measurement-history boundary exists.
+- Physical ruler/caliper validation on Thor remains required; synthetic tests do not establish production accuracy.
+
 ## Unreleased - Architecture Lab v1
 
 ### Added

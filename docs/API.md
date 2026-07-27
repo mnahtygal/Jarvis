@@ -104,6 +104,21 @@ mask/overlay artifact paths and browser-safe URLs. The method is
 `rotated_contour_measurement_v1`. Canonical units remain millimeters; inch
 conversion is display-only in Vision Lab.
 
+`contour_px` preserves the complete pre-Accuracy-v2 selected contour. The
+additive `simplified_contour_px` field provides an approximated display-oriented
+contour capped at 256 points.
+
+Additive top-level fields include `status`, `calibrated`, and `unit`. Diagnostics
+include the segmentation strategies attempted, selected strategy consensus,
+candidate and rejection counts, selected score and geometry, usable border,
+suppressed grid pixels, calibration profile/source, applied rectified-image
+mm/px values, failure reason, and processing time. Normal statuses include
+`ready`, `no_object`, `low_confidence`, `calibration_missing`, `invalid_frame`,
+`calibration_invalid`, and `measurement_failed`. A selected candidate must score
+at least `0.35` on the normalized Accuracy v2 scoring model. Falling below that
+floor reports `candidate_score_below_threshold`; ambiguity remains a separate
+`ambiguous_object_candidates` failure.
+
 New calibration saves retain the submitted known mat width and height. Existing
 standard 1440×1080 rectified artifacts can use the centralized 24×18-inch
 rectification geometry when an older profile has null known-dimension fields.
@@ -116,10 +131,21 @@ the physical 24×18-inch outer mat boundary at 60 pixels/inch, or
 the logical camera, stable identity, requested/negotiated capture mode, source
 dimensions, rectified dimensions, geometry version, or profile do not match.
 Runtime `/dev/videoN` values are diagnostic only and are not calibration keys.
+Accuracy v2 depends on this calibration, provenance, and rectified-scale behavior
+from commit `1bb9787`; it does not replace or weaken those checks.
 
 Successful analysis returns `200`. Invalid input paths return `400`.
-Calibration/object-selection failures return `422`; unexpected processing or
-artifact-write failures return `500`.
+Calibration, unreadable-frame, and expected object-selection failures return
+structured `422` responses; unexpected processing or artifact-write failures
+return `500`.
+
+Both `POST /api/vision/scan-mat` and
+`POST /api/vision/capture-scan-mat` use the same Scan Mat outcome policy:
+`ready` returns `200`; missing/unreadable source images and expected detection,
+validation, dependency,
+rectification, and required-artifact-write failures return structured `422`
+responses; unexpected server failures return `500`. Capture-device failures
+that occur before Scan Mat analysis retain their existing camera-service status.
 
 ## Architecture Lab
 

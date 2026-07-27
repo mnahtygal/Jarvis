@@ -35,6 +35,10 @@ Phase 2.3B implementation complete; physical measurement validation remains
 
 Single-object rotated measurement and visual overlay implemented
 
+Vision Lab Accuracy v2 adds grid/background suppression, candidate consensus
+scoring, structured outcomes, and expanded diagnostics. It uses the C920
+calibration, provenance, and rectified-image scale committed in `1bb9787`.
+
 ## Next Milestone
 
 Phase 2.3B  
@@ -132,6 +136,8 @@ Phase 2 – Professional Architecture
 - ✅ Binary mask and measurement overlay artifacts
 - ✅ Anisotropic X/Y rotated-edge calibration math
 - ✅ Vision Lab millimeter/inch display
+- ✅ Vision Lab Accuracy v2 deterministic segmentation and scoring
+- ✅ Rectified-image measurement scale from C920 provenance checkpoint `1bb9787`
 - ☐ Measurement validation against known objects
 - ☐ Multiple-object and internal-feature measurement
 - ☐ Diameter estimation

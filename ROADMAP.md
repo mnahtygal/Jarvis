@@ -40,7 +40,9 @@ Exit criteria:
 ### Phase 2B: Calibration and Measurement
 
 Status: active. Phase 2.3B single-object rotated measurement, mask/overlay
-artifacts, diagnostics, and mm/in display are implemented. Physical validation
+artifacts, Accuracy v2 segmentation/scoring diagnostics, structured outcomes,
+and mm/in display are implemented. Accuracy v2 depends on the C920 calibration,
+provenance, and rectified-image scale committed in `1bb9787`. Physical validation
 against known objects remains next; Phase 2.3 is not complete.
 
 Goals:

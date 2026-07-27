@@ -286,17 +286,29 @@ Calibration records millimeters per pixel, pixels per millimeter, confidence, an
 
 ### Measurement
 
-Measurement foundation is intentionally simple:
+Measurement runs as a bounded, explainable single-frame pipeline:
 
 ```text
 Rectified scan-mat image
   -> POST /api/measurement/analyze
   -> core.measurement.measure_object_bbox_from_image()
-  -> largest_contour_bbox_v0
-  -> width / height / area / confidence / diagnostics
+  -> usable-border mask and conservative grid-line suppression
+  -> CLAHE/Otsu/adaptive/saturation/background-difference masks
+  -> normalized contour filtering and cross-strategy consensus scoring
+  -> calibrated rotated rectangle, overlay, confidence, and diagnostics
 ```
 
-This is bounding-box measurement v0. It is not yet a visual overlay system and should not be treated as precision metrology until calibration and detection quality are validated.
+Calibration is established from the detected raw-frame mat. Because measurement
+operates in rectified-image coordinates, the measurement scale is derived from
+the calibrated mat's known physical dimensions and the rectified image size.
+Exact standard 1440×1080 rectified artifacts use the centralized 24×18-inch
+geometry when older profiles lack known dimensions; nonstandard legacy inputs
+retain the profile pixel-scale fallback. This scale and the fail-closed C920
+provenance contract were committed in `1bb9787`; Accuracy v2 consumes them.
+Accuracy v2 adds a normalized `0.35` candidate-score floor, while keeping
+absolute low-score rejection separate from multi-candidate ambiguity. Results
+remain first-pass workshop measurements, not precision metrology, until physical
+validation against known objects is complete.
 
 ## Local Models
 
