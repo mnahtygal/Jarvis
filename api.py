@@ -152,6 +152,39 @@ def _scan_mat_metadata(snapshot_path: Path, mat_result: dict) -> dict:
     }
 
 
+def _scan_mat_http_status(mat_result: dict) -> int:
+    if mat_result.get("ok") and mat_result.get("status") == "ready":
+        return 200
+
+    expected_statuses = {
+        "no_mat",
+        "invalid_frame",
+        "dependency_missing",
+        "rectification_failed",
+        "artifact_write_failed",
+        "validation_failed",
+    }
+    expected_failure_reasons = {
+        "no_contours_found",
+        "no_quadrilateral_candidates",
+        "image_file_missing",
+        "opencv_read_failed",
+        "opencv_missing",
+        "rectification_failed",
+        "annotated_write_failed",
+        "rectified_write_failed",
+        "calibration_provenance_validation_failed",
+        "calibration_provenance_write_failed",
+    }
+    diagnostics = mat_result.get("diagnostics") or {}
+    if (
+        mat_result.get("status") in expected_statuses
+        or diagnostics.get("failure_reason") in expected_failure_reasons
+    ):
+        return 422
+    return 500
+
+
 @app.route("/api/camera/snapshot", methods=["POST"])
 def api_camera_snapshot():
     data = request.get_json(silent=True) or {}
@@ -311,14 +344,23 @@ def api_vision_scan_mat():
     if snapshot_path is None:
         return jsonify({
             "ok": False,
-            "error": "No camera snapshot is available yet."
-        }), 404
+            "status": "invalid_frame",
+            "error": "No camera snapshot is available yet.",
+            "diagnostics": {"failure_reason": "image_file_missing"},
+        }), 422
 
-    mat_result = analyze_scan_mat(snapshot_path)
+    try:
+        mat_result = analyze_scan_mat(snapshot_path)
+    except Exception as exc:
+        return jsonify({
+            "ok": False,
+            "status": "scan_failed",
+            "error": f"Unexpected Scan Mat failure: {exc}",
+        }), 500
     return jsonify({
         **mat_result,
         **_scan_mat_metadata(snapshot_path, mat_result),
-    })
+    }), _scan_mat_http_status(mat_result)
 
 
 @app.route("/api/vision/capture-scan-mat", methods=["POST"])
@@ -337,14 +379,25 @@ def api_vision_capture_scan_mat():
         if latest_snapshot is None:
             return jsonify({
                 "ok": False,
+                "status": "invalid_frame",
                 "capture": capture_result,
                 "error": "Camera capture succeeded but no snapshot file was found.",
-            }), 503
+                "diagnostics": {"failure_reason": "image_file_missing"},
+            }), 422
         snapshot_path = latest_snapshot
 
-    mat_result = analyze_scan_mat(snapshot_path, capture_metadata=capture_result)
+    try:
+        mat_result = analyze_scan_mat(
+            snapshot_path, capture_metadata=capture_result
+        )
+    except Exception as exc:
+        return jsonify({
+            "ok": False,
+            "status": "scan_failed",
+            "capture": capture_result,
+            "error": f"Unexpected Scan Mat failure: {exc}",
+        }), 500
     scan_metadata = _scan_mat_metadata(snapshot_path, mat_result)
-    status_code = 200 if mat_result.get("ok") else 422
     return jsonify({
         "ok": bool(mat_result.get("ok")),
         "capture": capture_result,
@@ -352,7 +405,7 @@ def api_vision_capture_scan_mat():
         "diagnostics": mat_result.get("diagnostics"),
         "image_name": snapshot_path.name,
         **scan_metadata,
-    }), status_code
+    }), _scan_mat_http_status(mat_result)
 
 
 @app.route("/")

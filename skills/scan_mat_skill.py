@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -20,11 +21,13 @@ from core.scan_mat_geometry import (
 
 DETECTOR_EPSILON_RATIOS = [0.015, 0.02, 0.03, 0.04, 0.05]
 MIN_MAT_AREA_RATIO = 0.08
+MAX_MAT_AREA_RATIO = 0.96
 MIN_RECTANGULARITY = 0.45
-MIN_FALLBACK_RECTANGULARITY = 0.72
-MIN_ASPECT_RATIO = 0.7
-MAX_ASPECT_RATIO = 2.6
+MIN_FALLBACK_RECTANGULARITY = 0.82
+MIN_ASPECT_RATIO = 1.0
+MAX_ASPECT_RATIO = 2.1
 TARGET_ASPECT_RATIO = MAT_WIDTH_INCHES / MAT_HEIGHT_INCHES
+MIN_MAT_CONFIDENCE = 0.42
 DIAGNOSTIC_REJECTION_LIMIT = 8
 SCAN_MAT_SUGGESTIONS = [
     "Move camera closer so the mat fills more of the frame.",
@@ -35,11 +38,15 @@ SCAN_MAT_SUGGESTIONS = [
 ]
 
 
-def _cv2_missing() -> Dict[str, Any]:
+def _cv2_missing(processing_ms: float | None = None) -> Dict[str, Any]:
     return {
         "ok": False,
+        "status": "dependency_missing",
         "mat_detected": False,
         "error": "OpenCV is not installed. Run: pip install opencv-python-headless numpy",
+        "diagnostics": _failure_diagnostics(
+            "opencv_missing", processing_ms=processing_ms
+        ),
     }
 
 
@@ -115,6 +122,14 @@ def _candidate_score(area_ratio: float, rectangularity: float, aspect_ratio: flo
     return round((area_ratio * 2.0) + rectangularity - min(aspect_error, 1.0), 6)
 
 
+def _mat_confidence(area_ratio: float, rectangularity: float, aspect_ratio: float) -> float:
+    area_quality = min(1.0, max(0.0, area_ratio) / 0.45)
+    aspect_error = abs(aspect_ratio - TARGET_ASPECT_RATIO) / TARGET_ASPECT_RATIO
+    aspect_quality = max(0.0, 1.0 - aspect_error)
+    confidence = 0.25 * area_quality + 0.40 * rectangularity + 0.35 * aspect_quality
+    return round(max(0.0, min(1.0, confidence)), 4)
+
+
 def _compact_rejections(rejections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return sorted(rejections, key=lambda item: item.get("area_ratio", 0.0), reverse=True)[
         :DIAGNOSTIC_REJECTION_LIMIT
@@ -155,6 +170,7 @@ def _find_largest_quad(image) -> Tuple[Optional[Any], Dict[str, Any]]:
         "selected_score": None,
         "selected_rectangularity": None,
         "selected_aspect_ratio": None,
+        "mat_confidence": None,
         "fallback_attempted": False,
         "fallback_accepted": False,
         "rejected_candidates": [],
@@ -202,14 +218,24 @@ def _find_largest_quad(image) -> Tuple[Optional[Any], Dict[str, Any]]:
             if quad_area_ratio < MIN_MAT_AREA_RATIO:
                 contour_rejections.append("quad_area_too_small")
                 continue
+            if quad_area_ratio > MAX_MAT_AREA_RATIO:
+                contour_rejections.append("quad_area_too_large")
+                continue
             if not _points_inside_image(rect, width, height, margin=1.0):
                 contour_rejections.append("points_outside_image")
+                continue
+            if _points_clipped(rect, width, height):
+                contour_rejections.append("clipped_against_image_boundary")
                 continue
             if not _aspect_plausible(aspect_ratio):
                 contour_rejections.append("aspect_ratio_not_plausible")
                 continue
             if rectangularity < MIN_RECTANGULARITY:
                 contour_rejections.append("rectangularity_too_low")
+                continue
+            confidence = _mat_confidence(quad_area_ratio, rectangularity, aspect_ratio)
+            if confidence < MIN_MAT_CONFIDENCE:
+                contour_rejections.append("low_confidence")
                 continue
 
             candidates.append({
@@ -225,6 +251,7 @@ def _find_largest_quad(image) -> Tuple[Optional[Any], Dict[str, Any]]:
                 "approx_point_counts": approx_point_counts.copy(),
                 "rectangularity": rectangularity,
                 "aspect_ratio": aspect_ratio,
+                "confidence": confidence,
                 "score": _candidate_score(quad_area_ratio, rectangularity, aspect_ratio),
             })
             accepted_direct = True
@@ -241,6 +268,7 @@ def _find_largest_quad(image) -> Tuple[Optional[Any], Dict[str, Any]]:
             "points": fallback_rect.astype(float).tolist(),
             "rectangularity": rectangularity,
             "aspect_ratio": min_rect_aspect_ratio,
+            "confidence": _mat_confidence(area_ratio, rectangularity, min_rect_aspect_ratio),
             "clipped": fallback_clipped,
             "score": _candidate_score(area_ratio, rectangularity, min_rect_aspect_ratio),
         }
@@ -274,18 +302,23 @@ def _find_largest_quad(image) -> Tuple[Optional[Any], Dict[str, Any]]:
         fallback_reasons = []
         if best_fallback["area_ratio"] < MIN_MAT_AREA_RATIO:
             fallback_reasons.append("area_too_small")
+        if best_fallback["area_ratio"] > MAX_MAT_AREA_RATIO:
+            fallback_reasons.append("area_too_large")
         if best_fallback["rectangularity"] < MIN_FALLBACK_RECTANGULARITY:
             fallback_reasons.append("rectangularity_too_low")
         if not _aspect_plausible(best_fallback["aspect_ratio"]):
             fallback_reasons.append("aspect_ratio_not_plausible")
         if best_fallback["clipped"]:
             fallback_reasons.append("clipped_against_image_boundary")
+        if best_fallback["confidence"] < MIN_MAT_CONFIDENCE:
+            fallback_reasons.append("low_confidence")
 
         diagnostics["best_fallback"] = {
             "area_ratio": round(best_fallback["area_ratio"], 6),
             "rectangularity": _round_optional(best_fallback["rectangularity"]),
             "aspect_ratio": _round_optional(best_fallback["aspect_ratio"]),
             "score": best_fallback["score"],
+            "confidence": best_fallback["confidence"],
             "rejection_reasons": fallback_reasons,
         }
 
@@ -320,6 +353,7 @@ def _find_largest_quad(image) -> Tuple[Optional[Any], Dict[str, Any]]:
         "selected_score": best["score"],
         "selected_rectangularity": _round_optional(best["rectangularity"]),
         "selected_aspect_ratio": _round_optional(best["aspect_ratio"]),
+        "mat_confidence": _round_optional(best["confidence"]),
         "corners_detected": True,
         "failure_reason": None,
     })
@@ -389,27 +423,34 @@ def analyze_scan_mat(
     output_dir: Path | None = None,
     capture_metadata: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
+    started_at = time.perf_counter()
     try:
         import cv2
         import numpy as np
     except Exception:
-        return _cv2_missing()
+        return _cv2_missing(processing_ms=_elapsed_ms(started_at))
 
     if not image_path.exists():
         return {
             "ok": False,
+            "status": "invalid_frame",
             "mat_detected": False,
             "error": "Image file does not exist.",
-            "diagnostics": _failure_diagnostics("image_file_missing"),
+            "diagnostics": _failure_diagnostics(
+                "image_file_missing", processing_ms=_elapsed_ms(started_at)
+            ),
         }
 
     image = cv2.imread(str(image_path))
     if image is None:
         return {
             "ok": False,
+            "status": "invalid_frame",
             "mat_detected": False,
             "error": "OpenCV could not read image.",
-            "diagnostics": _failure_diagnostics("opencv_read_failed"),
+            "diagnostics": _failure_diagnostics(
+                "opencv_read_failed", processing_ms=_elapsed_ms(started_at)
+            ),
         }
 
     height, width = image.shape[:2]
@@ -439,9 +480,23 @@ def analyze_scan_mat(
                 2,
             )
         cv2.putText(annotated, "Mat not detected", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
-        cv2.imwrite(str(annotated_path), annotated)
+        annotated_written = bool(cv2.imwrite(str(annotated_path), annotated))
+        diagnostics["processing_ms"] = _elapsed_ms(started_at)
+        if not annotated_written or not annotated_path.is_file():
+            diagnostics["failure_reason"] = "annotated_write_failed"
+            return {
+                "ok": False,
+                "status": "artifact_write_failed",
+                "mat_detected": False,
+                "image_name": image_path.name,
+                "image_size": {"width": width, "height": height},
+                "debug": debug,
+                "diagnostics": diagnostics,
+                "error": "Could not write the Scan Mat annotated artifact.",
+            }
         return {
             "ok": False,
+            "status": "no_mat",
             "mat_detected": False,
             "image_name": image_path.name,
             "image_size": {"width": width, "height": height},
@@ -466,15 +521,72 @@ def analyze_scan_mat(
     if score_label is not None:
         quality_label = f"{quality_label} score={score_label}"
     cv2.putText(annotated, quality_label, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 0), 2)
-    cv2.imwrite(str(annotated_path), annotated)
+    annotated_written = bool(cv2.imwrite(str(annotated_path), annotated))
+    if not annotated_written or not annotated_path.is_file():
+        diagnostics["failure_reason"] = "annotated_write_failed"
+        diagnostics["processing_ms"] = _elapsed_ms(started_at)
+        return {
+            "ok": False,
+            "status": "artifact_write_failed",
+            "mat_detected": True,
+            "image_name": image_path.name,
+            "image_size": {"width": width, "height": height},
+            "debug": debug,
+            "diagnostics": diagnostics,
+            "error": "Could not write the Scan Mat annotated artifact.",
+        }
 
     warped_width = RECTIFIED_WIDTH_PX
     warped_height = RECTIFIED_HEIGHT_PX
     dst = np.array([[0, 0], [warped_width - 1, 0], [warped_width - 1, warped_height - 1], [0, warped_height - 1]], dtype="float32")
-    transform = cv2.getPerspectiveTransform(rect.astype("float32"), dst)
-    warped = cv2.warpPerspective(image, transform, (warped_width, warped_height))
+    try:
+        transform = cv2.getPerspectiveTransform(rect.astype("float32"), dst)
+        warped = cv2.warpPerspective(image, transform, (warped_width, warped_height))
+    except cv2.error as exc:
+        diagnostics["failure_reason"] = "rectification_failed"
+        diagnostics["processing_ms"] = _elapsed_ms(started_at)
+        return {
+            "ok": False,
+            "status": "rectification_failed",
+            "mat_detected": True,
+            "image_name": image_path.name,
+            "image_size": {"width": width, "height": height},
+            "debug": debug,
+            "diagnostics": diagnostics,
+            "annotated_path": str(annotated_path),
+            "error": f"OpenCV could not rectify the Scan Mat image: {exc}",
+        }
+    if warped is None or warped.size == 0:
+        diagnostics["failure_reason"] = "rectification_failed"
+        diagnostics["processing_ms"] = _elapsed_ms(started_at)
+        return {
+            "ok": False,
+            "status": "rectification_failed",
+            "mat_detected": True,
+            "image_name": image_path.name,
+            "image_size": {"width": width, "height": height},
+            "debug": debug,
+            "diagnostics": diagnostics,
+            "annotated_path": str(annotated_path),
+            "error": "OpenCV returned an empty rectified Scan Mat image.",
+        }
     rectified_path = output_dir / f"{image_path.stem}_mat_rectified.jpg"
-    cv2.imwrite(str(rectified_path), warped)
+    rectified_written = bool(cv2.imwrite(str(rectified_path), warped))
+    if not rectified_written or not rectified_path.is_file():
+        diagnostics["rectified_available"] = False
+        diagnostics["failure_reason"] = "rectified_write_failed"
+        diagnostics["processing_ms"] = _elapsed_ms(started_at)
+        return {
+            "ok": False,
+            "status": "artifact_write_failed",
+            "mat_detected": True,
+            "image_name": image_path.name,
+            "image_size": {"width": width, "height": height},
+            "debug": debug,
+            "diagnostics": diagnostics,
+            "annotated_path": str(annotated_path),
+            "error": "Could not write the rectified Scan Mat artifact.",
+        }
     provenance = None
     metadata_path = rectified_metadata_path(rectified_path)
     if capture_metadata:
@@ -489,16 +601,52 @@ def analyze_scan_mat(
                 homography=transform.astype(float).round(12).tolist(),
                 detected_confidence=diagnostics.get("mat_confidence"),
             )
+        except Exception as exc:
+            diagnostics["calibration_provenance_error"] = str(exc)
+            diagnostics["failure_reason"] = (
+                "calibration_provenance_validation_failed"
+            )
+            diagnostics["processing_ms"] = _elapsed_ms(started_at)
+            return {
+                "ok": False,
+                "status": "validation_failed",
+                "mat_detected": True,
+                "image_name": image_path.name,
+                "image_size": {"width": width, "height": height},
+                "debug": debug,
+                "diagnostics": diagnostics,
+                "annotated_path": str(annotated_path),
+                "rectified_path": str(rectified_path),
+                "error": "Could not validate calibrated Scan Mat provenance.",
+            }
+        try:
             metadata_path.write_text(
                 json.dumps(provenance, indent=2) + "\n",
                 encoding="utf-8",
             )
+            if not metadata_path.is_file():
+                raise OSError("Provenance metadata file was not created.")
         except Exception as exc:
             diagnostics["calibration_provenance_error"] = str(exc)
+            diagnostics["failure_reason"] = "calibration_provenance_write_failed"
+            diagnostics["processing_ms"] = _elapsed_ms(started_at)
+            return {
+                "ok": False,
+                "status": "artifact_write_failed",
+                "mat_detected": True,
+                "image_name": image_path.name,
+                "image_size": {"width": width, "height": height},
+                "debug": debug,
+                "diagnostics": diagnostics,
+                "annotated_path": str(annotated_path),
+                "rectified_path": str(rectified_path),
+                "error": "Could not write calibrated Scan Mat provenance metadata.",
+            }
     diagnostics = {
         **diagnostics,
         "rectified_available": rectified_path.is_file(),
         "failure_reason": None if rectified_path.is_file() else "rectification_failed",
+        "processing_ms": _elapsed_ms(started_at),
     }
 
     mat_pixel_width = float(np.linalg.norm(rect[1] - rect[0]))
@@ -506,6 +654,7 @@ def analyze_scan_mat(
 
     return {
         "ok": True,
+        "status": "ready",
         "mat_detected": True,
         "image_name": image_path.name,
         "image_size": {"width": width, "height": height},
@@ -526,7 +675,10 @@ def analyze_scan_mat(
     }
 
 
-def _failure_diagnostics(failure_reason: str) -> Dict[str, Any]:
+def _failure_diagnostics(
+    failure_reason: str,
+    processing_ms: float | None = None,
+) -> Dict[str, Any]:
     return {
         "image_width": None,
         "image_height": None,
@@ -539,8 +691,14 @@ def _failure_diagnostics(failure_reason: str) -> Dict[str, Any]:
         "largest_contour_area_ratio": None,
         "selected_quad_area": None,
         "selected_quad_area_ratio": None,
+        "mat_confidence": None,
         "corners_detected": False,
         "rectified_available": False,
         "failure_reason": failure_reason,
+        "processing_ms": processing_ms,
         "suggestions": SCAN_MAT_SUGGESTIONS,
     }
+
+
+def _elapsed_ms(started_at: float) -> float:
+    return round((time.perf_counter() - started_at) * 1000.0, 2)
