@@ -507,6 +507,10 @@ def api_measurement_analyze():
             "no_object_found",
             "ambiguous_object_candidates",
             "object_touching_image_boundary",
+            "candidate_score_below_threshold",
+            "calibration_geometry_mismatch",
+            "opencv_read_failed",
+            "image_file_missing",
         } else 500
     return jsonify(result), status_code
 
