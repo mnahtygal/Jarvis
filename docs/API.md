@@ -185,3 +185,14 @@ All are `GET` routes:
 - Return clear error messages and appropriate status codes.
 - Prefer camera roles over fixed device paths.
 - Do not add cloud dependencies to local camera, model, or memory workflows.
+# Experimental saved-image measurement backend
+
+`POST /api/measurement/analyze` continues to use OpenCV when `backend` is omitted
+or equals `opencv`. To request the disabled-by-default experimental worker, provide
+`backend: "grounded_sam"`, a saved rectified `image_path`, and a nonempty `prompt`.
+It never falls back to OpenCV. See [GROUNDED_SAM_BACKEND.md](GROUNDED_SAM_BACKEND.md)
+for the v1 response and error contract.
+
+`GET /api/status/grounded-sam` reports configuration, reachability, dependency
+availability, model state, safe last-load error, busy state, and backend version.
+The health request does not load models.

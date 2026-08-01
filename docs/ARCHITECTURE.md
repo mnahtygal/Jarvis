@@ -461,3 +461,12 @@ Measure Object
 | Boot V3 does not launch Firefox | Intentional |
 | Restart/shutdown buttons not in Mission Control | Intentional |
 | Measurement overlay is next, not complete | Active roadmap |
+# Experimental Grounded SAM worker boundary
+
+Jarvis API dispatch remains OpenCV-first. An explicit `grounded_sam` saved-image
+request goes through a lightweight HTTP client to a loopback-only worker intended
+for the dedicated Grounded SAM environment. The worker owns lazy ML imports, model
+caching, one-request admission, detector/SAM2 processing, C920 provenance checks,
+mask cleanup, calibrated measurement, and artifact writes. Normal health queries
+inspect dependency metadata and lifecycle state without loading models. No worker
+component is connected to camera capture or the Vision Lab UI in this checkpoint.
