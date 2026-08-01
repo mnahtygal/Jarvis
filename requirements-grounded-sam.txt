@@ -1,0 +1,6 @@
+# Install only in the isolated Grounded SAM worker environment.
+torch==2.12.0
+transformers==5.8.1
+opencv-python-headless==4.13.0.92
+Pillow==12.3.0
+numpy==2.4.5
