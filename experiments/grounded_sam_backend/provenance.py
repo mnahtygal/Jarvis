@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,16 @@ MAT_SIZE_MM = (609.6, 457.2)
 
 class ProvenanceMismatch(ValueError):
     pass
+
+
+def _values_match(actual: Any, expected: Any) -> bool:
+    if isinstance(expected, (int, float)) and not isinstance(expected, bool):
+        return (
+            isinstance(actual, (int, float))
+            and not isinstance(actual, bool)
+            and math.isclose(float(actual), float(expected), rel_tol=0.0, abs_tol=1e-6)
+        )
+    return actual == expected
 
 
 def load_validated_provenance(
@@ -72,7 +83,7 @@ def load_validated_provenance(
         ("mat boundary", physical.get("boundary"), "physical_outer_boundary"),
     )
     for label, actual, expected in checks:
-        if actual != expected:
+        if not _values_match(actual, expected):
             mismatches.append(f"{label}: expected {expected!r}, received {actual!r}")
     identity = metadata.get("stable_camera_identity") or {}
     for key in ("bus_info", "by_id_prefix", "by_path_prefix", "card_name"):

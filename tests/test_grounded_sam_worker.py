@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -138,6 +140,18 @@ class WorkerContractTests(unittest.TestCase):
         self.assertEqual(result["failure_reason"], "model_unavailable")
         self.assertTrue(result["diagnostics"]["retryable"])
 
+    def test_worker_script_resolves_project_imports(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        completed = subprocess.run(
+            [sys.executable, str(project_root / "tools" / "grounded_sam_worker.py"), "--help"],
+            cwd=self.root,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("Grounded SAM", completed.stdout)
+
 
 class DetectorAndMaskTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -223,6 +237,23 @@ class ProvenanceTests(unittest.TestCase):
         self.assertEqual(metadata["logical_camera_id"], "logitech_c920")
         self.assertTrue(calibration["ready"])
         self.assertAlmostEqual(calibration["pixels_per_mm_x"], 1440 / 609.6)
+
+    def test_valid_c920_provenance_accepts_json_float_roundoff(self) -> None:
+        self.metadata["physical_mat"]["width_mm"] = 609.5999999999999
+        self._write()
+        metadata, calibration = load_validated_provenance(
+            self.image, self.sidecar, image_width=1440, image_height=1080
+        )
+        self.assertEqual(metadata["physical_mat"]["width_mm"], 609.5999999999999)
+        self.assertTrue(calibration["ready"])
+
+    def test_numeric_provenance_rejects_boolean_values(self) -> None:
+        self.metadata["physical_mat"]["width_mm"] = True
+        self._write()
+        with self.assertRaises(ProvenanceMismatch):
+            load_validated_provenance(
+                self.image, self.sidecar, image_width=1440, image_height=1080
+            )
 
     def test_calibration_and_provenance_mismatch(self) -> None:
         self.metadata["logical_camera_id"] = "insta360_link"

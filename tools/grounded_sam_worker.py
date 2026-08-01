@@ -5,7 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from experiments.grounded_sam_backend.lifecycle import ModelRegistry
 from experiments.grounded_sam_backend.pipeline import (
@@ -15,10 +20,6 @@ from experiments.grounded_sam_backend.pipeline import (
 )
 from experiments.grounded_sam_backend.service import serve
 from experiments.grounded_sam_backend.worker import GroundedSamWorker
-
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-
 
 def _configured_paths() -> tuple[Path, Path]:
     payload = json.loads((PROJECT_ROOT / "config" / "vision_backends.json").read_text())

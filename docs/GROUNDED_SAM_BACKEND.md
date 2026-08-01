@@ -24,6 +24,10 @@ Run the worker from the project root under the dedicated Grounded SAM environmen
 python tools/grounded_sam_worker.py --host 127.0.0.1 --port 8092
 ```
 
+The script bootstraps the repository root before importing the worker package, so
+the documented file-path invocation does not depend on Python adding the current
+working directory to `sys.path`.
+
 The first valid request changes model state from `unloaded` to `loading`. A
 successful load is cached as `ready`. A failed load is `load_failed` or
 `unavailable`, remains visible in health output, and is retried by the next valid
@@ -120,6 +124,9 @@ matches the frozen C920 workbench contract: Logitech C920 identity, requested an
 negotiated MJPG 1920x1080 at 30 fps, 1440x1080 rectification, 609.6x457.2 mm outer
 mat boundary, calibrated status, and expected geometry/homography versions. Any
 mismatch fails closed. Insta360 calibration data is neither read nor accepted.
+Categorical and identity fields use exact comparison. Numeric provenance fields use
+an absolute tolerance of `1e-6` solely to accept equivalent JSON floating-point
+representations such as `609.5999999999999` for `609.6`.
 
 ## Tests
 
