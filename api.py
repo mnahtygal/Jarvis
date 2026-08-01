@@ -13,6 +13,7 @@ from core.calibration import (
     get_active_camera_profile,
 )
 from core.measurement import measure_object_bbox_from_image
+from core.grounded_sam_contract import grounded_sam_failure, grounded_sam_http_status
 from skills.architecture_status_skill import get_architecture_status
 from skills.calibration_skill import get_calibration_status
 from skills.camera_diagnostics_skill import get_camera_diagnostics_status
@@ -26,6 +27,10 @@ from skills.dashboard_status_skill import (
 )
 from skills.device_status_skill import get_device_dashboard_status
 from skills.measurement_skill import get_measurement_status
+from skills.grounded_sam_client import (
+    analyze_saved_image_with_grounded_sam,
+    get_grounded_sam_health,
+)
 from skills.scan_mat_skill import analyze_scan_mat
 from skills.vision_skill import DEFAULT_PROMPT, analyze_image
 
@@ -468,6 +473,11 @@ def api_status_measurement():
     return jsonify(get_measurement_status())
 
 
+@app.route("/api/status/grounded-sam", methods=["GET"])
+def api_status_grounded_sam():
+    return jsonify(get_grounded_sam_health())
+
+
 @app.route("/api/measurement/analyze", methods=["POST"])
 def api_measurement_analyze():
     data = request.get_json(silent=True)
@@ -477,12 +487,32 @@ def api_measurement_analyze():
             "error": "JSON body is required.",
         }), 400
 
+    backend_value = data.get("backend", "opencv")
+    if not isinstance(backend_value, str):
+        result = grounded_sam_failure("invalid_backend", "backend must be a string.")
+        return jsonify(result), grounded_sam_http_status(result)
+    backend = backend_value.strip().lower()
+    if backend not in {"opencv", "grounded_sam"}:
+        result = grounded_sam_failure(
+            "invalid_backend", f"Unsupported measurement backend: {backend_value!r}."
+        )
+        return jsonify(result), grounded_sam_http_status(result)
+
     image_path = data.get("image_path")
     if not isinstance(image_path, str) or not image_path.strip():
+        if backend == "grounded_sam":
+            result = analyze_saved_image_with_grounded_sam(image_path, data.get("prompt"))
+            return jsonify(result), grounded_sam_http_status(result)
         return jsonify({
             "ok": False,
             "error": "image_path is required.",
         }), 400
+
+    if backend == "grounded_sam":
+        result = analyze_saved_image_with_grounded_sam(
+            image_path.strip(), data.get("prompt")
+        )
+        return jsonify(result), grounded_sam_http_status(result)
 
     resolved_path = _resolve_measurement_image_path(image_path.strip())
     if resolved_path is None:
