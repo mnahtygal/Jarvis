@@ -169,14 +169,16 @@
       },
       "calibration": {
         "status": "calibrated",
-        "pixel_to_mm_x": 0.326749,
-        "pixel_to_mm_y": 0.442994,
-        "confidence": 0.9791,
-        "last_calibrated_at": "2026-07-11T18:47:40.290895+00:00",
-        "mm_per_pixel_x": 0.326749,
-        "mm_per_pixel_y": 0.442994,
-        "pixels_per_mm_x": 3.060456,
-        "pixels_per_mm_y": 2.257368
+        "pixel_to_mm_x": 0.416529,
+        "pixel_to_mm_y": 0.439164,
+        "confidence": 0.8875,
+        "last_calibrated_at": "2026-07-26T10:35:24.493944+00:00",
+        "mm_per_pixel_x": 0.416529,
+        "mm_per_pixel_y": 0.439164,
+        "pixels_per_mm_x": 2.400794,
+        "pixels_per_mm_y": 2.277056,
+        "known_width_mm": 609.6,
+        "known_height_mm": 457.2
       },
       "gimbal": {
         "control_status": "extension_unit_required",
