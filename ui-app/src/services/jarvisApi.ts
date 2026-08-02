@@ -1,6 +1,12 @@
 // Centralized HTTP client for the Jarvis frontend.
 
 import { appConfig } from "../config/appConfig";
+import type {
+  GroundedSamAnalysisResponse,
+  GroundedSamAnalysisResult,
+  GroundedSamHealth,
+  GroundedSamInventoryResponse,
+} from "../types/groundedSam";
 
 export const API_BASE = appConfig.apiBaseUrl;
 
@@ -144,3 +150,71 @@ export async function measureLatestObject(imagePath: string) {
     }),
   });
 }
+
+export async function getGroundedSamStatus(signal?: AbortSignal) {
+  return fetch(`${API_BASE}/api/status/grounded-sam`, { signal });
+}
+
+export async function getGroundedSamSavedImages(signal?: AbortSignal) {
+  return fetch(`${API_BASE}/api/vision/grounded-sam/saved-images`, {
+    cache: "no-store",
+    signal,
+  });
+}
+
+export async function analyzeGroundedSamSavedImage(
+  imageId: string,
+  prompt: string,
+  signal?: AbortSignal
+) {
+  return fetch(`${API_BASE}/api/measurement/analyze`, {
+    method: "POST",
+    headers: JSON_HEADERS,
+    body: JSON.stringify({
+      backend: "grounded_sam",
+      image_id: imageId,
+      prompt,
+    }),
+    signal,
+  });
+}
+
+async function decodeJson<T>(response: Response, label: string): Promise<T> {
+  try {
+    return await response.json() as T;
+  } catch {
+    throw new Error(`${label} returned an invalid JSON response.`);
+  }
+}
+
+export const groundedSamApi = {
+  async getStatus(signal?: AbortSignal): Promise<GroundedSamHealth> {
+    const response = await getGroundedSamStatus(signal);
+    const payload = await decodeJson<GroundedSamHealth>(response, "Grounded SAM status");
+    if (!response.ok) {
+      throw new Error(`Grounded SAM status failed with HTTP ${response.status}.`);
+    }
+    return payload;
+  },
+
+  async getSavedImages(signal?: AbortSignal): Promise<GroundedSamInventoryResponse> {
+    const response = await getGroundedSamSavedImages(signal);
+    const payload = await decodeJson<GroundedSamInventoryResponse>(response, "Saved-image inventory");
+    if (!response.ok || !payload.ok) {
+      throw new Error(`Saved-image inventory failed with HTTP ${response.status}.`);
+    }
+    return payload;
+  },
+
+  async analyze(
+    imageId: string,
+    prompt: string,
+    signal?: AbortSignal
+  ): Promise<GroundedSamAnalysisResponse> {
+    const response = await analyzeGroundedSamSavedImage(imageId, prompt, signal);
+    const result = await decodeJson<GroundedSamAnalysisResult>(response, "Grounded SAM analysis");
+    return { httpStatus: response.status, result };
+  },
+};
+
+export type GroundedSamApiClient = typeof groundedSamApi;
