@@ -10,6 +10,8 @@ import type {
 } from "../types/dashboard";
 import ActivityLog from "../components/ActivityLog";
 import ControlButton from "../components/ControlButton";
+import GroundedSamPanel from "../components/GroundedSamPanel";
+import { useGroundedSam } from "../hooks/useGroundedSam";
 
 type ScanMode = "general" | "object" | "measurement" | "ocr" | "print" | "jetski" | "workbench";
 
@@ -102,6 +104,7 @@ export default function VisionLabPage({
   promptPreview,
   logs,
 }: VisionLabPageProps) {
+  const groundedSam = useGroundedSam();
   const [measurementUnit, setMeasurementUnit] = useState<"mm" | "in">("mm");
   const widthValue = Number(calibrationWidthMm);
   const heightValue = Number(calibrationHeightMm);
@@ -572,6 +575,8 @@ export default function VisionLabPage({
             </div>
           )}
         </div>
+
+        <GroundedSamPanel state={groundedSam} />
 
         <div
           style={{

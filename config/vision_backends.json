@@ -1,0 +1,17 @@
+{
+  "default_backend": "opencv",
+  "backends": {
+    "opencv": {
+      "enabled": true
+    },
+    "grounded_sam": {
+      "enabled": false,
+      "experimental": true,
+      "worker_url": "http://127.0.0.1:8092",
+      "request_timeout_seconds": 180.0,
+      "prompt_max_length": 256,
+      "allowed_input_root": "runtime/camera/mat_analysis",
+      "artifact_root": "runtime/camera/mat_analysis/grounded_sam"
+    }
+  }
+}

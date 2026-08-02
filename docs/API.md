@@ -68,6 +68,7 @@ are diagnostic output only.
 | POST | `/api/camera/capture-analyze` | Capture then analyze; optional `prompt`, `mode`, `role`, `device` |
 | POST | `/api/vision/scan-mat` | Analyze latest snapshot with OpenCV |
 | POST | `/api/vision/capture-scan-mat` | Capture `workbench` role then analyze Scan Mat |
+| GET | `/api/vision/grounded-sam/saved-images` | List validated C920 rectified images by opaque ID |
 | GET | `/api/vision/artifacts/raw/<artifact_name>` | Serve a raw capture artifact |
 | GET | `/api/vision/artifacts/mat-analysis/<artifact_name>` | Serve annotated/rectified artifact |
 
@@ -185,3 +186,39 @@ All are `GET` routes:
 - Return clear error messages and appropriate status codes.
 - Prefer camera roles over fixed device paths.
 - Do not add cloud dependencies to local camera, model, or memory workflows.
+# Experimental saved-image measurement backend
+
+`POST /api/measurement/analyze` continues to use OpenCV when `backend` is omitted
+or equals `opencv`. To request the disabled-by-default experimental worker, provide
+`backend: "grounded_sam"`, a saved rectified `image_path`, and a nonempty `prompt`.
+It never falls back to OpenCV. See [GROUNDED_SAM_BACKEND.md](GROUNDED_SAM_BACKEND.md)
+for the v1 response and error contract.
+
+Browser callers first use `GET /api/vision/grounded-sam/saved-images`. The
+inventory searches only the configured mat-analysis directory, validates each
+image and matching sidecar against the frozen C920 contract, and returns newest
+first. A valid provenance `created_at` timestamp controls ordering; otherwise the
+image modification time is the documented fallback. Entries contain an opaque
+content-and-sidecar-bound `image_id`, display timestamp, image dimensions, C920
+identity, calibration profile and provenance versions. They contain no filesystem
+paths.
+
+Browser analysis uses the opaque ID instead of a path:
+
+```json
+{"backend":"grounded_sam","image_id":"gsi_<64 lowercase hex characters>","prompt":"small metal gear"}
+```
+
+The ID is resolved and the path and provenance are revalidated on every request.
+Unknown, malformed, stale, forged, and ambiguous IDs fail with the existing
+structured `source_image_missing` or `source_image_unreadable` policy. The older
+`image_path` field remains available for trusted internal callers.
+
+Jarvis removes worker filesystem paths from every Grounded SAM API response.
+Successfully validated artifacts add `raw_mask_url`, `cleaned_mask_url`, and
+`diagnostic_overlay_url`. These URLs use the existing protected mat-analysis
+artifact route and may contain the approved nested `grounded_sam/` directory.
+
+`GET /api/status/grounded-sam` reports configuration, reachability, dependency
+availability, model state, safe last-load error, busy state, and backend version.
+The health request does not load models.
