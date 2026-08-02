@@ -195,6 +195,20 @@ export function useGroundedSam(
     return null;
   }, [health, images.length, inventoryLoading, phase, prompt, selectedImage]);
 
+  const refreshHealthAfterAnalysis = useCallback(async (
+    signal: AbortSignal,
+    sequence: number
+  ) => {
+    try {
+      const nextHealth = await apiClient.getStatus(signal);
+      if (signal.aborted || analysisSequence.current !== sequence) return;
+      setHealth(nextHealth);
+    } catch (error) {
+      if (isAbortError(error) || analysisSequence.current !== sequence) return;
+      setHealth(null);
+    }
+  }, [apiClient]);
+
   const submitAnalysis = useCallback(async () => {
     if (analysisInFlight.current) return;
     const trimmedPrompt = prompt.trim();
@@ -223,6 +237,7 @@ export function useGroundedSam(
     setResult(null);
     setErrorMessage("");
     setPhase("analyzing");
+    let reachedTerminalState = false;
 
     try {
       const response = await apiClient.analyze(
@@ -231,6 +246,7 @@ export function useGroundedSam(
         controller.signal
       );
       if (controller.signal.aborted || analysisSequence.current !== sequence) return;
+      reachedTerminalState = true;
       setResult(response.result);
       if (response.result.ok && response.httpStatus >= 200 && response.httpStatus < 300) {
         setPhase("success");
@@ -240,15 +256,19 @@ export function useGroundedSam(
       }
     } catch (error) {
       if (isAbortError(error) || analysisSequence.current !== sequence) return;
+      reachedTerminalState = true;
       setErrorMessage(errorText(error, "Grounded SAM analysis request failed."));
       setPhase("failure");
     } finally {
+      if (reachedTerminalState) {
+        await refreshHealthAfterAnalysis(controller.signal, sequence);
+      }
       if (analysisSequence.current === sequence) {
         analysisInFlight.current = false;
         analysisController.current = null;
       }
     }
-  }, [analysisDisabledReason, apiClient, prompt]);
+  }, [analysisDisabledReason, apiClient, prompt, refreshHealthAfterAnalysis]);
 
   return {
     phase,
