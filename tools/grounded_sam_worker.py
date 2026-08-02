@@ -20,6 +20,16 @@ from experiments.grounded_sam_backend.pipeline import (
 )
 from experiments.grounded_sam_backend.service import serve
 from experiments.grounded_sam_backend.worker import GroundedSamWorker
+from skills.grounded_sam_client import is_loopback_host
+
+
+def validate_worker_host(value: str) -> str:
+    if not is_loopback_host(value):
+        raise argparse.ArgumentTypeError(
+            "Grounded SAM worker host must be localhost or a loopback IP address."
+        )
+    return value
+
 
 def _configured_paths() -> tuple[Path, Path]:
     payload = json.loads((PROJECT_ROOT / "config" / "vision_backends.json").read_text())
@@ -32,7 +42,7 @@ def _configured_paths() -> tuple[Path, Path]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--host", default="127.0.0.1", type=validate_worker_host)
     parser.add_argument("--port", type=int, default=8092)
     args = parser.parse_args()
     input_root, artifact_root = _configured_paths()

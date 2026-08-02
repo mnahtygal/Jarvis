@@ -1,4 +1,6 @@
+import re
 from pathlib import Path
+from typing import Any
 
 from flask import Flask, abort, jsonify, request, send_file, url_for
 from flask_cors import CORS
@@ -28,8 +30,11 @@ from skills.dashboard_status_skill import (
 from skills.device_status_skill import get_device_dashboard_status
 from skills.measurement_skill import get_measurement_status
 from skills.grounded_sam_client import (
+    SavedImageIdError,
     analyze_saved_image_with_grounded_sam,
     get_grounded_sam_health,
+    list_grounded_sam_saved_images,
+    resolve_grounded_sam_image_id,
 )
 from skills.scan_mat_skill import analyze_scan_mat
 from skills.vision_skill import DEFAULT_PROMPT, analyze_image
@@ -40,6 +45,7 @@ CORS(app)
 PROJECT_ROOT = Path(__file__).resolve().parent
 MAT_ANALYSIS_DIR = CAPTURE_DIR / "mat_analysis"
 GRAPHIFY_OUTPUT_DIR = PROJECT_ROOT / "runtime" / "graphify" / "graphify-out"
+ABSOLUTE_PATH_PATTERN = re.compile(r"(?<![:\w])/(?:[^\s,;]+)")
 
 
 def _latest_snapshot_path() -> Path | None:
@@ -119,15 +125,65 @@ def _mat_artifact_url(artifact_path: str | None) -> str | None:
     if not artifact_path:
         return None
 
+    base_path = MAT_ANALYSIS_DIR.resolve()
     path = Path(artifact_path)
-    if _resolve_artifact_path(MAT_ANALYSIS_DIR, path.name) is None:
+    requested_path = path if path.is_absolute() else base_path / path
+    try:
+        resolved_path = requested_path.resolve()
+        relative_path = resolved_path.relative_to(base_path)
+    except (OSError, ValueError):
+        return None
+    if not resolved_path.is_file():
         return None
 
     return url_for(
         "api_scan_mat_artifact",
-        artifact_name=path.name,
+        artifact_name=relative_path.as_posix(),
         _external=True,
     )
+
+
+def _redact_grounded_sam_paths(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _redact_grounded_sam_paths(item)
+            for key, item in value.items()
+            if key != "path" and not key.endswith("_path")
+        }
+    if isinstance(value, list):
+        return [_redact_grounded_sam_paths(item) for item in value]
+    if isinstance(value, str):
+        for root in (PROJECT_ROOT.resolve(), MAT_ANALYSIS_DIR.resolve()):
+            value = value.replace(str(root), "[saved-image-root]")
+        value = ABSOLUTE_PATH_PATTERN.sub("[redacted-path]", value)
+    return value
+
+
+def _grounded_sam_browser_response(
+    result: dict[str, Any], *, image_id: str | None = None
+) -> dict[str, Any]:
+    raw_artifacts = result.get("artifacts") or {}
+    response = _redact_grounded_sam_paths(result)
+    artifacts = response.get("artifacts")
+    if not isinstance(artifacts, dict):
+        artifacts = {}
+        response["artifacts"] = artifacts
+    artifact_fields = {
+        "raw_mask_path": "raw_mask_url",
+        "cleaned_mask_path": "cleaned_mask_url",
+        "diagnostic_overlay_path": "diagnostic_overlay_url",
+    }
+    for path_field, url_field in artifact_fields.items():
+        artifact_url = _mat_artifact_url(raw_artifacts.get(path_field))
+        if artifact_url:
+            artifacts[url_field] = artifact_url
+    if image_id:
+        source_image = response.get("source_image")
+        if not isinstance(source_image, dict):
+            source_image = {}
+            response["source_image"] = source_image
+        source_image["image_id"] = image_id
+    return response
 
 
 def _scan_mat_metadata(snapshot_path: Path, mat_result: dict) -> dict:
@@ -478,6 +534,18 @@ def api_status_grounded_sam():
     return jsonify(get_grounded_sam_health())
 
 
+@app.route("/api/vision/grounded-sam/saved-images", methods=["GET"])
+def api_grounded_sam_saved_images():
+    images = list_grounded_sam_saved_images()
+    return jsonify({
+        "ok": True,
+        "backend": "grounded_sam",
+        "experimental": True,
+        "count": len(images),
+        "images": images,
+    })
+
+
 @app.route("/api/measurement/analyze", methods=["POST"])
 def api_measurement_analyze():
     data = request.get_json(silent=True)
@@ -499,10 +567,32 @@ def api_measurement_analyze():
         return jsonify(result), grounded_sam_http_status(result)
 
     image_path = data.get("image_path")
+    image_id = data.get("image_id")
+    if backend == "grounded_sam" and image_id is not None:
+        if image_path is not None:
+            result = grounded_sam_failure(
+                "source_image_unreadable",
+                "Provide either image_id or image_path for Grounded SAM, not both.",
+            )
+            response = _grounded_sam_browser_response(result)
+            return jsonify(response), grounded_sam_http_status(response)
+        try:
+            resolved_source = resolve_grounded_sam_image_id(image_id)
+        except SavedImageIdError as exc:
+            result = grounded_sam_failure(exc.failure_reason, str(exc))
+            response = _grounded_sam_browser_response(result)
+            return jsonify(response), grounded_sam_http_status(response)
+        result = analyze_saved_image_with_grounded_sam(
+            str(resolved_source), data.get("prompt")
+        )
+        response = _grounded_sam_browser_response(result, image_id=image_id)
+        return jsonify(response), grounded_sam_http_status(response)
+
     if not isinstance(image_path, str) or not image_path.strip():
         if backend == "grounded_sam":
             result = analyze_saved_image_with_grounded_sam(image_path, data.get("prompt"))
-            return jsonify(result), grounded_sam_http_status(result)
+            response = _grounded_sam_browser_response(result)
+            return jsonify(response), grounded_sam_http_status(response)
         return jsonify({
             "ok": False,
             "error": "image_path is required.",
@@ -512,7 +602,8 @@ def api_measurement_analyze():
         result = analyze_saved_image_with_grounded_sam(
             image_path.strip(), data.get("prompt")
         )
-        return jsonify(result), grounded_sam_http_status(result)
+        response = _grounded_sam_browser_response(result)
+        return jsonify(response), grounded_sam_http_status(response)
 
     resolved_path = _resolve_measurement_image_path(image_path.strip())
     if resolved_path is None:

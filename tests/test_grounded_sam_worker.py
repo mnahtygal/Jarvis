@@ -1,3 +1,4 @@
+import argparse
 import json
 import subprocess
 import sys
@@ -16,6 +17,7 @@ from experiments.grounded_sam_backend.mask_measurement import validate_and_clean
 from experiments.grounded_sam_backend.pipeline import _write_artifacts, dependency_probe
 from experiments.grounded_sam_backend.provenance import ProvenanceMismatch, load_validated_provenance
 from experiments.grounded_sam_backend.worker import GroundedSamWorker
+from tools.grounded_sam_worker import validate_worker_host
 
 
 def loaded_models() -> LoadedModels:
@@ -151,6 +153,14 @@ class WorkerContractTests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("Grounded SAM", completed.stdout)
+
+    def test_worker_host_accepts_only_loopback(self) -> None:
+        for host in ("localhost", "127.0.0.1", "127.2.3.4", "::1"):
+            with self.subTest(host=host):
+                self.assertEqual(validate_worker_host(host), host)
+        for host in ("0.0.0.0", "192.168.1.5", "example.com", "localhost.example.com"):
+            with self.subTest(host=host), self.assertRaises(argparse.ArgumentTypeError):
+                validate_worker_host(host)
 
 
 class DetectorAndMaskTests(unittest.TestCase):

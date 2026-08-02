@@ -11,6 +11,10 @@ live-camera route, and never falls back to OpenCV after it is explicitly selecte
 available. The worker accepts only resolved `*_mat_rectified.jpg` paths beneath
 `allowed_input_root`, plus the matching metadata sidecar. Prompts are whitespace
 normalized, must be nonempty, and are limited to 256 characters by default.
+Jarvis accepts only an `http` worker URL whose host is exactly `localhost` or a
+loopback IP address. Credentials, wildcard/LAN/public addresses, extra URL paths,
+queries, fragments, and other schemes are rejected. The worker launcher applies
+the same loopback-only rule to `--host`.
 
 The worker's ML dependencies are declared separately in
 `requirements-grounded-sam.txt`. `skills/grounded_sam_client.py` uses only the
@@ -52,6 +56,27 @@ Experimental request:
   "prompt": "small metal gear"
 }
 ```
+
+Trusted internal callers retain the path-based request above. Browser callers use
+the secure inventory and opaque ID boundary:
+
+```text
+GET /api/vision/grounded-sam/saved-images
+```
+
+```json
+{
+  "backend": "grounded_sam",
+  "image_id": "gsi_<64 lowercase hex characters>",
+  "prompt": "small metal gear"
+}
+```
+
+Only images with matching sidecars that pass the frozen C920 provenance contract
+appear in the inventory. IDs bind the relative artifact identity, image content,
+and sidecar content; replacing either file makes an older ID stale. Valid
+provenance `created_at` values sort newest first, with filesystem modification time
+as a documented fallback. No source filesystem paths are returned to browsers.
 
 Grounded SAM results always contain the complete top-level v1 schema. Values that
 cannot be known are `null`; maps and lists use empty values. Artifact path keys are
@@ -97,6 +122,13 @@ A successful result has this shape (values abbreviated):
   "diagnostics": {"saved_image_only": true, "real_models_loaded": true}
 }
 ```
+
+The worker-to-Jarvis v1 contract above remains unchanged. Before returning it from
+the Jarvis API, Jarvis removes source, provenance, and artifact filesystem paths.
+For each successfully written artifact that resolves beneath the mat-analysis
+directory, it adds the browser-safe URL field `raw_mask_url`, `cleaned_mask_url`,
+or `diagnostic_overlay_url`. Nested `grounded_sam/...` paths are preserved through
+the existing protected mat-analysis artifact route.
 
 Detector candidates include their box, confidence, label, prompt, area ratio,
 boundary flag, acceptance flag, and rejection reasons. Measurement reports both the
