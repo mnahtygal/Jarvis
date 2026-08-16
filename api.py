@@ -1,3 +1,4 @@
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,9 @@ from skills.vision_skill import DEFAULT_PROMPT, analyze_image
 app = Flask(__name__)
 CORS(app)
 app.register_blueprint(handheld_blueprint)
+
+DEFAULT_API_BIND_HOST = "127.0.0.1"
+ALLOWED_API_BIND_HOSTS = frozenset({DEFAULT_API_BIND_HOST, "localhost", "::1"})
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 MAT_ANALYSIS_DIR = CAPTURE_DIR / "mat_analysis"
@@ -775,5 +779,21 @@ def text():
         }), 500
 
 
+def _resolve_api_bind_host(configured_host: str | None = None) -> str:
+    """Return an explicitly allowed loopback bind, or the safe default."""
+    candidate = (
+        os.environ.get("JARVIS_API_BIND_HOST")
+        if configured_host is None
+        else configured_host
+    )
+    if candidate in ALLOWED_API_BIND_HOSTS:
+        return candidate
+    return DEFAULT_API_BIND_HOST
+
+
+def _run_api_server() -> None:
+    app.run(host=_resolve_api_bind_host(), port=5000)
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    _run_api_server()
