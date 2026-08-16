@@ -5,6 +5,7 @@ from typing import Any
 from flask import Flask, abort, jsonify, request, send_file, url_for
 from flask_cors import CORS
 
+from api_routes.handheld import handheld_blueprint
 from audio.listen import listen_command
 from core.camera_roles import DEFAULT_CAMERA_ROLE, get_camera_roles_status, set_active_camera_role
 from audio.speak import speak
@@ -41,6 +42,7 @@ from skills.vision_skill import DEFAULT_PROMPT, analyze_image
 
 app = Flask(__name__)
 CORS(app)
+app.register_blueprint(handheld_blueprint)
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 MAT_ANALYSIS_DIR = CAPTURE_DIR / "mat_analysis"
