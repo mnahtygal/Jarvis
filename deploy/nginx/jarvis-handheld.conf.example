@@ -1,5 +1,5 @@
 # HTTPS boundary for the Jarvis ESP32 handheld. This template intentionally
-# exposes only GET /health and POST /handheld/v1/chat.
+# exposes only GET /health plus POST /handheld/v1/chat and /handheld/v2/chat.
 server {
     listen 443 ssl default_server;
     server_name 10.0.0.213;
@@ -13,9 +13,9 @@ server {
     client_max_body_size 768;
     proxy_redirect off;
 
-    # The standard combined log does not include request bodies or the
-    # Authorization header. Do not add either value to a custom log format.
-    access_log /var/log/nginx/jarvis-handheld-access.log combined;
+    # Defined in /etc/nginx/conf.d/jarvis-handheld-log-format.conf. This format
+    # records only source, method, normalized path, status, bytes, and duration.
+    access_log /var/log/nginx/jarvis-handheld-access.log jarvis_handheld;
     error_log  /var/log/nginx/jarvis-handheld-error.log warn;
 
     location = /health {
@@ -35,6 +35,23 @@ server {
     }
 
     location = /handheld/v1/chat {
+        if ($request_method != POST) { return 405; }
+
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 65s;
+        proxy_send_timeout 5s;
+        proxy_pass http://127.0.0.1:5000;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        # Overwrite, rather than append to, untrusted client forwarding data.
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Port 443;
+        proxy_set_header Connection "";
+    }
+
+    location = /handheld/v2/chat {
         if ($request_method != POST) { return 405; }
 
         proxy_connect_timeout 5s;

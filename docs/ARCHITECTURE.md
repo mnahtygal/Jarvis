@@ -142,6 +142,36 @@ The backend entry point is `api.py`, a Flask app with CORS enabled for the local
 | Measurement | `/api/measurement/analyze` |
 | Architecture | `/api/architecture/tree`, `/api/architecture/callflow` |
 | Artifacts | `/api/vision/artifacts/raw/<artifact_name>`, `/api/vision/artifacts/mat-analysis/<artifact_name>` |
+| Handheld | `/handheld/v1/chat`, `/handheld/v2/chat` |
+
+### Handheld HTTPS Boundary
+
+The handheld uses a deliberately separate path from the main Jarvis
+brain/router/session stack. V1 remains stateless. V2 adds at most four
+process-local RAM sessions, with six completed turns and 16,384 stored UTF-8
+bytes per session. Monotonic idle and absolute expiry are 30 minutes and four
+hours. Strict turn ordering, client-generated identifiers, cached explicit
+retry, and in-flight-safe reset are handled only by the bounded handheld
+session store. No handheld context is written to disk, PostgreSQL, Jarvis
+memory, or the main Jarvis session.
+
+```text
+ESP32 handheld
+  -> HTTPS :443
+  -> Nginx exact-route and method boundary
+       -> GET  /health
+       -> POST /handheld/v1/chat (stateless)
+       -> POST /handheld/v2/chat (bounded ephemeral sessions)
+  -> Flask loopback :5000
+  -> dedicated handheld model wrapper
+  -> local text model
+```
+
+All other HTTPS paths receive `404`, and wrong methods on the three exact paths
+receive `405`. Nginx access logs use the dedicated `jarvis_handheld` format.
+That format records only source address, method, normalized `$uri`, status,
+response bytes, and duration. `$uri` is intentional: unlike `$request` or
+`$request_uri`, it excludes query arguments and the raw request line.
 
 ### Brain
 

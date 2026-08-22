@@ -1,0 +1,5 @@
+# Install under /etc/nginx/conf.d so this directive is loaded in HTTP context.
+# Keep this field set exact: source, method, normalized path, status, response
+# bytes, and duration. In particular, use $uri so query arguments are omitted.
+log_format jarvis_handheld
+    '$remote_addr $request_method $uri $status $body_bytes_sent $request_time';

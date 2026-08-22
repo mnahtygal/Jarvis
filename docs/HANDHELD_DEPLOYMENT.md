@@ -1,17 +1,28 @@
 # Jarvis Handheld HTTPS Deployment
 
-This runbook deploys the v0.4 handheld API behind a narrow HTTPS boundary on
-Thor. It is intentionally staged: validate TLS and Nginx before restarting the
-API with its loopback-only bind, and change the firewall last.
+This runbook deploys the v0.5 handheld API behind a narrow HTTPS boundary on
+Thor. It is intentionally staged: back up both Nginx files, install the tracked
+templates, validate syntax, restart the API to load committed Python v2 code,
+and reload Nginx only after validation. Firewall changes remain a separately
+approved final step.
 
 The deployed LAN surface is limited to:
 
 - `GET /health`, which remains unauthenticated.
 - `POST /handheld/v1/chat`, which requires the dedicated bearer token.
+- `POST /handheld/v2/chat`, which uses the same dedicated bearer token.
 
-Nginx returns `405` for the wrong method on either approved path and `404` for
+Nginx returns `405` for the wrong method on each approved path and `404` for
 all other paths. Existing Jarvis routes remain available locally through
 `127.0.0.1:5000`; Nginx does not expose them.
+
+V1 remains compatible and stateless. V2 supports four bounded RAM-only
+sessions, six completed turns per session, and at most 16,384 UTF-8 bytes of
+stored completed content. Sessions expire after 30 minutes idle or four hours
+absolute. Clients generate session and request identifiers. Strict turn order,
+cached explicit retry, and idempotent reset are local process behavior; reset
+is rejected while that session has an active request. No handheld context is
+persisted to a database, disk, Jarvis memory, or the main Jarvis session.
 
 ## Prerequisites and trust boundary
 
@@ -27,6 +38,7 @@ ESP32 -- HTTPS + bearer token --> Nginx :443
                                       |
                                       +--> GET 127.0.0.1:5000/health
                                       +--> POST 127.0.0.1:5000/handheld/v1/chat
+                                      +--> POST 127.0.0.1:5000/handheld/v2/chat
 
 Thor-local clients -----------------> Flask 127.0.0.1:5000 (all local routes)
 ```
@@ -52,6 +64,7 @@ deployed configuration.
 | Server private key | `/etc/jarvis/pki/private/jarvis-handheld-server.key` | `root:root`, `0600` |
 | API environment | `/etc/jarvis/jarvis-api.env` | `root:root`, `0600` |
 | Systemd drop-in | `/etc/systemd/system/jarvis-api.service.d/10-handheld-env.conf` | `root:root`, `0644` |
+| Nginx log format | `/etc/nginx/conf.d/jarvis-handheld-log-format.conf` | `root:root`, `0644` |
 | Nginx site | `/etc/nginx/sites-available/jarvis-handheld` | `root:root`, `0644` |
 | Enabled Nginx site | `/etc/nginx/sites-enabled/jarvis-handheld` symlink | root-managed |
 | Backups | `/var/backups/jarvis-handheld/<timestamp>/` | `root:root`, `0700` |
@@ -110,11 +123,15 @@ sudo ufw status verbose | sudo tee "$backup/ufw-status.txt" >/dev/null
 sudo ufw status numbered | sudo tee "$backup/ufw-numbered.txt" >/dev/null
 ```
 
-After Nginx is installed, back it up before changing sites:
+After Nginx is installed, back up the complete tree before changing either the
+HTTP-context log-format file or the site:
 
 ```bash
 sudo cp -a /etc/nginx "$backup/nginx"
 ```
+
+This backup contains the prior state of both deployed targets. Do not overwrite
+it after installing either new template.
 
 ## Generate the API environment without displaying the token
 
@@ -160,10 +177,14 @@ sudo systemctl disable --now nginx
 sudo cp -a /etc/nginx "$backup/nginx"
 ```
 
-Install the site and disable the distribution default only after preserving the
-backup:
+Install both tracked templates and disable the distribution default only after
+preserving the backup. The log format belongs under `conf.d`, where Nginx loads
+it in HTTP context; `log_format` is not valid inside the site server block.
 
 ```bash
+sudo install -o root -g root -m 0644 \
+  deploy/nginx/jarvis-handheld-log-format.conf.example \
+  /etc/nginx/conf.d/jarvis-handheld-log-format.conf
 sudo install -o root -g root -m 0644 \
   deploy/nginx/jarvis-handheld.conf.example \
   /etc/nginx/sites-available/jarvis-handheld
@@ -171,8 +192,26 @@ sudo ln -s /etc/nginx/sites-available/jarvis-handheld \
   /etc/nginx/sites-enabled/jarvis-handheld
 sudo unlink /etc/nginx/sites-enabled/default
 sudo nginx -t
-sudo systemctl enable --now nginx
 ```
+
+Never reload Nginx after a failed syntax check. On an existing active
+installation, reload only after `sudo nginx -t` succeeds:
+
+```bash
+sudo systemctl reload nginx
+```
+
+For a first installation that was intentionally stopped, enable and start it
+only after the same successful syntax validation. The tracked configuration has
+no port 80 listener, retains TLS 1.2/1.3, and proxies only the three exact paths
+to `127.0.0.1:5000`.
+
+The site writes access records only with the named `jarvis_handheld` format.
+Its fields are source address, request method, normalized `$uri`, status,
+response byte count, and request duration. `$uri` is used because it omits query
+arguments; `$request` and `$request_uri` can retain the raw request target and
+must not be added. Do not add headers, bodies, cookies, referrers, user agents,
+tokens, identifiers, prompts, or responses to this format.
 
 Nginx must validate and serve TLS successfully while Flask is still reachable
 under its pre-deployment bind. Test the narrow boundary using the public CA:
@@ -195,9 +234,9 @@ curl --cacert /etc/jarvis/pki/ca/jarvis-handheld-ca.crt \
   --output /dev/null --write-out '%{http_code}\n' https://10.0.0.213/api/status/dashboard
 ```
 
-Each must return `404`. A `POST` to `/health` and a `GET` to
-`/handheld/v1/chat` must return `405`. An unauthenticated chat request must
-return `401` without reaching the model.
+Each must return `404`. A `POST` to `/health` and a `GET` to either handheld
+chat route must return `405`. An unauthenticated chat request must return `401`
+without reaching the model.
 
 ### Authenticated chat test
 
@@ -246,6 +285,23 @@ curl --fail --cacert /etc/jarvis/pki/ca/jarvis-handheld-ca.crt \
 Port 5000 must appear only on `127.0.0.1` or another explicitly approved
 loopback address. Existing local routes remain reachable from Thor at
 `127.0.0.1:5000`.
+
+Restarting `jarvis-api.service` is required after deploying the v0.5 checkpoint
+so the running process loads the committed v2 Python code. This is a runtime
+change and requires separate approval; installing Nginx files alone does not
+activate v2.
+
+### Token-safe v2 verification without a model call
+
+After the approved API restart and validated Nginx reload, use a v2 `reset`
+operation as the first authenticated verification. Generate a fresh lowercase
+hexadecimal session identifier locally, load the bearer token only from the
+root-protected API environment into a mode-0600 temporary curl configuration,
+and securely remove that file immediately afterward. Do not put the token,
+identifier, request body, or Authorization value on the command line or into a
+transcript. Reset is idempotent and does not invoke the model, so a successful
+bounded reset response verifies authentication, exact v2 routing, and Flask v2
+activation without sending a prompt.
 
 ## Vite and llama.cpp follow-up
 
@@ -303,12 +359,19 @@ Rollback in reverse order. Keep UFW and SSH access under direct observation.
    `sudo systemctl daemon-reload`, and restart `jarvis-api.service`. Move the
    protected environment file into the root-only backup rather than displaying
    it.
-4. Nginx: run `sudo systemctl disable --now nginx`, restore the complete backed
-   up `/etc/nginx` tree, run `sudo nginx -t`, then start it only if it was active
-   before deployment.
+4. Nginx: restore the backed-up site and HTTP-context log-format files together
+   (or restore the complete backed-up `/etc/nginx` tree), run `sudo nginx -t`,
+   and reload only when validation succeeds. If Nginx did not exist or was not
+   active before deployment, stop/disable it instead of reloading it.
 5. Certificates: stop Nginx before moving the newly deployed certificates and
    keys into the root-only backup. If the CA was added to system trust, remove
    only that CA copy and run `sudo update-ca-certificates`.
 
 After rollback, compare listeners, service states, Git HEAD, and UFW rules with
 the recorded pre-deployment state.
+
+For a v0.5-only rollout, reverse the activation order: first restore both Nginx
+files and validate before reloading (removing external v2 exposure), then roll
+back the application checkpoint and restart `jarvis-api.service` only with
+separate runtime approval. This prevents an externally exposed route from
+pointing at incompatible application code.

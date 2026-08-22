@@ -17,6 +17,33 @@ unless they explicitly serve text or image artifacts.
 
 `GET /health` is the service lifecycle readiness check.
 
+## Handheld Routes
+
+| Method | Route | Behavior |
+| --- | --- | --- |
+| POST | `/handheld/v1/chat` | Compatible stateless handheld conversation request |
+| POST | `/handheld/v2/chat` | Bounded ephemeral conversation message or reset operation |
+
+Both routes use the dedicated handheld bearer authentication, one shared model
+concurrency slot, and one shared rolling rate limit. V1 remains stateless and
+retains its existing request and response contract.
+
+V2 clients generate their own 32-character lowercase hexadecimal session and
+request identifiers. Message operations use strict one-based turn ordering and
+support cached replay of an identical completed request without another model
+call. Reset is idempotent for an unknown or expired session and returns a
+bounded conflict if that session has an active model request.
+
+V2 retains at most four RAM-only sessions, six completed user/assistant turns
+per session, and 16,384 UTF-8 bytes of completed conversation content. Sessions
+expire after 30 minutes idle or four hours absolute. They are never persisted
+to disk, a database, Jarvis memory, or the main Jarvis session, and they vanish
+on process restart.
+
+The tracked Nginx handheld boundary exposes exactly `GET /health`,
+`POST /handheld/v1/chat`, and `POST /handheld/v2/chat`. Wrong methods receive
+`405`; every other HTTPS route receives `404`.
+
 ## Camera Roles
 
 Camera roles are resolved dynamically from stable V4L2 identity. Current roles

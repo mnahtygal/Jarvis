@@ -2,6 +2,23 @@
 
 This changelog summarizes major project milestones. It is not yet tied to formal tagged releases.
 
+## Unreleased - Jarvis Handheld v0.5 Phase 2A
+
+### Added
+
+- Added exact Nginx exposure for the bounded v2 handheld conversation route.
+- Added an HTTP-context `jarvis_handheld` access-log format containing only
+  source address, method, normalized path, status, response bytes, and duration.
+- Added static deployment-policy tests for route, method, proxy, TLS, body-size,
+  timeout, logging, secret-material, and documentation constraints.
+
+### Updated
+
+- Documented v1 compatibility and the v2 RAM-only four-session, six-turn,
+  16,384-byte, 30-minute-idle, and four-hour-absolute bounds.
+- Documented two-file Nginx installation, validation-before-reload, token-safe
+  reset verification, and reverse-order rollback.
+
 ## Unreleased - Vision Lab Accuracy v2
 
 ### Improved
