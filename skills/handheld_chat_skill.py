@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any, Sequence
 
@@ -18,6 +19,16 @@ HANDHELD_SYSTEM_PROMPT = (
     "Do not claim to operate devices, cameras, voice systems, files, memory, "
     "tools, or external services. Do not reveal internal reasoning."
 )
+HANDHELD_CONVERSATION_SYSTEM_PROMPT = (
+    "You are Jarvis, a local text assistant for a handheld console. "
+    "Use earlier user and assistant messages in this conversation as context. "
+    "Answer the user's question directly, clearly, and concisely. "
+    "Do not claim to operate devices, cameras, voice systems, files, persistent "
+    "memory, tools, or external services. Do not reveal internal reasoning."
+)
+
+_THINK_MARKER_PATTERN = re.compile(r"</?think\b", flags=re.IGNORECASE)
+_THINK_TAG_PATTERN = re.compile(r"<(/?)think\s*>", flags=re.IGNORECASE)
 
 
 class HandheldModelTimeout(Exception):
@@ -61,6 +72,62 @@ def _extract_model_text(payload: Any) -> str:
     return content if isinstance(content, str) else ""
 
 
+def _extract_model_content(payload: Any) -> str:
+    """Return only the model's user-facing content, never its reasoning field."""
+    if not isinstance(payload, dict):
+        return ""
+
+    choices = payload.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        return ""
+
+    message = choices[0].get("message")
+    if not isinstance(message, dict):
+        return ""
+
+    content = message.get("content")
+    return content if isinstance(content, str) else ""
+
+
+def _safe_conversation_answer(value: str) -> str:
+    """Remove leading reasoning blocks and reject ambiguous reasoning markup."""
+    answer = value.strip()
+
+    while answer:
+        marker = _THINK_MARKER_PATTERN.match(answer)
+        if marker is None:
+            break
+
+        opening = _THINK_TAG_PATTERN.match(answer)
+        if opening is None or opening.group(1):
+            return ""
+
+        depth = 0
+        position = 0
+        while True:
+            marker = _THINK_MARKER_PATTERN.search(answer, position)
+            if marker is None:
+                return ""
+            tag = _THINK_TAG_PATTERN.match(answer, marker.start())
+            if tag is None:
+                return ""
+            if tag.group(1):
+                depth -= 1
+                if depth == 0:
+                    answer = answer[tag.end():].strip()
+                    break
+                if depth < 0:
+                    return ""
+            else:
+                depth += 1
+            position = tag.end()
+
+    trailing_marker = _THINK_MARKER_PATTERN.search(answer)
+    if trailing_marker is not None:
+        answer = answer[:trailing_marker.start()].rstrip()
+    return answer
+
+
 def generate_handheld_response(prompt: str) -> HandheldChatResult:
     payload = {
         "model": get_active_model_id(),
@@ -101,7 +168,9 @@ def generate_handheld_conversation_response(
     completed_messages: Sequence[tuple[str, str]],
     prompt: str,
 ) -> HandheldChatResult:
-    messages = [{"role": "system", "content": HANDHELD_SYSTEM_PROMPT}]
+    messages = [
+        {"role": "system", "content": HANDHELD_CONVERSATION_SYSTEM_PROMPT}
+    ]
     messages.extend(
         {"role": role, "content": content}
         for role, content in completed_messages
@@ -128,7 +197,9 @@ def generate_handheld_conversation_response(
     except (requests.exceptions.RequestException, ValueError) as error:
         raise HandheldModelError from error
 
-    response_text = strip_thinking(_extract_model_text(response_payload)).strip()
+    response_text = _safe_conversation_answer(
+        _extract_model_content(response_payload)
+    )
     if not response_text:
         raise HandheldModelError
 

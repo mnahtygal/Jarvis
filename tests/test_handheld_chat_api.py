@@ -4,12 +4,13 @@ import io
 import json
 import logging
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import api
 import api_routes.handheld as handheld_routes
 from core.handheld_sessions import HandheldSessionStore
 from skills.handheld_chat_skill import (
+    HANDHELD_CONVERSATION_SYSTEM_PROMPT,
     HandheldChatResult,
     HandheldModelError,
     HandheldModelTimeout,
@@ -114,6 +115,20 @@ class HandheldChatApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.model.assert_called_once_with("Hello Jarvis")
+
+    def test_v1_requests_remain_stateless(self) -> None:
+        first = self._post_payload({"prompt": "My favorite color is blue"})
+        second = self._post_payload({"prompt": "What is my favorite color?"})
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(
+            [model_call.args for model_call in self.model.call_args_list],
+            [
+                ("My favorite color is blue",),
+                ("What is my favorite color?",),
+            ],
+        )
 
     def test_wrong_content_type_is_rejected(self) -> None:
         response = self._post_payload(
@@ -456,27 +471,49 @@ class HandheldChatV2ApiTests(unittest.TestCase):
         self.model.assert_not_called()
 
     def test_success_conversation_order_and_session_isolation(self) -> None:
-        first = self._post(self._message(prompt="first"))
-        second = self._post(self._message(request_id=2, turn=2, prompt="second"))
+        self.model.side_effect = (
+            HandheldChatResult("I'll remember that for this conversation.", False),
+            HandheldChatResult("Your favorite color is blue.", False),
+            HandheldChatResult("Isolated response", False),
+        )
+        first = self._post(self._message(prompt="My favorite color is blue"))
+        second = self._post(self._message(
+            request_id=2,
+            turn=2,
+            prompt="What is my favorite color?",
+        ))
         isolated = self._post(self._message(session=2, request_id=3, prompt="other"))
 
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
         self.assertEqual(isolated.status_code, 200)
         self.assertEqual(self.model.call_args_list[1].args, (
-            (("user", "first"), ("assistant", "Unit-test v2 response")),
-            "second",
+            (
+                ("user", "My favorite color is blue"),
+                ("assistant", "I'll remember that for this conversation."),
+            ),
+            "What is my favorite color?",
         ))
         self.assertEqual(self.model.call_args_list[2].args, ((), "other"))
 
     def test_cached_retry_does_not_call_model_again(self) -> None:
         original = self._post(self._message(prompt="same"))
         replay = self._post(self._message(prompt="same"))
+        next_turn = self._post(self._message(
+            request_id=2,
+            turn=2,
+            prompt="next",
+        ))
 
         self.assertFalse(original.get_json()["replayed"])
         self.assertTrue(replay.get_json()["replayed"])
         self.assertEqual(original.get_json()["response"], replay.get_json()["response"])
-        self.model.assert_called_once()
+        self.assertEqual(next_turn.status_code, 200)
+        self.assertEqual(self.model.call_count, 2)
+        self.assertEqual(self.model.call_args_list[1].args, (
+            (("user", "same"), ("assistant", "Unit-test v2 response")),
+            "next",
+        ))
 
     def test_request_and_turn_conflicts_are_bounded(self) -> None:
         self._post(self._message(prompt="original"))
@@ -510,6 +547,7 @@ class HandheldChatV2ApiTests(unittest.TestCase):
         ):
             with self.subTest(code=code):
                 handheld_routes._session_store = HandheldSessionStore()
+                self.model.reset_mock()
                 self.model.side_effect = error
                 failed = self._post(self._message())
                 self.assertEqual(failed.status_code, status)
@@ -517,6 +555,7 @@ class HandheldChatV2ApiTests(unittest.TestCase):
                 self.model.side_effect = None
                 retry = self._post(self._message(request_id=2))
                 self.assertEqual(retry.status_code, 200)
+                self.assertEqual(self.model.call_args_list[1].args, ((), "Hello"))
 
     def test_shared_v1_v2_model_concurrency_slot(self) -> None:
         self.assertTrue(handheld_routes._request_slot.acquire(blocking=False))
@@ -593,6 +632,94 @@ class HandheldChatV2ApiTests(unittest.TestCase):
         ):
             self.assertNotIn(protected, captured)
         self.assertEqual(response.status_code, 502)
+
+
+class HandheldChatV2EndToEndRegressionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.client = api.app.test_client()
+        with handheld_routes._rate_lock:
+            handheld_routes._accepted_request_times.clear()
+        handheld_routes._session_store = HandheldSessionStore()
+        self.token_patch = patch(
+            "api_routes.handheld._get_server_token",
+            return_value=TEST_TOKEN,
+        )
+        self.model_id_patch = patch(
+            "skills.handheld_chat_skill.get_active_model_id",
+            return_value="unit-test-model",
+        )
+        self.token_patch.start()
+        self.model_id_patch.start()
+
+    def tearDown(self) -> None:
+        self.model_id_patch.stop()
+        self.token_patch.stop()
+        with handheld_routes._rate_lock:
+            handheld_routes._accepted_request_times.clear()
+        handheld_routes._session_store = HandheldSessionStore()
+
+    @staticmethod
+    def _model_response(content: str) -> Mock:
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "choices": [{"message": {"content": content}}],
+        }
+        return response
+
+    def _post(self, request_id: int, turn: int, prompt: str):
+        return self.client.post(
+            "/handheld/v2/chat",
+            json={
+                "operation": "message",
+                "session_id": f"{1:032x}",
+                "request_id": f"{request_id:032x}",
+                "turn": turn,
+                "prompt": prompt,
+            },
+            headers={"Authorization": f"Bearer {TEST_TOKEN}"},
+        )
+
+    def test_completed_first_turn_reaches_second_model_request(self) -> None:
+        with patch(
+            "skills.handheld_chat_skill.requests.post",
+            side_effect=(
+                self._model_response("Acknowledged."),
+                self._model_response("Your favorite color is blue."),
+            ),
+        ) as model_post:
+            first = self._post(1, 1, "My favorite color is blue")
+            second = self._post(2, 2, "What is my favorite color?")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.get_json()["response"], "Your favorite color is blue.")
+        self.assertEqual(model_post.call_args_list[1].kwargs["json"]["messages"], [
+            {"role": "system", "content": HANDHELD_CONVERSATION_SYSTEM_PROMPT},
+            {"role": "user", "content": "My favorite color is blue"},
+            {"role": "assistant", "content": "Acknowledged."},
+            {"role": "user", "content": "What is my favorite color?"},
+        ])
+
+    def test_reasoning_only_failure_does_not_create_history(self) -> None:
+        with patch(
+            "skills.handheld_chat_skill.requests.post",
+            side_effect=(
+                self._model_response("<think>private reasoning</think>"),
+                self._model_response("Safe answer"),
+            ),
+        ) as model_post:
+            failed = self._post(1, 1, "First attempt")
+            retry = self._post(2, 1, "Retry")
+
+        self.assertEqual(failed.status_code, 502)
+        self.assertEqual(failed.get_json()["error"]["code"], "model_error")
+        self.assertLessEqual(len(failed.data), 256)
+        self.assertEqual(retry.status_code, 200)
+        self.assertEqual(model_post.call_args_list[1].kwargs["json"]["messages"], [
+            {"role": "system", "content": HANDHELD_CONVERSATION_SYSTEM_PROMPT},
+            {"role": "user", "content": "Retry"},
+        ])
 
 
 if __name__ == "__main__":
