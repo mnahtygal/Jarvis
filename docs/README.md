@@ -55,6 +55,7 @@ current detailed sources.
 - [Ubuntu startup and service lifecycle](UBUNTU_STARTUP.md)
 - [Boot history](BOOT_HISTORY.md)
 - [Jetson setup notes](JETSON_SETUP.md)
+- [Nemotron evaluation on Jetson AGX Xavier](NEMOTRON_XAVIER_TEST_PLAN.md)
 - [Deployment](Operations/Deployment.md)
 - [Troubleshooting](Operations/Troubleshooting.md)
 - [Backups](Operations/Backups.md)
