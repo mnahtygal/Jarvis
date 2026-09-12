@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.camera_roles import DEFAULT_CAMERA_ROLE, get_camera_roles_status
+
+logger = logging.getLogger(__name__)
 
 
 INSTA360_USB_ID = "2e1a:4c01"
@@ -40,31 +43,34 @@ def _run_command(command: List[str], timeout: float = 3.0) -> Dict[str, Any]:
             "stderr": stderr,
             "text": stdout if stdout else stderr,
         }
-    except FileNotFoundError as error:
+    except FileNotFoundError:
+        logger.exception("Camera diagnostics command is unavailable: %s", command)
         return {
             "ok": False,
             "returncode": None,
             "stdout": "",
-            "stderr": str(error),
-            "text": f"ERROR: {error}",
+            "stderr": "Command unavailable.",
+            "text": "ERROR: command unavailable",
         }
     except subprocess.TimeoutExpired as error:
+        logger.exception("Camera diagnostics command timed out: %s", command)
         stdout = (error.stdout or "").strip() if isinstance(error.stdout, str) else ""
         stderr = (error.stderr or "").strip() if isinstance(error.stderr, str) else ""
         return {
             "ok": False,
             "returncode": None,
             "stdout": stdout,
-            "stderr": stderr or f"Timed out after {timeout} seconds.",
-            "text": stdout or stderr or f"ERROR: timed out after {timeout} seconds.",
+            "stderr": stderr or "Command timed out.",
+            "text": stdout or stderr or "ERROR: command timed out",
         }
-    except Exception as error:
+    except Exception:
+        logger.exception("Camera diagnostics command failed: %s", command)
         return {
             "ok": False,
             "returncode": None,
             "stdout": "",
-            "stderr": str(error),
-            "text": f"ERROR: {error}",
+            "stderr": "Command failed.",
+            "text": "ERROR: command failed",
         }
 
 

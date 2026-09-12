@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
 
 from core.camera_roles import get_camera_roles_status
 from core.microphone import get_microphone_status
+
+logger = logging.getLogger(__name__)
 
 
 SAMSON_HINTS = ["samson", "q2u"]
@@ -24,8 +27,9 @@ def _run_command(command: List[str], timeout: float = 3.0) -> str:
             timeout=timeout,
         )
         return (result.stdout or "").strip()
-    except Exception as error:
-        return f"ERROR: {error}"
+    except Exception:
+        logger.exception("Device status command failed: %s", command)
+        return "ERROR: command failed"
 
 
 def _contains_any(value: str, hints: List[str]) -> bool:

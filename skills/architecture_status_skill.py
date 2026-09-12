@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
+
+logger = logging.getLogger(__name__)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -63,9 +66,10 @@ def get_architecture_status() -> Dict[str, Any]:
             graph_path.stat().st_mtime,
             tz=timezone.utc,
         ).isoformat()
-    except Exception as exc:
+    except Exception:
+        logger.exception("Graphify architecture graph could not be read")
         return _unavailable_status(
-            f"Graphify architecture graph could not be read: {exc}",
+            "Graphify architecture graph could not be read.",
             status="ERROR",
             tree_available=tree_available,
             callflow_available=callflow_available,

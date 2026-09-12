@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+logger = logging.getLogger(__name__)
 
 VISION_URL = os.getenv(
     "JARVIS_VISION_URL",
@@ -79,10 +82,11 @@ def analyze_image(
             "ok": False,
             "error": "Vision server is offline on port 8081.",
         }
-    except Exception as error:
+    except Exception:
+        logger.exception("Vision analysis request failed")
         return {
             "ok": False,
-            "error": str(error),
+            "error": "Vision analysis failed.",
         }
 
     try:

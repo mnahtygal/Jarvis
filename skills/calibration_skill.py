@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict
 
 from core.calibration import get_active_camera_profile, load_camera_profiles
+
+logger = logging.getLogger(__name__)
 
 
 def get_calibration_status() -> Dict[str, Any]:
     try:
         profile = get_active_camera_profile()
         profiles_data = load_camera_profiles()
-    except Exception as exc:
+    except Exception:
+        logger.exception("Failed to load calibration status")
         return {
             "ready": False,
             "active_profile_id": None,
@@ -25,7 +29,7 @@ def get_calibration_status() -> Dict[str, Any]:
             "pixels_per_mm_y": None,
             "confidence": None,
             "last_calibrated_at": None,
-            "error": str(exc),
+            "error": "Calibration status is unavailable.",
         }
 
     calibration = profile.get("calibration", {})

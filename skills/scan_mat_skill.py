@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -18,6 +19,8 @@ from core.scan_mat_geometry import (
     RECTIFIED_HEIGHT_PX,
     RECTIFIED_WIDTH_PX,
 )
+
+logger = logging.getLogger(__name__)
 
 DETECTOR_EPSILON_RATIOS = [0.015, 0.02, 0.03, 0.04, 0.05]
 MIN_MAT_AREA_RATIO = 0.08
@@ -542,7 +545,8 @@ def analyze_scan_mat(
     try:
         transform = cv2.getPerspectiveTransform(rect.astype("float32"), dst)
         warped = cv2.warpPerspective(image, transform, (warped_width, warped_height))
-    except cv2.error as exc:
+    except cv2.error:
+        logger.exception("Scan Mat rectification failed")
         diagnostics["failure_reason"] = "rectification_failed"
         diagnostics["processing_ms"] = _elapsed_ms(started_at)
         return {
@@ -554,7 +558,7 @@ def analyze_scan_mat(
             "debug": debug,
             "diagnostics": diagnostics,
             "annotated_path": str(annotated_path),
-            "error": f"OpenCV could not rectify the Scan Mat image: {exc}",
+            "error": "OpenCV could not rectify the Scan Mat image.",
         }
     if warped is None or warped.size == 0:
         diagnostics["failure_reason"] = "rectification_failed"
