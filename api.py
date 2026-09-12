@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,8 @@ from skills.grounded_sam_client import (
 )
 from skills.scan_mat_skill import analyze_scan_mat
 from skills.vision_skill import DEFAULT_PROMPT, analyze_image
+
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
@@ -293,10 +296,11 @@ def api_camera_switch_active():
             "ok": False,
             "error": str(exc),
         }), 409
-    except Exception as exc:
+    except Exception:
+        logger.exception("Failed to switch active camera")
         return jsonify({
             "ok": False,
-            "error": str(exc),
+            "error": "Internal server error.",
         }), 500
 
     return jsonify(status)
@@ -418,11 +422,12 @@ def api_vision_scan_mat():
 
     try:
         mat_result = analyze_scan_mat(snapshot_path)
-    except Exception as exc:
+    except Exception:
+        logger.exception("Unexpected Scan Mat failure")
         return jsonify({
             "ok": False,
             "status": "scan_failed",
-            "error": f"Unexpected Scan Mat failure: {exc}",
+            "error": "Unexpected Scan Mat failure.",
         }), 500
     return jsonify({
         **mat_result,
@@ -457,12 +462,13 @@ def api_vision_capture_scan_mat():
         mat_result = analyze_scan_mat(
             snapshot_path, capture_metadata=capture_result
         )
-    except Exception as exc:
+    except Exception:
+        logger.exception("Unexpected Scan Mat failure during capture")
         return jsonify({
             "ok": False,
             "status": "scan_failed",
             "capture": capture_result,
-            "error": f"Unexpected Scan Mat failure: {exc}",
+            "error": "Unexpected Scan Mat failure.",
         }), 500
     scan_metadata = _scan_mat_metadata(snapshot_path, mat_result)
     return jsonify({
@@ -649,10 +655,11 @@ def api_calibration_profile():
             "ok": True,
             "profile": get_active_camera_profile(),
         })
-    except Exception as exc:
+    except Exception:
+        logger.exception("Failed to load camera calibration profile")
         return jsonify({
             "ok": False,
-            "error": str(exc),
+            "error": "Internal server error.",
         }), 500
 
 
@@ -697,10 +704,11 @@ def api_calibration_apply():
             "ok": False,
             "error": str(exc),
         }), 400
-    except Exception as exc:
+    except Exception:
+        logger.exception("Failed to apply camera calibration")
         return jsonify({
             "ok": False,
-            "error": str(exc),
+            "error": "Internal server error.",
         }), 500
 
     return jsonify({
@@ -740,8 +748,8 @@ def ask():
             "response": response
         })
 
-    except Exception as e:
-        print(f"/ask error: {e}")
+    except Exception:
+        logger.exception("/ask failed")
         return jsonify({
             "heard": "",
             "response": "Something went wrong while processing your request."
@@ -771,8 +779,8 @@ def text():
             "response": response
         })
 
-    except Exception as e:
-        print(f"/text error: {e}")
+    except Exception:
+        logger.exception("/text failed")
         return jsonify({
             "heard": "",
             "response": "Something went wrong while handling typed input."

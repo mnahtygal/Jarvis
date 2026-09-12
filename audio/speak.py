@@ -72,7 +72,11 @@ def clean_text_for_speech(text: str) -> str:
     cleaned = cleaned.replace("*", "")
 
     # Remove markdown links but keep the text.
-    cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
+    cleaned = re.sub(
+        r"\[([^\]\n]{1,500})\]\(([^)\n]{1,2000})\)",
+        r"\1",
+        cleaned,
+    )
 
     # Make whitespace speech-friendly.
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
