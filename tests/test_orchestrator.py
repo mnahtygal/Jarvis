@@ -1,4 +1,5 @@
 from core import orchestrator
+from core.execution_strategy import ExecutionStrategy
 from core.request_classifier import RequestIntent, classify_request
 
 
@@ -63,6 +64,9 @@ def test_process_request_delegates_to_existing_router(monkeypatch):
     assert result.route_type == "legacy_router"
     assert result.intent is RequestIntent.UNKNOWN
     assert result.context_policy.reason == "unknown request"
+    assert result.execution_strategy is ExecutionStrategy.LLM
+    assert result.evaluation.quality == "good"
+    assert result.actual_route == "unknown"
 
 
 def test_brain_result_defaults_are_independent():
