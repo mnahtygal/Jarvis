@@ -3,6 +3,7 @@
 import string
 
 from core.camera_roles import get_camera_roles_status, set_active_camera_role
+from core.brain_status_v2 import get_brain_v2_status_response
 from skills.time_skill import get_time_response
 from skills.system_skill import get_system_response
 from skills.chat_skill import get_chat_response
@@ -502,6 +503,13 @@ def _is_brain_status_request(text: str) -> bool:
     return False
 
 
+def _is_brain_v2_status_request(text: str) -> bool:
+    return text in {
+        "brain v2 status",
+        "jarvis brain v2 status",
+    }
+
+
 def _extract_after_prefix(command: str, prefix: str) -> str:
     """
     Extract note text using the original command while matching normalized prefixes.
@@ -605,6 +613,9 @@ def route(command: str) -> str:
     if text.startswith("semantic search"):
         query = _extract_after_prefix(command, "semantic search")
         return get_semantic_search_response(query)
+
+    if _is_brain_v2_status_request(text):
+        return get_brain_v2_status_response()
 
     if _is_brain_status_request(text):
         return get_brain_status_response()

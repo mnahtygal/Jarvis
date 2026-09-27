@@ -91,6 +91,7 @@ def _is_runtime_status(text: str) -> bool:
     return (
         "brain status" in text
         or "brain health" in text
+        or "brain v2 status" in text
         or "jarvis health" in text
         or text in {"health check", "status", "system status"}
         or ("model" in text and ("using" in text or "running" in text))
