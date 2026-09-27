@@ -1,7 +1,7 @@
 """Brain v2 request orchestration.
 
-Phase 5 keeps the existing router as the execution boundary while recording
-observe-only memory decisions alongside execution metadata.
+Phase 6 keeps the existing router as the execution boundary while allowing
+successful high-confidence project notes to be persisted safely.
 """
 
 from __future__ import annotations
@@ -21,6 +21,10 @@ from core.execution_strategy import (
     determine_execution_strategy,
 )
 from core.memory_decision import MemoryDecision, decide_memory
+from core.memory_persistence import (
+    MemoryPersistenceResult,
+    persist_project_note,
+)
 from core.request_classifier import ContextPolicy, RequestIntent, classify_request
 from core.result_evaluator import EvaluationResult, evaluate_response
 from core.router import route
@@ -28,7 +32,7 @@ from core.router import route
 
 logger = logging.getLogger(__name__)
 
-BRAIN_VERSION = "2.0-phase5"
+BRAIN_VERSION = "2.0-phase6"
 
 
 @dataclass
@@ -42,6 +46,9 @@ class BrainResult:
     execution_strategy: ExecutionStrategy | None = None
     evaluation: EvaluationResult | None = None
     memory_decision: MemoryDecision | None = None
+    memory_persisted: bool = False
+    memory_persistence_target: str = "none"
+    memory_persistence_status: str = "not_applicable"
     actual_route: str | None = None
     used_llm: bool | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -50,9 +57,8 @@ class BrainResult:
 def process_request(command: str) -> BrainResult:
     """Process a command through the existing router.
 
-    Phase 5 deliberately does not own session persistence, memory writes, or
-    LLM calls. Those responsibilities remain in the existing brain, router,
-    and skill layers.
+    Phase 6 only persists eligible project notes after a successful route and
+    evaluation. Explicit memory behavior remains in the legacy router.
     """
 
     if not isinstance(command, str):
@@ -78,6 +84,15 @@ def process_request(command: str) -> BrainResult:
 
     processing_ms = (time.perf_counter() - started_at) * 1000
     evaluation = evaluate_response(response)
+    if evaluation.success and evaluation.quality == "good":
+        persistence_result = persist_project_note(normalized_command, memory_decision)
+    else:
+        persistence_result = MemoryPersistenceResult(
+            False,
+            "none",
+            "skipped",
+            "request evaluation was not successful",
+        )
     policy = classification.context_policy
     context_sources = [
         source
@@ -106,6 +121,15 @@ def process_request(command: str) -> BrainResult:
         "should_store_memory": memory_decision.should_store,
         "memory_type": memory_decision.memory_type.value,
         "memory_confidence": memory_decision.confidence,
+        "memory_persistence": {
+            "persisted": persistence_result.persisted,
+            "target": persistence_result.target,
+            "status": persistence_result.status,
+            "reason": persistence_result.reason,
+        },
+        "memory_persisted": persistence_result.persisted,
+        "memory_persistence_target": persistence_result.target,
+        "memory_persistence_status": persistence_result.status,
         "actual_route": "unknown",
         "processing_ms": processing_ms,
     }
@@ -124,6 +148,9 @@ def process_request(command: str) -> BrainResult:
         execution_strategy=execution_strategy,
         evaluation=evaluation,
         memory_decision=memory_decision,
+        memory_persisted=persistence_result.persisted,
+        memory_persistence_target=persistence_result.target,
+        memory_persistence_status=persistence_result.status,
         actual_route="unknown",
         metadata=metadata,
     )

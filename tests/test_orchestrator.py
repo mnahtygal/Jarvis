@@ -70,6 +70,8 @@ def test_process_request_delegates_to_existing_router(monkeypatch):
     assert result.actual_route == "unknown"
     assert result.memory_decision.memory_type is MemoryType.NONE
     assert result.memory_decision.should_store is False
+    assert result.memory_persisted is False
+    assert result.memory_persistence_status == "not_applicable"
 
 
 def test_brain_result_defaults_are_independent():
