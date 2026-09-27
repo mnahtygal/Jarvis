@@ -1,6 +1,6 @@
 # core/brain.py
 
-from core.router import route
+from core.orchestrator import process_request
 from core.session import (
     remember_user_message,
     remember_assistant_message,
@@ -96,7 +96,8 @@ def think(command: str) -> str:
     if topic:
         set_last_topic(topic)
 
-    response = route(cleaned_command)
+    result = process_request(cleaned_command)
+    response = result.response
 
     remember_assistant_message(response)
 
