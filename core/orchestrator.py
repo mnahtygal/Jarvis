@@ -1,7 +1,6 @@
 """Brain v2 request orchestration.
 
-Phase 8 keeps the existing router as the execution boundary while publishing
-safe process-local lifecycle observability.
+Phase 9 adds bounded observe-only plan analysis before the unchanged router.
 """
 
 from __future__ import annotations
@@ -30,6 +29,7 @@ from core.memory_persistence import (
     MemoryPersistenceResult,
     persist_project_note,
 )
+from core.planner import PlanResult, analyze_plan
 from core.request_classifier import ContextPolicy, RequestIntent, classify_request
 from core.result_evaluator import EvaluationResult, evaluate_response
 from core.router import route
@@ -52,6 +52,11 @@ class BrainResult:
     memory_persisted: bool = False
     memory_persistence_target: str = "none"
     memory_persistence_status: str = "not_applicable"
+    plan: PlanResult | None = None
+    requires_plan: bool = False
+    plan_step_count: int = 0
+    plan_categories: tuple[str, ...] = ()
+    planner_confidence: float = 0.0
     actual_route: str | None = None
     used_llm: bool | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -60,8 +65,8 @@ class BrainResult:
 def process_request(command: str) -> BrainResult:
     """Process a command through the existing router.
 
-    Phase 8 only persists eligible project notes after a successful route and
-    evaluation. Explicit memory behavior remains in the legacy router.
+    Phase 9 analyzes possible steps for diagnostics only. The existing router
+    still executes the request exactly once.
     """
 
     if not isinstance(command, str):
@@ -72,6 +77,8 @@ def process_request(command: str) -> BrainResult:
     classification = classify_request(normalized_command)
     execution_strategy = determine_execution_strategy(classification)
     memory_decision = decide_memory(normalized_command, classification)
+    plan = analyze_plan(normalized_command)
+    plan_categories = tuple(step.category for step in plan.steps)
     request_context = BrainRequestContext(
         context_policy=classification.context_policy,
     )
@@ -101,6 +108,10 @@ def process_request(command: str) -> BrainResult:
             memory_should_store=memory_decision.should_store,
             memory_type=memory_decision.memory_type.value,
             memory_confidence=memory_decision.confidence,
+            requires_plan=plan.requires_plan,
+            plan_step_count=len(plan.steps),
+            plan_categories=plan_categories,
+            planner_confidence=plan.confidence,
             processing_ms=elapsed_ms,
         )
         logger.exception("Brain v2 request failed in legacy router")
@@ -157,6 +168,10 @@ def process_request(command: str) -> BrainResult:
         "memory_persisted": persistence_result.persisted,
         "memory_persistence_target": persistence_result.target,
         "memory_persistence_status": persistence_result.status,
+        "requires_plan": plan.requires_plan,
+        "plan_step_count": len(plan.steps),
+        "plan_categories": list(plan_categories),
+        "planner_confidence": plan.confidence,
         "actual_route": actual_route,
         "processing_ms": processing_ms,
     }
@@ -178,6 +193,11 @@ def process_request(command: str) -> BrainResult:
         memory_persisted=persistence_result.persisted,
         memory_persistence_target=persistence_result.target,
         memory_persistence_status=persistence_result.status,
+        plan=plan,
+        requires_plan=plan.requires_plan,
+        plan_step_count=len(plan.steps),
+        plan_categories=plan_categories,
+        planner_confidence=plan.confidence,
         actual_route=actual_route,
         metadata=metadata,
     )

@@ -14,8 +14,9 @@ execution or a specific LLM backend. If a handler raises before a label is set,
 the failed lifecycle records `unknown`. Evaluation remains separate.
 
 `BrainResult.actual_route`, its metadata, and the latest Brain v2 snapshot carry
-the captured label. `brain v2 status` now includes `Actual route` and version
-`2.0-phase8`. The command displays the previous completed snapshot and then
+the captured label. `brain v2 status` includes `Actual route`. The route field
+was introduced in `2.0-phase8`; later Brain versions retain it.
+The command displays the previous completed snapshot and then
 becomes the latest request itself. Other response text and router condition
 order are unchanged. Expected strategy may differ: `hello` expects `llm` under
 the existing classifier but actually uses `chat`.
