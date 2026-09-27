@@ -108,6 +108,7 @@ def _is_help_or_docs(text: str) -> bool:
     return text in {
         "help", "jarvis help", "what can you do", "what can jarvis do",
         "show commands", "list commands", "capabilities", "jarvis capabilities",
+        "brain capabilities",
         "jarvis docs", "jarvis documentation", "show docs", "show documentation",
         "where are the docs", "where is the documentation", "open docs", "documentation",
     }

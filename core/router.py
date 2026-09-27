@@ -1,6 +1,7 @@
 # core/router.py
 
 import string
+from core.capability_registry import get_capabilities_response
 from core.route_trace import set_actual_route
 
 from core.camera_roles import get_camera_roles_status, set_active_camera_role
@@ -379,6 +380,13 @@ def _is_help_request(text: str) -> bool:
     return text in help_phrases
 
 
+def _is_brain_capabilities_request(text: str) -> bool:
+    return text in {
+        "brain capabilities",
+        "jarvis capabilities",
+    }
+
+
 def _is_version_request(text: str) -> bool:
     version_phrases = [
         "jarvis version",
@@ -635,6 +643,10 @@ def route(command: str) -> str:
     if _is_health_check_request(text):
         set_actual_route("runtime_status")
         return get_health_response()
+
+    if _is_brain_capabilities_request(text):
+        set_actual_route("help_docs")
+        return get_capabilities_response()
 
     if _is_help_request(text):
         set_actual_route("help_docs")
