@@ -8,15 +8,16 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from core.request_classifier import ContextPolicy, RequestIntent, classify_request
 from core.router import route
 
 
 logger = logging.getLogger(__name__)
 
-BRAIN_VERSION = "2.0-phase1"
+BRAIN_VERSION = "2.0-phase2"
 
 
 @dataclass
@@ -25,7 +26,8 @@ class BrainResult:
 
     response: str
     route_type: str = "legacy_router"
-    intent: str | None = None
+    intent: RequestIntent | None = None
+    context_policy: ContextPolicy | None = None
     used_llm: bool | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -43,6 +45,7 @@ def process_request(command: str) -> BrainResult:
 
     normalized_command = command.strip()
     started_at = time.perf_counter()
+    classification = classify_request(normalized_command)
 
     try:
         response = route(normalized_command)
@@ -54,6 +57,8 @@ def process_request(command: str) -> BrainResult:
     metadata = {
         "command_length": len(normalized_command),
         "route_type": "legacy_router",
+        "intent": classification.intent.value,
+        "context_policy": asdict(classification.context_policy),
         "processing_ms": processing_ms,
     }
     logger.debug(
@@ -63,4 +68,9 @@ def process_request(command: str) -> BrainResult:
         processing_ms,
     )
 
-    return BrainResult(response=response, metadata=metadata)
+    return BrainResult(
+        response=response,
+        intent=classification.intent,
+        context_policy=classification.context_policy,
+        metadata=metadata,
+    )
