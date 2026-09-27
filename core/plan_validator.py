@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from core.capability_registry import (
+    get_capability,
+    resolve_plan_step_capabilities,
+)
 from core.planner import PlanResult, PlanStep
 
 
@@ -26,6 +30,10 @@ class PlanValidationResult:
     unsupported_categories: tuple[str, ...]
     step_count: int
     reason: str
+    capabilities_resolved: tuple[str, ...] = ()
+    unsupported_capabilities: tuple[str, ...] = ()
+    unresolved_step_count: int = 0
+    execution_ready: bool = False
 
 
 def _result(
@@ -34,6 +42,10 @@ def _result(
     step_count: int,
     reason: str,
     unsupported_categories: tuple[str, ...] = (),
+    capabilities_resolved: tuple[str, ...] = (),
+    unsupported_capabilities: tuple[str, ...] = (),
+    unresolved_step_count: int = 0,
+    execution_ready: bool = False,
 ) -> PlanValidationResult:
     return PlanValidationResult(
         valid=valid,
@@ -41,6 +53,10 @@ def _result(
         unsupported_categories=unsupported_categories,
         step_count=step_count,
         reason=reason,
+        capabilities_resolved=capabilities_resolved,
+        unsupported_capabilities=unsupported_capabilities,
+        unresolved_step_count=unresolved_step_count,
+        execution_ready=execution_ready,
     )
 
 
@@ -112,4 +128,35 @@ def validate_plan(plan: PlanResult) -> PlanValidationResult:
     ):
         return _result(False, "malformed", step_count, "plan metadata is malformed")
 
-    return _result(True, "valid", step_count, "plan structure is valid")
+    resolved: list[str] = []
+    unresolved_step_count = 0
+    for step in plan.steps:
+        capability_ids = resolve_plan_step_capabilities(step)
+        if not capability_ids:
+            unresolved_step_count += 1
+            continue
+        for capability_id in capability_ids:
+            if capability_id not in resolved:
+                resolved.append(capability_id)
+
+    unsupported = tuple(
+        capability_id
+        for capability_id in resolved
+        if (
+            (capability := get_capability(capability_id)) is None
+            or not capability.enabled
+            or not capability.executable
+        )
+    )
+    execution_ready = not unresolved_step_count and not unsupported
+
+    return _result(
+        True,
+        "valid",
+        step_count,
+        "plan structure is valid",
+        capabilities_resolved=tuple(resolved),
+        unsupported_capabilities=unsupported,
+        unresolved_step_count=unresolved_step_count,
+        execution_ready=execution_ready,
+    )

@@ -1,6 +1,6 @@
 """Brain v2 request orchestration.
 
-Phase 10 validates observe-only plans before the unchanged router.
+Phase 11 resolves static capability readiness before the unchanged router.
 """
 
 from __future__ import annotations
@@ -62,6 +62,10 @@ class BrainResult:
     plan_valid: bool = True
     plan_validation_status: str = "not_required"
     unsupported_plan_categories: tuple[str, ...] = ()
+    plan_capabilities: tuple[str, ...] = ()
+    unsupported_plan_capabilities: tuple[str, ...] = ()
+    plan_execution_ready: bool = False
+    unresolved_plan_steps: int = 0
     actual_route: str | None = None
     used_llm: bool | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -70,8 +74,8 @@ class BrainResult:
 def process_request(command: str) -> BrainResult:
     """Process a command through the existing router.
 
-    Phase 10 validates diagnostic plans without executing them. The existing
-    router still executes the request exactly once.
+    Phase 11 resolves capabilities for diagnostic plans without executing them.
+    The existing router still executes the request exactly once.
     """
 
     if not isinstance(command, str):
@@ -121,6 +125,12 @@ def process_request(command: str) -> BrainResult:
             plan_valid=plan_validation.valid,
             plan_validation_status=plan_validation.status,
             unsupported_plan_categories=plan_validation.unsupported_categories,
+            plan_capabilities=plan_validation.capabilities_resolved,
+            unsupported_plan_capabilities=(
+                plan_validation.unsupported_capabilities
+            ),
+            plan_execution_ready=plan_validation.execution_ready,
+            unresolved_plan_steps=plan_validation.unresolved_step_count,
             processing_ms=elapsed_ms,
         )
         logger.exception("Brain v2 request failed in legacy router")
@@ -186,6 +196,12 @@ def process_request(command: str) -> BrainResult:
         "unsupported_plan_categories": list(
             plan_validation.unsupported_categories
         ),
+        "plan_capabilities": list(plan_validation.capabilities_resolved),
+        "unsupported_plan_capabilities": list(
+            plan_validation.unsupported_capabilities
+        ),
+        "plan_execution_ready": plan_validation.execution_ready,
+        "unresolved_plan_steps": plan_validation.unresolved_step_count,
         "actual_route": actual_route,
         "processing_ms": processing_ms,
     }
@@ -216,6 +232,10 @@ def process_request(command: str) -> BrainResult:
         plan_valid=plan_validation.valid,
         plan_validation_status=plan_validation.status,
         unsupported_plan_categories=plan_validation.unsupported_categories,
+        plan_capabilities=plan_validation.capabilities_resolved,
+        unsupported_plan_capabilities=plan_validation.unsupported_capabilities,
+        plan_execution_ready=plan_validation.execution_ready,
+        unresolved_plan_steps=plan_validation.unresolved_step_count,
         actual_route=actual_route,
         metadata=metadata,
     )

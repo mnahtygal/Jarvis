@@ -8,7 +8,7 @@ from threading import Lock
 from typing import Iterable
 
 
-BRAIN_VERSION = "2.0-phase10"
+BRAIN_VERSION = "2.0-phase11"
 
 
 @dataclass(frozen=True)
@@ -34,6 +34,10 @@ class BrainV2Status:
     plan_valid: bool | None
     plan_validation_status: str | None
     unsupported_plan_categories: tuple[str, ...]
+    plan_capabilities: tuple[str, ...]
+    unsupported_plan_capabilities: tuple[str, ...]
+    plan_execution_ready: bool | None
+    unresolved_plan_steps: int
     processing_ms: float | None
 
 
@@ -72,6 +76,10 @@ def _idle_status() -> BrainV2Status:
         plan_valid=None,
         plan_validation_status=None,
         unsupported_plan_categories=(),
+        plan_capabilities=(),
+        unsupported_plan_capabilities=(),
+        plan_execution_ready=None,
+        unresolved_plan_steps=0,
         processing_ms=None,
     )
 
@@ -119,6 +127,12 @@ def publish_brain_v2_status(result) -> None:
             unsupported_plan_categories=_safe_sources(
                 result.unsupported_plan_categories
             ),
+            plan_capabilities=_safe_sources(result.plan_capabilities),
+            unsupported_plan_capabilities=_safe_sources(
+                result.unsupported_plan_capabilities
+            ),
+            plan_execution_ready=result.plan_execution_ready,
+            unresolved_plan_steps=result.unresolved_plan_steps,
             processing_ms=result.metadata.get("processing_ms"),
         )
 
@@ -139,6 +153,10 @@ def publish_brain_v2_failure(
     plan_valid: bool | None = None,
     plan_validation_status: str | None = None,
     unsupported_plan_categories: Iterable[str] = (),
+    plan_capabilities: Iterable[str] = (),
+    unsupported_plan_capabilities: Iterable[str] = (),
+    plan_execution_ready: bool | None = None,
+    unresolved_plan_steps: int = 0,
     processing_ms: float | None = None,
 ) -> None:
     """Publish a safe failed lifecycle state without exception details."""
@@ -170,6 +188,12 @@ def publish_brain_v2_failure(
             unsupported_plan_categories=_safe_sources(
                 unsupported_plan_categories
             ),
+            plan_capabilities=_safe_sources(plan_capabilities),
+            unsupported_plan_capabilities=_safe_sources(
+                unsupported_plan_capabilities
+            ),
+            plan_execution_ready=plan_execution_ready,
+            unresolved_plan_steps=unresolved_plan_steps,
             processing_ms=processing_ms,
         )
 
@@ -185,6 +209,11 @@ def format_brain_v2_status(status: BrainV2Status | None = None) -> str:
     persistence = snapshot.memory_persistence_status or "not_applicable"
     planner = "required" if snapshot.requires_plan else "not required"
     plan_categories = ", ".join(snapshot.plan_categories) if snapshot.plan_categories else "none"
+    capabilities = ", ".join(snapshot.plan_capabilities) if snapshot.plan_capabilities else "none"
+    if not snapshot.requires_plan:
+        execution_ready = "not applicable"
+    else:
+        execution_ready = "yes" if snapshot.plan_execution_ready else "no"
     processing = (
         f"{snapshot.processing_ms:.0f} ms"
         if snapshot.processing_ms is not None
@@ -205,6 +234,8 @@ def format_brain_v2_status(status: BrainV2Status | None = None) -> str:
             f"Plan steps: {snapshot.plan_step_count}",
             f"Plan categories: {plan_categories}",
             f"Plan validation: {snapshot.plan_validation_status or 'unknown'}",
+            f"Capabilities: {capabilities}",
+            f"Execution ready: {execution_ready}",
             f"Processing: {processing}",
         )
     )
