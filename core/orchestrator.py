@@ -1,6 +1,6 @@
 """Brain v2 request orchestration.
 
-Phase 9 adds bounded observe-only plan analysis before the unchanged router.
+Phase 10 validates observe-only plans before the unchanged router.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ from core.memory_persistence import (
     persist_project_note,
 )
 from core.planner import PlanResult, analyze_plan
+from core.plan_validator import PlanValidationResult, validate_plan
 from core.request_classifier import ContextPolicy, RequestIntent, classify_request
 from core.result_evaluator import EvaluationResult, evaluate_response
 from core.router import route
@@ -57,6 +58,10 @@ class BrainResult:
     plan_step_count: int = 0
     plan_categories: tuple[str, ...] = ()
     planner_confidence: float = 0.0
+    plan_validation: PlanValidationResult | None = None
+    plan_valid: bool = True
+    plan_validation_status: str = "not_required"
+    unsupported_plan_categories: tuple[str, ...] = ()
     actual_route: str | None = None
     used_llm: bool | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -65,8 +70,8 @@ class BrainResult:
 def process_request(command: str) -> BrainResult:
     """Process a command through the existing router.
 
-    Phase 9 analyzes possible steps for diagnostics only. The existing router
-    still executes the request exactly once.
+    Phase 10 validates diagnostic plans without executing them. The existing
+    router still executes the request exactly once.
     """
 
     if not isinstance(command, str):
@@ -78,6 +83,7 @@ def process_request(command: str) -> BrainResult:
     execution_strategy = determine_execution_strategy(classification)
     memory_decision = decide_memory(normalized_command, classification)
     plan = analyze_plan(normalized_command)
+    plan_validation = validate_plan(plan)
     plan_categories = tuple(step.category for step in plan.steps)
     request_context = BrainRequestContext(
         context_policy=classification.context_policy,
@@ -112,6 +118,9 @@ def process_request(command: str) -> BrainResult:
             plan_step_count=len(plan.steps),
             plan_categories=plan_categories,
             planner_confidence=plan.confidence,
+            plan_valid=plan_validation.valid,
+            plan_validation_status=plan_validation.status,
+            unsupported_plan_categories=plan_validation.unsupported_categories,
             processing_ms=elapsed_ms,
         )
         logger.exception("Brain v2 request failed in legacy router")
@@ -172,6 +181,11 @@ def process_request(command: str) -> BrainResult:
         "plan_step_count": len(plan.steps),
         "plan_categories": list(plan_categories),
         "planner_confidence": plan.confidence,
+        "plan_valid": plan_validation.valid,
+        "plan_validation_status": plan_validation.status,
+        "unsupported_plan_categories": list(
+            plan_validation.unsupported_categories
+        ),
         "actual_route": actual_route,
         "processing_ms": processing_ms,
     }
@@ -198,6 +212,10 @@ def process_request(command: str) -> BrainResult:
         plan_step_count=len(plan.steps),
         plan_categories=plan_categories,
         planner_confidence=plan.confidence,
+        plan_validation=plan_validation,
+        plan_valid=plan_validation.valid,
+        plan_validation_status=plan_validation.status,
+        unsupported_plan_categories=plan_validation.unsupported_categories,
         actual_route=actual_route,
         metadata=metadata,
     )

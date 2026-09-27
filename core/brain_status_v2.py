@@ -8,7 +8,7 @@ from threading import Lock
 from typing import Iterable
 
 
-BRAIN_VERSION = "2.0-phase9"
+BRAIN_VERSION = "2.0-phase10"
 
 
 @dataclass(frozen=True)
@@ -31,6 +31,9 @@ class BrainV2Status:
     plan_step_count: int
     plan_categories: tuple[str, ...]
     planner_confidence: float | None
+    plan_valid: bool | None
+    plan_validation_status: str | None
+    unsupported_plan_categories: tuple[str, ...]
     processing_ms: float | None
 
 
@@ -66,6 +69,9 @@ def _idle_status() -> BrainV2Status:
         plan_step_count=0,
         plan_categories=(),
         planner_confidence=None,
+        plan_valid=None,
+        plan_validation_status=None,
+        unsupported_plan_categories=(),
         processing_ms=None,
     )
 
@@ -108,6 +114,11 @@ def publish_brain_v2_status(result) -> None:
             plan_step_count=result.plan_step_count,
             plan_categories=_safe_sources(result.plan_categories),
             planner_confidence=result.planner_confidence,
+            plan_valid=result.plan_valid,
+            plan_validation_status=result.plan_validation_status,
+            unsupported_plan_categories=_safe_sources(
+                result.unsupported_plan_categories
+            ),
             processing_ms=result.metadata.get("processing_ms"),
         )
 
@@ -125,6 +136,9 @@ def publish_brain_v2_failure(
     plan_step_count: int = 0,
     plan_categories: Iterable[str] = (),
     planner_confidence: float | None = None,
+    plan_valid: bool | None = None,
+    plan_validation_status: str | None = None,
+    unsupported_plan_categories: Iterable[str] = (),
     processing_ms: float | None = None,
 ) -> None:
     """Publish a safe failed lifecycle state without exception details."""
@@ -151,6 +165,11 @@ def publish_brain_v2_failure(
             plan_step_count=plan_step_count,
             plan_categories=_safe_sources(plan_categories),
             planner_confidence=planner_confidence,
+            plan_valid=plan_valid,
+            plan_validation_status=plan_validation_status,
+            unsupported_plan_categories=_safe_sources(
+                unsupported_plan_categories
+            ),
             processing_ms=processing_ms,
         )
 
@@ -185,6 +204,7 @@ def format_brain_v2_status(status: BrainV2Status | None = None) -> str:
             f"Planner: {planner}",
             f"Plan steps: {snapshot.plan_step_count}",
             f"Plan categories: {plan_categories}",
+            f"Plan validation: {snapshot.plan_validation_status or 'unknown'}",
             f"Processing: {processing}",
         )
     )
