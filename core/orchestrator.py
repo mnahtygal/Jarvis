@@ -1,6 +1,6 @@
 """Brain v2 request orchestration.
 
-Phase 7 keeps the existing router as the execution boundary while publishing
+Phase 8 keeps the existing router as the execution boundary while publishing
 safe process-local lifecycle observability.
 """
 
@@ -33,6 +33,7 @@ from core.memory_persistence import (
 from core.request_classifier import ContextPolicy, RequestIntent, classify_request
 from core.result_evaluator import EvaluationResult, evaluate_response
 from core.router import route
+from core.route_trace import begin_route_trace, get_actual_route, reset_route_trace
 
 
 logger = logging.getLogger(__name__)
@@ -59,7 +60,7 @@ class BrainResult:
 def process_request(command: str) -> BrainResult:
     """Process a command through the existing router.
 
-    Phase 7 only persists eligible project notes after a successful route and
+    Phase 8 only persists eligible project notes after a successful route and
     evaluation. Explicit memory behavior remains in the legacy router.
     """
 
@@ -75,13 +76,16 @@ def process_request(command: str) -> BrainResult:
         context_policy=classification.context_policy,
     )
     context_token = set_active_request_context(request_context)
+    trace_token = begin_route_trace()
 
     try:
         response = route(normalized_command)
+        actual_route = get_actual_route()
     except Exception:
         elapsed_ms = (time.perf_counter() - started_at) * 1000
         policy = classification.context_policy
         publish_brain_v2_failure(
+            actual_route=get_actual_route(),
             intent=classification.intent.value,
             execution_strategy=execution_strategy.value,
             context_sources=(
@@ -102,6 +106,7 @@ def process_request(command: str) -> BrainResult:
         logger.exception("Brain v2 request failed in legacy router")
         raise
     finally:
+        reset_route_trace(trace_token)
         reset_active_request_context(context_token)
 
     processing_ms = (time.perf_counter() - started_at) * 1000
@@ -152,7 +157,7 @@ def process_request(command: str) -> BrainResult:
         "memory_persisted": persistence_result.persisted,
         "memory_persistence_target": persistence_result.target,
         "memory_persistence_status": persistence_result.status,
-        "actual_route": "unknown",
+        "actual_route": actual_route,
         "processing_ms": processing_ms,
     }
     logger.debug(
@@ -173,7 +178,7 @@ def process_request(command: str) -> BrainResult:
         memory_persisted=persistence_result.persisted,
         memory_persistence_target=persistence_result.target,
         memory_persistence_status=persistence_result.status,
-        actual_route="unknown",
+        actual_route=actual_route,
         metadata=metadata,
     )
     publish_brain_v2_status(result)

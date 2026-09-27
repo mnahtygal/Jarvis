@@ -8,7 +8,7 @@ from threading import Lock
 from typing import Iterable
 
 
-BRAIN_VERSION = "2.0-phase7"
+BRAIN_VERSION = "2.0-phase8"
 
 
 @dataclass(frozen=True)
@@ -102,6 +102,7 @@ def publish_brain_v2_status(result) -> None:
 
 def publish_brain_v2_failure(
     *,
+    actual_route: str = "unknown",
     intent: str | None,
     execution_strategy: str | None,
     context_sources: Iterable[str] = (),
@@ -121,7 +122,7 @@ def publish_brain_v2_failure(
             timestamp=_now(),
             intent=intent,
             execution_strategy=execution_strategy,
-            actual_route="unknown",
+            actual_route=actual_route,
             context_sources=_safe_sources(context_sources),
             evaluation_quality="failed",
             evaluation_success=False,
@@ -154,6 +155,7 @@ def format_brain_v2_status(status: BrainV2Status | None = None) -> str:
             f"Brain v2: {snapshot.brain_version}",
             f"Last intent: {snapshot.intent or 'unknown'}",
             f"Strategy: {snapshot.execution_strategy or 'unknown'}",
+            f"Actual route: {snapshot.actual_route or 'unknown'}",
             f"Context: {context}",
             f"Evaluation: {evaluation}",
             f"Memory decision: {memory_type}",
