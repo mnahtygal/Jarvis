@@ -8,7 +8,7 @@ from threading import Lock
 from typing import Iterable
 
 
-BRAIN_VERSION = "2.0-phase8"
+BRAIN_VERSION = "2.0-phase9"
 
 
 @dataclass(frozen=True)
@@ -27,6 +27,10 @@ class BrainV2Status:
     memory_confidence: float | None
     memory_persistence_status: str | None
     memory_persistence_target: str | None
+    requires_plan: bool | None
+    plan_step_count: int
+    plan_categories: tuple[str, ...]
+    planner_confidence: float | None
     processing_ms: float | None
 
 
@@ -58,6 +62,10 @@ def _idle_status() -> BrainV2Status:
         memory_confidence=None,
         memory_persistence_status=None,
         memory_persistence_target=None,
+        requires_plan=None,
+        plan_step_count=0,
+        plan_categories=(),
+        planner_confidence=None,
         processing_ms=None,
     )
 
@@ -96,6 +104,10 @@ def publish_brain_v2_status(result) -> None:
             memory_confidence=decision.confidence if decision else None,
             memory_persistence_status=result.memory_persistence_status,
             memory_persistence_target=result.memory_persistence_target,
+            requires_plan=result.requires_plan,
+            plan_step_count=result.plan_step_count,
+            plan_categories=_safe_sources(result.plan_categories),
+            planner_confidence=result.planner_confidence,
             processing_ms=result.metadata.get("processing_ms"),
         )
 
@@ -109,6 +121,10 @@ def publish_brain_v2_failure(
     memory_should_store: bool | None = None,
     memory_type: str | None = None,
     memory_confidence: float | None = None,
+    requires_plan: bool | None = None,
+    plan_step_count: int = 0,
+    plan_categories: Iterable[str] = (),
+    planner_confidence: float | None = None,
     processing_ms: float | None = None,
 ) -> None:
     """Publish a safe failed lifecycle state without exception details."""
@@ -131,6 +147,10 @@ def publish_brain_v2_failure(
             memory_confidence=memory_confidence,
             memory_persistence_status="skipped",
             memory_persistence_target="none",
+            requires_plan=requires_plan,
+            plan_step_count=plan_step_count,
+            plan_categories=_safe_sources(plan_categories),
+            planner_confidence=planner_confidence,
             processing_ms=processing_ms,
         )
 
@@ -144,6 +164,8 @@ def format_brain_v2_status(status: BrainV2Status | None = None) -> str:
     evaluation = snapshot.evaluation_quality or "unknown"
     memory_type = snapshot.memory_type or "none"
     persistence = snapshot.memory_persistence_status or "not_applicable"
+    planner = "required" if snapshot.requires_plan else "not required"
+    plan_categories = ", ".join(snapshot.plan_categories) if snapshot.plan_categories else "none"
     processing = (
         f"{snapshot.processing_ms:.0f} ms"
         if snapshot.processing_ms is not None
@@ -160,6 +182,9 @@ def format_brain_v2_status(status: BrainV2Status | None = None) -> str:
             f"Evaluation: {evaluation}",
             f"Memory decision: {memory_type}",
             f"Persistence: {persistence}",
+            f"Planner: {planner}",
+            f"Plan steps: {snapshot.plan_step_count}",
+            f"Plan categories: {plan_categories}",
             f"Processing: {processing}",
         )
     )
