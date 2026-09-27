@@ -1,6 +1,7 @@
 # core/router.py
 
 import string
+from core.route_trace import set_actual_route
 
 from core.camera_roles import get_camera_roles_status, set_active_camera_role
 from core.brain_status_v2 import get_brain_v2_status_response
@@ -552,9 +553,11 @@ def route(command: str) -> str:
 
     camera_response = _try_camera_role_command(text)
     if camera_response:
+        set_actual_route("camera_vision")
         return camera_response
 
     if _is_runtime_identity_request(text):
+        set_actual_route("runtime_status")
         if "memory system" in text or "memory systems" in text:
             return get_memory_stack_response()
 
@@ -573,15 +576,19 @@ def route(command: str) -> str:
         return get_runtime_identity_response()
 
     if _is_jarvis_goal_request(text):
+        set_actual_route("runtime_status")
         return get_jarvis_goal_response()
     exact_memory_response = _try_exact_memory_question(text)
     if exact_memory_response:
+        set_actual_route("exact_memory")
         return exact_memory_response        
 
     if text in ["semantic memory status", "semantic status", "pgvector status"]:
+        set_actual_route("semantic_memory")
         return get_semantic_memory_status_response()
 
     if text in ["show semantic memories", "show semantic memory", "list semantic memories"]:
+        set_actual_route("semantic_memory")
         return get_recent_semantic_memories_response()
         
     if text in [
@@ -590,6 +597,7 @@ def route(command: str) -> str:
         "memory categories",
         "semantic categories",
     ]:
+        set_actual_route("semantic_memory")
         return get_semantic_categories_response()
 
     category_commands = {
@@ -608,39 +616,50 @@ def route(command: str) -> str:
     }
 
     if text in category_commands:
+        set_actual_route("semantic_memory")
         return get_semantic_memories_by_category_response(category_commands[text])   
 
     if text.startswith("semantic search"):
         query = _extract_after_prefix(command, "semantic search")
+        set_actual_route("semantic_memory")
         return get_semantic_search_response(query)
 
     if _is_brain_v2_status_request(text):
+        set_actual_route("runtime_status")
         return get_brain_v2_status_response()
 
     if _is_brain_status_request(text):
+        set_actual_route("runtime_status")
         return get_brain_status_response()
 
     if _is_health_check_request(text):
+        set_actual_route("runtime_status")
         return get_health_response()
 
     if _is_help_request(text):
+        set_actual_route("help_docs")
         return get_help_response()
 
     if _is_version_request(text):
+        set_actual_route("runtime_status")
         return get_version_response()
 
     if _is_memory_summary_request(text):
+        set_actual_route("runtime_status")
         return get_memory_summary_response()
 
     if _is_docs_request(text):
+        set_actual_route("help_docs")
         return get_docs_response()
 
     if text.startswith("remember this"):
         note = _extract_after_prefix(command, "remember this")
+        set_actual_route("memory_write")
         return _store_semantic_note(note)
 
     if text.startswith("remember that"):
         fact = _extract_after_prefix(command, "remember that")
+        set_actual_route("memory_write")
 
         response = _remember_is_fact(fact)
         if response:
@@ -650,6 +669,7 @@ def route(command: str) -> str:
 
     if text.startswith("remember"):
         note = _extract_after_prefix(command, "remember")
+        set_actual_route("memory_write")
 
         response = _remember_is_fact(note)
         if response:
@@ -659,18 +679,22 @@ def route(command: str) -> str:
 
     if text.startswith("note that"):
         note = _extract_after_prefix(command, "note that")
+        set_actual_route("memory_write")
         return _store_semantic_note(note)
 
     if text.startswith("note"):
         note = _extract_after_prefix(command, "note")
+        set_actual_route("memory_write")
         return _store_semantic_note(note)
 
     if text.startswith("save this"):
         note = _extract_after_prefix(command, "save this")
+        set_actual_route("memory_write")
         return _store_semantic_note(note)
 
     if text.startswith("save"):
         note = _extract_after_prefix(command, "save")
+        set_actual_route("memory_write")
         return _store_semantic_note(note)
 
     if text.startswith("update my ") and " to " in text:
@@ -680,12 +704,14 @@ def route(command: str) -> str:
         key = normalize_key(key)
         value = value.strip().strip(" .!?")
 
+        set_actual_route("memory_write")
         return update_memory(key, value)
 
     if text.startswith("forget that "):
         key = text[len("forget that "):].strip()
         key = normalize_key(key)
 
+        set_actual_route("memory_write")
         return forget(key)
 
     if (
@@ -699,6 +725,7 @@ def route(command: str) -> str:
         key = normalize_key(_clean_question_key(text))
 
         value = recall(key)
+        set_actual_route("exact_memory")
         if value:
             return f"Your {key.replace('my ', '')} is {value}, Marty."
 
@@ -706,6 +733,7 @@ def route(command: str) -> str:
 
     if text in ["what do you remember", "what do you remember about me"]:
         memories = get_all_memories()
+        set_actual_route("exact_memory")
 
         if not memories:
             return "I don't have any long-term memories saved yet, Marty."
@@ -716,9 +744,11 @@ def route(command: str) -> str:
 
     natural_memory_response = _try_natural_memory(command)
     if natural_memory_response:
+        set_actual_route("memory_write")
         return natural_memory_response
 
     if "time" in text or "date" in text:
+        set_actual_route("system")
         return get_time_response()
 
     if (
@@ -727,13 +757,16 @@ def route(command: str) -> str:
         or "disk" in text
         or text in ["status", "system status"]
     ):
+        set_actual_route("system")
         return get_system_response()
 
     if (
         text in ["hello", "hi", "hey", "hey jarvis", "hello jarvis"]
         or "how are you" in text
     ):
+        set_actual_route("chat")
         return get_chat_response(command)
 
     print("[BRAIN] Falling back to LLM...")
+    set_actual_route("llm_fallback")
     return get_llm_response(command)

@@ -19,7 +19,7 @@ def test_no_request_returns_idle_status(monkeypatch):
 
     assert status.state == "idle"
     assert status.intent is None
-    assert status.brain_version == "2.0-phase7"
+    assert status.brain_version == "2.0-phase8"
     assert "no request processed" in get_brain_v2_status_response()
 
 
