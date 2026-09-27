@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Dict, List
 
+from core.brain_request_context import get_active_request_context
 from core.memory import build_memory_context
 from core.session import get_last_topic, get_recent_history
 
@@ -66,6 +68,9 @@ NO_RECENT_HISTORY = "No recent conversation history yet."
 NO_RELEVANT_SEMANTIC_MEMORY = "No relevant semantic memories found."
 
 
+logger = logging.getLogger(__name__)
+
+
 def _safe_text(value: object, fallback: str = "") -> str:
     text = str(value or "").strip()
     return text if text else fallback
@@ -74,8 +79,9 @@ def _safe_text(value: object, fallback: str = "") -> str:
 def _format_long_term_memory() -> str:
     try:
         memory_context = build_memory_context()
-    except Exception as error:
-        return f"Exact long-term memory unavailable: {error}"
+    except Exception:
+        logger.exception("Exact memory context unavailable")
+        return "Exact long-term memory unavailable."
 
     if not memory_context:
         return NO_EXACT_MEMORY
@@ -86,8 +92,9 @@ def _format_long_term_memory() -> str:
 def _format_recent_history(limit: int = 8) -> str:
     try:
         history = get_recent_history(limit=limit)
-    except Exception as error:
-        return f"Recent conversation history unavailable: {error}"
+    except Exception:
+        logger.exception("Recent conversation context unavailable")
+        return "Recent conversation history unavailable."
 
     if not history:
         return NO_RECENT_HISTORY
@@ -133,51 +140,70 @@ def _format_semantic_memory(
 
     try:
         results = search_semantic_memories(cleaned, limit=limit)
-    except Exception as error:
-        return f"Semantic memory search unavailable: {error}"
+    except Exception:
+        logger.exception("Semantic memory context unavailable")
+        return "Semantic memory search unavailable."
 
-    filtered = [
-        item
-        for item in results
-        if float(
-            item.get(
-                "weighted_similarity",
-                item.get("similarity", 0.0),
-            )
-        ) >= min_similarity
-    ]
+    try:
+        filtered = [
+            item
+            for item in results
+            if float(
+                item.get(
+                    "weighted_similarity",
+                    item.get("similarity", 0.0),
+                )
+            ) >= min_similarity
+        ]
 
-    if not filtered:
-        return NO_RELEVANT_SEMANTIC_MEMORY
+        if not filtered:
+            return NO_RELEVANT_SEMANTIC_MEMORY
 
-    return format_semantic_results(filtered)
+        return format_semantic_results(filtered)
+    except Exception:
+        logger.exception("Semantic memory results unavailable")
+        return "Semantic memory search unavailable."
 
 
 def _get_last_topic() -> str:
     try:
         return get_last_topic() or "None"
-    except Exception as error:
-        return f"Unavailable: {error}"
+    except Exception:
+        logger.exception("Last-topic context unavailable")
+        return "Last topic unavailable."
 
 
-def build_context_sections(user_text: str, history_limit: int = 8) -> Dict[str, str]:
+def build_context_sections(
+    user_text: str,
+    history_limit: int = 8,
+    respect_policy: bool = True,
+) -> Dict[str, str]:
     """
     Build the reusable context sections used by prompt, chat messages,
     and debugging summaries.
     """
 
-    return {
-        "last_topic": _get_last_topic(),
-        "exact_memory": _format_long_term_memory(),
-        "semantic_memory": _format_semantic_memory(user_text),
-        "recent_history": _format_recent_history(limit=history_limit),
-    }
+    request_context = get_active_request_context() if respect_policy else None
+    policy = request_context.context_policy if request_context else None
+    sections: Dict[str, str] = {}
+
+    if policy is None or policy.use_last_topic:
+        sections["last_topic"] = _get_last_topic()
+    if policy is None or policy.use_exact_memory:
+        sections["exact_memory"] = _format_long_term_memory()
+    if policy is None or policy.use_semantic_memory:
+        sections["semantic_memory"] = _format_semantic_memory(user_text)
+    if policy is None or policy.use_recent_history:
+        sections["recent_history"] = _format_recent_history(limit=history_limit)
+
+    return sections
 
 
 def _build_system_content(user_text: str, history_limit: int = 8) -> str:
     sections = build_context_sections(user_text=user_text, history_limit=history_limit)
 
-    return f"""
+    if get_active_request_context() is None:
+        return f"""
 {SYSTEM_PROMPT}
 
 IMPORTANT:
@@ -196,6 +222,30 @@ Last topic:
 
 Recent conversation:
 {sections["recent_history"]}
+""".strip()
+
+    if not sections:
+        return SYSTEM_PROMPT
+
+    labels = {
+        "exact_memory": "Exact long-term memory",
+        "semantic_memory": "Semantic memory",
+        "last_topic": "Last topic",
+        "recent_history": "Recent conversation",
+    }
+    context_sections = "\n\n".join(
+        f"{labels[key]}:\n{value}" for key, value in sections.items()
+    )
+
+    return f"""
+{SYSTEM_PROMPT}
+
+IMPORTANT:
+Use the memory/context sections below before relying on general model knowledge.
+If semantic memory exists, treat it as user-provided saved context.
+If a section says it is unavailable or no relevant memory was found, do not invent details for that section.
+
+{context_sections}
 """.strip()
 
 
@@ -248,7 +298,11 @@ def build_context_summary(history_limit: int = 8, user_text: str = "Jarvis statu
     Human-readable context summary for debugging.
     """
 
-    sections = build_context_sections(user_text=user_text, history_limit=history_limit)
+    sections = build_context_sections(
+        user_text=user_text,
+        history_limit=history_limit,
+        respect_policy=False,
+    )
 
     return f"""
 Last topic:
