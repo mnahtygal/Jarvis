@@ -1,7 +1,7 @@
 """Brain v2 request orchestration.
 
-Phase 4 keeps the existing router as the execution boundary while recording
-expected execution strategy and safe response evaluation.
+Phase 5 keeps the existing router as the execution boundary while recording
+observe-only memory decisions alongside execution metadata.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from core.execution_strategy import (
     ExecutionStrategy,
     determine_execution_strategy,
 )
+from core.memory_decision import MemoryDecision, decide_memory
 from core.request_classifier import ContextPolicy, RequestIntent, classify_request
 from core.result_evaluator import EvaluationResult, evaluate_response
 from core.router import route
@@ -27,7 +28,7 @@ from core.router import route
 
 logger = logging.getLogger(__name__)
 
-BRAIN_VERSION = "2.0-phase4"
+BRAIN_VERSION = "2.0-phase5"
 
 
 @dataclass
@@ -40,6 +41,7 @@ class BrainResult:
     context_policy: ContextPolicy | None = None
     execution_strategy: ExecutionStrategy | None = None
     evaluation: EvaluationResult | None = None
+    memory_decision: MemoryDecision | None = None
     actual_route: str | None = None
     used_llm: bool | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -48,7 +50,7 @@ class BrainResult:
 def process_request(command: str) -> BrainResult:
     """Process a command through the existing router.
 
-    Phase 4 deliberately does not own session persistence, memory writes, or
+    Phase 5 deliberately does not own session persistence, memory writes, or
     LLM calls. Those responsibilities remain in the existing brain, router,
     and skill layers.
     """
@@ -60,6 +62,7 @@ def process_request(command: str) -> BrainResult:
     started_at = time.perf_counter()
     classification = classify_request(normalized_command)
     execution_strategy = determine_execution_strategy(classification)
+    memory_decision = decide_memory(normalized_command, classification)
     request_context = BrainRequestContext(
         context_policy=classification.context_policy,
     )
@@ -94,6 +97,15 @@ def process_request(command: str) -> BrainResult:
         "context_sources": context_sources,
         "execution_strategy": execution_strategy.value,
         "evaluation": asdict(evaluation),
+        "memory_decision": {
+            "should_store": memory_decision.should_store,
+            "memory_type": memory_decision.memory_type.value,
+            "confidence": memory_decision.confidence,
+            "reason": memory_decision.reason,
+        },
+        "should_store_memory": memory_decision.should_store,
+        "memory_type": memory_decision.memory_type.value,
+        "memory_confidence": memory_decision.confidence,
         "actual_route": "unknown",
         "processing_ms": processing_ms,
     }
@@ -111,6 +123,7 @@ def process_request(command: str) -> BrainResult:
         context_policy=classification.context_policy,
         execution_strategy=execution_strategy,
         evaluation=evaluation,
+        memory_decision=memory_decision,
         actual_route="unknown",
         metadata=metadata,
     )
