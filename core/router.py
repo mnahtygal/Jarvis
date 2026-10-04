@@ -335,19 +335,10 @@ def _is_jarvis_goal_request(text: str) -> bool:
         "what is the goal of jarvis",
     ]
 
-    if text in goal_phrases:
-        return True
-
-    if "jarvis" in text and "goal" in text:
-        return True
-
-    if "jarvis" in text and "long term" in text:
-        return True
-
-    if "jarvis" in text and "building" in text:
-        return True
-
-    return False
+    # Only route explicit Jarvis-goal questions here.
+    # Do not hijack larger prompts merely because they contain words
+    # such as "Jarvis", "goal", "building", or "long term".
+    return text in goal_phrases
 
 
 def _is_health_check_request(text: str) -> bool:
@@ -558,6 +549,18 @@ def route(command: str) -> str:
 
     if not text:
         return "I didn't hear anything, Marty."
+
+    # Large or structured requests are agent/LLM work, not narrow
+    # keyword commands. Bypass deterministic shortcut routes so words
+    # embedded inside project specs, logs, code, etc. cannot hijack them.
+    #
+    # Example: "ownership" contains "ship", which previously caused a
+    # Farkle project specification mentioning Marty to trigger the
+    # "favorite ship" exact-memory route.
+    if "\n" in command or len(command) >= 500:
+        print("[BRAIN] Complex request detected; routing directly to LLM...")
+        set_actual_route("llm_fallback")
+        return get_llm_response(command)
 
     camera_response = _try_camera_role_command(text)
     if camera_response:

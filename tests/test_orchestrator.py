@@ -32,7 +32,7 @@ def test_request_classification_examples():
         ),
         "make something interesting": (
             RequestIntent.UNKNOWN,
-            (False, False, False, False, "unknown request"),
+            (False, True, True, True, "general request with conversational context"),
         ),
     }
 
@@ -64,7 +64,11 @@ def test_process_request_delegates_to_existing_router(monkeypatch):
     assert result.response == "router response"
     assert result.route_type == "legacy_router"
     assert result.intent is RequestIntent.UNKNOWN
-    assert result.context_policy.reason == "unknown request"
+    assert result.context_policy.reason == "general request with conversational context"
+    assert result.context_policy.use_exact_memory is False
+    assert result.context_policy.use_semantic_memory is True
+    assert result.context_policy.use_recent_history is True
+    assert result.context_policy.use_last_topic is True
     assert result.execution_strategy is ExecutionStrategy.LLM
     assert result.evaluation.quality == "good"
     assert result.actual_route == "unknown"

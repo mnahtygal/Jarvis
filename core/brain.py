@@ -90,15 +90,17 @@ def think(command: str) -> str:
 
     print(f"[BRAIN] Heard: {cleaned_command}")
 
-    remember_user_message(cleaned_command)
-
     topic = detect_topic(cleaned_command)
     if topic:
         set_last_topic(topic)
 
+    # Process the request before saving the current user message.
+    # build_messages() already adds the current message explicitly,
+    # so saving it first would also place it in recent-history context.
     result = process_request(cleaned_command)
     response = result.response
 
+    remember_user_message(cleaned_command)
     remember_assistant_message(response)
 
     return response

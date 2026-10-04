@@ -45,7 +45,13 @@ def _policy_for(intent: RequestIntent) -> ContextPolicy:
         RequestIntent.SYSTEM_COMMAND: ContextPolicy(False, False, False, False, "system command"),
         RequestIntent.CAMERA_OR_VISION: ContextPolicy(False, False, False, False, "camera or vision command"),
         RequestIntent.HELP_OR_DOCS: ContextPolicy(False, False, False, False, "help or documentation request"),
-        RequestIntent.UNKNOWN: ContextPolicy(False, False, False, False, "unknown request"),
+        RequestIntent.UNKNOWN: ContextPolicy(
+            False,
+            True,
+            True,
+            True,
+            "general request with conversational context",
+        ),
     }
     return policies[intent]
 
