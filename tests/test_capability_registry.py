@@ -40,6 +40,7 @@ EXPECTED_CAPABILITY_IDS = (
     "developer.git_status",
     "developer.write_file",
     "developer.patch_file",
+    "developer.run_command",
 )
 
 
@@ -77,11 +78,17 @@ def test_registry_lookup_and_category_filter_are_safe():
     assert get_capability("developer.git_status").read_only is True
     write_file = get_capability("developer.write_file")
     patch_file = get_capability("developer.patch_file")
-    assert write_file.enabled is patch_file.enabled is True
-    assert write_file.executable is patch_file.executable is False
-    assert write_file.read_only is patch_file.read_only is False
-    assert write_file.mutating is patch_file.mutating is True
-    assert write_file.requires_confirmation is patch_file.requires_confirmation is True
+    run_command = get_capability("developer.run_command")
+    assert write_file.enabled is patch_file.enabled is run_command.enabled is True
+    assert write_file.executable is patch_file.executable is run_command.executable is False
+    assert write_file.read_only is patch_file.read_only is run_command.read_only is False
+    assert write_file.mutating is patch_file.mutating is run_command.mutating is True
+    assert (
+        write_file.requires_confirmation
+        is patch_file.requires_confirmation
+        is run_command.requires_confirmation
+        is True
+    )
 
 
 @pytest.mark.parametrize(
@@ -93,6 +100,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         (PlanStep(1, "analyze captured image", "vision"), ("vision.describe",)),
         (PlanStep(1, "retrieve relevant memory", "memory"), ("memory.search_semantic",)),
         (PlanStep(1, "write file", "developer"), ()),
+        (PlanStep(1, "run tests", "developer"), ()),
         (PlanStep(1, "unsupported action", "system"), ()),
     ],
 )

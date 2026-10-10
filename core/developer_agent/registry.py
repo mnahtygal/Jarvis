@@ -1,4 +1,4 @@
-"""Fixed registry for the Phase 1 developer tools."""
+"""Fixed registry for the controlled Developer Agent tools."""
 
 from __future__ import annotations
 
@@ -35,6 +35,10 @@ _TOOLS = (
     ),
     ToolDefinition(
         "developer.patch_file", "Patch exact text in workspace files",
+        False, True, True, True, False,
+    ),
+    ToolDefinition(
+        "developer.run_command", "Run an allowlisted workspace command",
         False, True, True, True, False,
     ),
 )

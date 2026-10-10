@@ -157,10 +157,10 @@ def test_git_status_uses_only_fixed_read_only_command(tmp_path, monkeypatch):
     assert options["env"]["GIT_OPTIONAL_LOCKS"] == "0"
 
 
-def test_unknown_tool_and_invalid_arguments_are_rejected(tmp_path):
+def test_invalid_arguments_are_rejected(tmp_path):
     workspace = _workspace(tmp_path)
 
-    unknown = execute_tool("developer.run_command", {}, workspace=workspace)
+    unknown = execute_tool("developer.delete_file", {}, workspace=workspace)
     invalid = execute_tool(
         "developer.list_files",
         {"recursive": "yes"},
@@ -190,6 +190,7 @@ def test_registry_ids_are_unique_and_metadata_matches_phase_boundaries():
         "developer.git_status",
         "developer.write_file",
         "developer.patch_file",
+        "developer.run_command",
     )
     assert len(tool_ids) == len(set(tool_ids))
     assert all(tool.enabled for tool in tools)
@@ -205,7 +206,7 @@ def test_registry_ids_are_unique_and_metadata_matches_phase_boundaries():
         tools[0].enabled = False
 
 
-def test_developer_agent_exposes_no_shell_or_generic_command_execution():
+def test_developer_agent_exposes_no_shell_or_unrestricted_command_execution():
     package_root = Path(__file__).parents[1] / "core" / "developer_agent"
     source = "\n".join(
         path.read_text(encoding="utf-8")
@@ -213,7 +214,6 @@ def test_developer_agent_exposes_no_shell_or_generic_command_execution():
     )
 
     assert "shell=True" not in source.replace(" ", "")
-    assert "run_command" not in source
     assert "delete_file" not in source
     assert "git add" not in source
     assert "git commit" not in source

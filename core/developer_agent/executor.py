@@ -1,4 +1,4 @@
-"""Fixed dispatcher for registered Phase 1 and Phase 2 developer tools."""
+"""Fixed dispatcher for registered Developer Agent tools."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from core.developer_agent.tools import (
     list_files,
     patch_file,
     read_file,
+    run_command,
     write_file,
 )
 from core.developer_agent.workspace import Workspace
@@ -26,6 +27,9 @@ _TOOL_ARGUMENTS = {
     }),
     "developer.patch_file": frozenset({
         "path", "old_text", "new_text", "expected_matches",
+    }),
+    "developer.run_command": frozenset({
+        "argv", "timeout_seconds", "max_output_bytes",
     }),
 }
 
@@ -50,12 +54,17 @@ def _run_patch_file(arguments: dict[str, object], workspace: Workspace) -> ToolR
     return patch_file(workspace=workspace, **arguments)
 
 
+def _run_command(arguments: dict[str, object], workspace: Workspace) -> ToolResult:
+    return run_command(workspace=workspace, **arguments)
+
+
 _DISPATCH: dict[str, Callable[[dict[str, object], Workspace], ToolResult]] = {
     "developer.list_files": _run_list_files,
     "developer.read_file": _run_read_file,
     "developer.git_status": _run_git_status,
     "developer.write_file": _run_write_file,
     "developer.patch_file": _run_patch_file,
+    "developer.run_command": _run_command,
 }
 
 
@@ -86,6 +95,7 @@ def execute_tool(
         "developer.read_file": frozenset({"path"}),
         "developer.write_file": frozenset({"path", "content"}),
         "developer.patch_file": frozenset({"path", "old_text", "new_text"}),
+        "developer.run_command": frozenset({"argv"}),
     }
     if not required_arguments.get(tool_id, frozenset()).issubset(copied_arguments):
         return failure_result(tool_id, "invalid_arguments", "Required arguments are missing")
