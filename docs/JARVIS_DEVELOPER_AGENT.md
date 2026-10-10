@@ -5,7 +5,8 @@
 The Developer Agent is a controlled, local-first tool boundary for future software
 development workflows. Phase 1 provides read-only inspection. Phase 2 adds two
 explicit, bounded file-mutation tools. Phase 3 adds a confirmation-gated command
-boundary with fixed command grammars, not a generic shell.
+boundary with fixed command grammars, not a generic shell. Phase 4 adds a bounded,
+confirmation-gated verify/repair/reverify orchestrator for predefined repairs.
 
 Brain v2 advertises these capabilities, but does not invoke them from natural
 language or run an autonomous tool loop.
@@ -22,6 +23,8 @@ The implementation is intentionally small:
 - `core/developer_agent/registry.py` contains a fixed tool registry.
 - `core/developer_agent/executor.py` validates arguments and uses a fixed dispatch
   table.
+- `core/developer_agent/repair_loop.py` sequences approved verification commands
+  and predefined repairs through that executor with hard attempt limits.
 - `core/developer_agent/mutation.py` provides shared atomic-write behavior.
 - `core/developer_agent/tools/` contains the fixed tool implementations.
 - `core/capability_registry.py` advertises the matching Brain v2 capabilities.
@@ -167,6 +170,47 @@ environment, pytest plugin/config injection flags, mutation-capable Git commands
 package installers, network clients, privilege tools, file mutation utilities,
 service/process controls, and unrestricted interpreters are rejected.
 
+## Phase 4 repair loop
+
+`run_repair_loop(...)` is an explicit Python API for a controlled sequence:
+
+```text
+verify -> apply one predefined repair -> reverify -> stop or repeat
+```
+
+The caller supplies one verification argv list and the complete ordered repair
+sequence. Every repair is a fully specified `developer.patch_file` or
+`developer.write_file` request. The loop decides only when to apply the next
+repair; it does not generate paths, source text, patch bodies, or fixes. There is
+no LLM interpretation or LLM-generated repair in Phase 4.
+
+The API validates the complete request before execution, rejects unknown fields
+and tool IDs, and requires `approved=True` before running even the initial
+verification. The hard limits are three repair attempts and four verification
+runs (initial verification plus at most three reverification cycles). Callers may
+choose a lower repair limit but cannot raise it. A deterministic fingerprint
+prevents applying the same supplied repair twice in one loop.
+
+Verification always calls `developer.run_command`, so the Phase 3 argv grammar,
+workspace checks, timeout, environment, and output bounds remain authoritative.
+Mutation always calls the existing developer executor and its `patch_file` or
+`write_file` implementation, preserving all workspace, protected-path, size, and
+atomic-write policies. The loop has no direct subprocess or filesystem mutation
+path and cannot dispatch Git mutation, package management, network, deletion, or
+shell tools.
+
+The loop stops on verification success, rejected or timed-out verification,
+rejected or failed repair, exhausted repairs, a duplicate repair, the attempt
+limit, or an unexpected executor failure. Its immutable result contains only safe
+summary metadata: status, counts, per-cycle outcomes, and the final exit code. It
+does not retain command output, source contents, patch bodies, or raw exceptions.
+
+Brain v2 advertises `developer.repair_loop` as enabled, mutating,
+`requires_confirmation=True`, and `executable=False`. There is no planner mapping,
+natural-language route, interactive confirmation UI, or autonomous Brain entry
+point. Phase 4 remains a manual/internal API whose caller must explicitly approve
+the supplied sequence.
+
 ## Execution limitations
 
 Phase 2 can create or replace text only through the two explicit mutation tools.
@@ -175,8 +219,9 @@ workspace artifacts such as `__pycache__` and `.pytest_cache`; this is why the
 generic command capability remains classified as sensitive and mutating even
 though its Git subset is read-only. It cannot delete files or directories, change
 permissions, install packages, stage, commit, or push. The executor allows only
-fixed registered IDs and arguments. It does not provide automatic retries,
-self-correction, multi-step execution, planning, or natural-language invocation.
+fixed registered IDs and arguments. Phase 4 adds only the bounded, predefined
+sequence described above; it does not provide generated self-correction, planning,
+or natural-language invocation.
 
 This command policy is a constrained developer workflow boundary, not an operating
 system sandbox. An approved pytest command necessarily imports and executes the
@@ -204,9 +249,13 @@ executable paths, pytest plugin injection, and Git mutation commands.
 
 ## Roadmap
 
-- Phase 4: build/test/verify loop
-- Phase 5: Git commit
-- Phase 6: Farkle-2 autonomous benchmark
+- Phase 1: bounded read-only repository inspection
+- Phase 2: confirmation-sensitive file mutation tools
+- Phase 3: constrained verification command execution
+- Phase 4: bounded verify/repair/reverify loop using predefined repairs
+- Phase 5: controlled Git commit
+- Phase 6: LLM-assisted repair proposal and constrained developer reasoning
+- Phase 7: Farkle-2 autonomous benchmark
 
-Each later phase requires a separate security design and validation. None of these
-future capabilities is currently available.
+Each later phase requires a separate security design and validation. Phase 5 and
+beyond are not currently available.
