@@ -58,6 +58,16 @@ _CAPABILITIES = (
         mutating=True,
         requires_confirmation=True,
     ),
+    Capability(
+        capability_id="developer.run_command",
+        category="developer",
+        enabled=True,
+        executable=False,
+        description="Run an allowlisted workspace command",
+        read_only=False,
+        mutating=True,
+        requires_confirmation=True,
+    ),
 )
 
 _CAPABILITY_BY_ID = {
