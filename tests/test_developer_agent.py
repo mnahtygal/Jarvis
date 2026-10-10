@@ -180,7 +180,7 @@ def test_unknown_tool_and_invalid_arguments_are_rejected(tmp_path):
     assert unsupported.error_code == "invalid_arguments"
 
 
-def test_registry_ids_are_unique_and_all_tools_are_read_only():
+def test_registry_ids_are_unique_and_metadata_matches_phase_boundaries():
     tools = list_tools()
     tool_ids = tuple(tool.tool_id for tool in tools)
 
@@ -188,12 +188,19 @@ def test_registry_ids_are_unique_and_all_tools_are_read_only():
         "developer.list_files",
         "developer.read_file",
         "developer.git_status",
+        "developer.write_file",
+        "developer.patch_file",
     )
     assert len(tool_ids) == len(set(tool_ids))
     assert all(tool.enabled for tool in tools)
-    assert all(tool.read_only for tool in tools)
-    assert all(not tool.mutating for tool in tools)
-    assert all(not tool.requires_confirmation for tool in tools)
+    assert all(tool.read_only for tool in tools[:3])
+    assert all(not tool.mutating for tool in tools[:3])
+    assert all(not tool.requires_confirmation for tool in tools[:3])
+    assert all(tool.executable for tool in tools[:3])
+    assert all(not tool.read_only for tool in tools[3:])
+    assert all(tool.mutating for tool in tools[3:])
+    assert all(tool.requires_confirmation for tool in tools[3:])
+    assert all(not tool.executable for tool in tools[3:])
     with pytest.raises(FrozenInstanceError):
         tools[0].enabled = False
 
@@ -207,7 +214,11 @@ def test_developer_agent_exposes_no_shell_or_generic_command_execution():
 
     assert "shell=True" not in source.replace(" ", "")
     assert "run_command" not in source
-    assert "write_file" not in source
-    assert "patch_file" not in source
+    assert "delete_file" not in source
+    assert "git add" not in source
+    assert "git commit" not in source
+    assert "git push" not in source
+    assert "chmod" not in source
+    assert "chown" not in source
     assert "eval(" not in source
     assert "exec(" not in source

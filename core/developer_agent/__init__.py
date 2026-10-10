@@ -1,4 +1,4 @@
-"""Read-only developer-agent foundation for Jarvis."""
+"""Controlled developer-agent tool foundation for Jarvis."""
 
 from core.developer_agent.executor import execute_tool
 from core.developer_agent.registry import ToolDefinition, get_tool, list_tools

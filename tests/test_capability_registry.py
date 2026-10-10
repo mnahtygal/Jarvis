@@ -38,6 +38,8 @@ EXPECTED_CAPABILITY_IDS = (
     "developer.list_files",
     "developer.read_file",
     "developer.git_status",
+    "developer.write_file",
+    "developer.patch_file",
 )
 
 
@@ -73,6 +75,13 @@ def test_registry_lookup_and_category_filter_are_safe():
     assert get_capability("developer.list_files").read_only is True
     assert get_capability("developer.read_file").read_only is True
     assert get_capability("developer.git_status").read_only is True
+    write_file = get_capability("developer.write_file")
+    patch_file = get_capability("developer.patch_file")
+    assert write_file.enabled is patch_file.enabled is True
+    assert write_file.executable is patch_file.executable is False
+    assert write_file.read_only is patch_file.read_only is False
+    assert write_file.mutating is patch_file.mutating is True
+    assert write_file.requires_confirmation is patch_file.requires_confirmation is True
 
 
 @pytest.mark.parametrize(
@@ -83,6 +92,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         (PlanStep(1, "capture image", "camera"), ("camera.capture",)),
         (PlanStep(1, "analyze captured image", "vision"), ("vision.describe",)),
         (PlanStep(1, "retrieve relevant memory", "memory"), ("memory.search_semantic",)),
+        (PlanStep(1, "write file", "developer"), ()),
         (PlanStep(1, "unsupported action", "system"), ()),
     ],
 )

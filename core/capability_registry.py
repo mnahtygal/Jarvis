@@ -15,6 +15,8 @@ class Capability:
     executable: bool
     description: str
     read_only: bool = False
+    mutating: bool = False
+    requires_confirmation: bool = False
 
 
 _CAPABILITIES = (
@@ -36,6 +38,26 @@ _CAPABILITIES = (
     Capability("developer.list_files", "developer", True, True, "List workspace files", True),
     Capability("developer.read_file", "developer", True, True, "Read workspace text files", True),
     Capability("developer.git_status", "developer", True, True, "Inspect workspace Git status", True),
+    Capability(
+        capability_id="developer.write_file",
+        category="developer",
+        enabled=True,
+        executable=False,
+        description="Write bounded workspace text files",
+        read_only=False,
+        mutating=True,
+        requires_confirmation=True,
+    ),
+    Capability(
+        capability_id="developer.patch_file",
+        category="developer",
+        enabled=True,
+        executable=False,
+        description="Patch exact text in workspace files",
+        read_only=False,
+        mutating=True,
+        requires_confirmation=True,
+    ),
 )
 
 _CAPABILITY_BY_ID = {
