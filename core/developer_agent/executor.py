@@ -8,6 +8,8 @@ from typing import Callable
 from core.developer_agent.registry import get_tool
 from core.developer_agent.tool_models import ToolResult, failure_result
 from core.developer_agent.tools import (
+    git_commit,
+    git_stage,
     git_status,
     list_files,
     patch_file,
@@ -30,6 +32,10 @@ _TOOL_ARGUMENTS = {
     }),
     "developer.run_command": frozenset({
         "argv", "timeout_seconds", "max_output_bytes",
+    }),
+    "developer.git_stage": frozenset({"paths", "approved"}),
+    "developer.git_commit": frozenset({
+        "message", "verification_evidence", "approved",
     }),
 }
 
@@ -58,6 +64,14 @@ def _run_command(arguments: dict[str, object], workspace: Workspace) -> ToolResu
     return run_command(workspace=workspace, **arguments)
 
 
+def _run_git_stage(arguments: dict[str, object], workspace: Workspace) -> ToolResult:
+    return git_stage(workspace=workspace, **arguments)
+
+
+def _run_git_commit(arguments: dict[str, object], workspace: Workspace) -> ToolResult:
+    return git_commit(workspace=workspace, **arguments)
+
+
 _DISPATCH: dict[str, Callable[[dict[str, object], Workspace], ToolResult]] = {
     "developer.list_files": _run_list_files,
     "developer.read_file": _run_read_file,
@@ -65,6 +79,8 @@ _DISPATCH: dict[str, Callable[[dict[str, object], Workspace], ToolResult]] = {
     "developer.write_file": _run_write_file,
     "developer.patch_file": _run_patch_file,
     "developer.run_command": _run_command,
+    "developer.git_stage": _run_git_stage,
+    "developer.git_commit": _run_git_commit,
 }
 
 
@@ -74,7 +90,7 @@ def execute_tool(
     *,
     workspace: Workspace | None = None,
 ) -> ToolResult:
-    """Execute one known read-only tool with explicitly bounded arguments."""
+    """Execute one known controlled tool with explicitly bounded arguments."""
 
     definition = get_tool(tool_id)
     if definition is None or not definition.enabled or tool_id not in _DISPATCH:
@@ -96,6 +112,8 @@ def execute_tool(
         "developer.write_file": frozenset({"path", "content"}),
         "developer.patch_file": frozenset({"path", "old_text", "new_text"}),
         "developer.run_command": frozenset({"argv"}),
+        "developer.git_stage": frozenset({"paths"}),
+        "developer.git_commit": frozenset({"message", "verification_evidence"}),
     }
     if not required_arguments.get(tool_id, frozenset()).issubset(copied_arguments):
         return failure_result(tool_id, "invalid_arguments", "Required arguments are missing")

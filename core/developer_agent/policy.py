@@ -10,6 +10,9 @@ PROTECTED_MUTATION_FILENAMES = frozenset({
     "audio_pipeline_tester_jarvis.py",
     "audio_pipeline_tester_jarvis_v2.py",
 })
+PROTECTED_GIT_FILENAMES = PROTECTED_MUTATION_FILENAMES | frozenset({
+    "testbrain.py",
+})
 
 
 def _is_sensitive_name(name: str) -> bool:
@@ -39,4 +42,15 @@ def mutation_protection_code(*paths: Path) -> str | None:
             return "protected_file"
         if is_sensitive_path(path):
             return "sensitive_file"
+    return None
+
+
+def git_protection_code(*paths: Path) -> str | None:
+    """Return a stable refusal code for paths entering a Git checkpoint."""
+
+    code = mutation_protection_code(*paths)
+    if code is not None:
+        return code
+    if any(path.name.casefold() in PROTECTED_GIT_FILENAMES for path in paths):
+        return "protected_file"
     return None

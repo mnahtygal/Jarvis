@@ -41,6 +41,14 @@ _TOOLS = (
         "developer.run_command", "Run an allowlisted workspace command",
         False, True, True, True, False,
     ),
+    ToolDefinition(
+        "developer.git_stage", "Stage explicit safe files for a local checkpoint",
+        False, True, True, True, False,
+    ),
+    ToolDefinition(
+        "developer.git_commit", "Create a verified local Git checkpoint",
+        False, True, True, True, False,
+    ),
 )
 
 _TOOLS_BY_ID = {tool.tool_id: tool for tool in _TOOLS}
