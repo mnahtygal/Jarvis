@@ -15,6 +15,7 @@ PLAN_CATEGORIES = frozenset({
     "llm",
     "comparison",
     "summary",
+    "developer",
     "unknown",
 })
 

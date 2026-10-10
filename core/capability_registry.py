@@ -14,6 +14,7 @@ class Capability:
     enabled: bool
     executable: bool
     description: str
+    read_only: bool = False
 
 
 _CAPABILITIES = (
@@ -32,6 +33,9 @@ _CAPABILITIES = (
     Capability("vision.measure", "vision", True, False, "Measure an object in an image"),
     Capability("help.docs", "system", True, True, "Show Jarvis help and documentation"),
     Capability("llm.respond", "llm", True, True, "Generate a local model response"),
+    Capability("developer.list_files", "developer", True, True, "List workspace files", True),
+    Capability("developer.read_file", "developer", True, True, "Read workspace text files", True),
+    Capability("developer.git_status", "developer", True, True, "Inspect workspace Git status", True),
 )
 
 _CAPABILITY_BY_ID = {
@@ -107,6 +111,7 @@ def get_capabilities_response() -> str:
         "camera": "Camera",
         "vision": "Vision",
         "llm": "LLM",
+        "developer": "Developer",
     }
     lines = ["Jarvis Brain v2 capabilities:"]
     for category, label in category_labels.items():
