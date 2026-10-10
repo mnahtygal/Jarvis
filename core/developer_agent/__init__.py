@@ -6,6 +6,13 @@ from core.developer_agent.repair_loop import (
     RepairResult,
     run_repair_loop,
 )
+from core.developer_agent.repair_proposal import (
+    MIN_REPAIR_PROPOSAL_CONFIDENCE,
+    RepairProposal,
+    RepairProposalRequest,
+    proposal_to_predefined_repair,
+    propose_repair,
+)
 from core.developer_agent.registry import ToolDefinition, get_tool, list_tools
 from core.developer_agent.tool_models import ToolResult
 from core.developer_agent.verification import VerificationEvidence
@@ -20,7 +27,12 @@ __all__ = (
     "get_tool",
     "list_tools",
     "RepairAttempt",
+    "RepairProposal",
+    "RepairProposalRequest",
     "RepairResult",
+    "MIN_REPAIR_PROPOSAL_CONFIDENCE",
+    "proposal_to_predefined_repair",
+    "propose_repair",
     "resolve_workspace_path",
     "run_repair_loop",
 )

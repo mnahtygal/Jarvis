@@ -8,6 +8,7 @@ explicit, bounded file-mutation tools. Phase 3 adds a confirmation-gated command
 boundary with fixed command grammars, not a generic shell. Phase 4 adds a bounded,
 confirmation-gated verify/repair/reverify orchestrator for predefined repairs.
 Phase 5 adds explicit-path staging and one verification-gated local commit.
+Phase 6 adds one bounded, data-only LLM-assisted repair proposal.
 
 Brain v2 advertises these capabilities, but does not invoke them from natural
 language or run an autonomous tool loop.
@@ -26,6 +27,8 @@ The implementation is intentionally small:
   table.
 - `core/developer_agent/repair_loop.py` sequences approved verification commands
   and predefined repairs through that executor with hard attempt limits.
+- `core/developer_agent/repair_proposal.py` builds and validates one bounded local
+  model proposal without applying it.
 - `core/developer_agent/verification.py` reduces successful verification results
   to immutable, output-free evidence.
 - `core/developer_agent/git_safety.py` owns fixed local Git inspection, staging,
@@ -281,6 +284,91 @@ mutating, confirmation-required, `executable=False`, and unavailable to natural
 language, the planner, and autonomous Brain execution. The approval flag is a
 trusted-caller gate, not an interactive confirmation UI.
 
+## Phase 6 LLM-assisted repair proposal
+
+Phase 6 adds the explicit Python API `propose_repair(...)`. It can return one
+immutable `RepairProposal` describing an exact text patch, creation of one new
+text file, or `no_fix`. A proposal is data only: this API never writes or patches
+a file, runs a command, stages or commits changes, invokes the repair loop, or
+dispatches any tool except the literal read-only `developer.read_file` ID.
+
+The integration uses the existing llama.cpp raw-chat function and active local
+model. It supplies a purpose-built developer-repair system prompt directly rather
+than using `core.context.build_messages`. Exact memory, semantic memory, recent
+conversation, last-topic state, and Marty's personal context are therefore not
+loaded or sent to the repair model. Backend errors are suppressed at this boundary
+and produce a stable safe failure without returning or logging raw exception text.
+
+### Bounded untrusted context
+
+The caller supplies a verification summary, failure output, at most five explicit
+candidate paths, and optional excerpts. The limits are 4 KiB for the summary,
+16 KiB for failure output, 8 KiB per excerpt, and 48 KiB for the combined repair
+context. Candidate paths are at most 4,096 UTF-8 bytes. Oversized inputs are
+rejected rather than silently truncated. If an excerpt is omitted for an existing
+candidate, Phase 6 obtains a bounded line-numbered excerpt through
+`developer.read_file` and the fixed executor; it does not call `open`,
+`Path.read_text`, or a repository search.
+
+Candidates must be canonical workspace-relative paths with an existing contained
+parent. Absolute paths, traversal, duplicates, directories, unsafe symlinks,
+`.git/`, `.env*`, key/certificate and credential/secret names, `testbrain.py`, and
+the three protected audio tester files are refused before any model call. A new
+path may be a write candidate, but an existing path is required for a patch.
+
+Failure output, stack traces, filenames, source comments, and excerpts are marked
+as untrusted JSON data in the prompt. The system contract tells the model that
+embedded instructions cannot redefine the schema, permissions, output format, or
+system behavior; it must not issue commands, claim execution, or reveal
+chain-of-thought. It must choose `no_fix` when the evidence is insufficient.
+
+### Strict output and repair-data conversion
+
+Model output is capped at 32 KiB and parsed only as one strict JSON object. Markdown
+fences, surrounding prose, arrays, duplicate keys, unknown fields or proposal
+types, missing fields, wrong types, non-finite/out-of-range confidence, NULs, and
+oversized strings are rejected. Patch/write payload strings are capped at 16 KiB
+and reasons at 1 KiB. There is no `eval`, `exec`, literal evaluation, YAML, fuzzy
+matching, or regex patch parsing. One correction call is allowed only after JSON
+or schema failure; an unsafe target, ambiguous patch, low confidence, or other
+semantic rejection is never retried. Empty/unavailable model responses and
+backend failures stop immediately. There are at most two model calls.
+
+Patch proposals require a protected-policy-safe existing text file, non-empty
+`old_text`, a different bounded replacement, and exactly one literal match in a
+complete bounded read of the current file. Write proposals are limited to bounded
+UTF-8 content at a target that does not exist; overwrite and implicit parent
+creation are not proposed. `no_fix` has no path or payload fields.
+
+`MIN_REPAIR_PROPOSAL_CONFIDENCE` is `0.70`. This model-reported number is a
+heuristic, not a calibrated probability. A structurally valid proposal below the
+threshold remains `valid=True` but is not eligible for conversion.
+`proposal_to_predefined_repair(...)` revalidates current path and payload state,
+including a private validation seal and unchanged filesystem snapshot, without
+calling the executor. It then returns immutable data compatible with the Phase 4
+repair loop:
+`developer.patch_file` arguments with one expected match, or
+`developer.write_file` arguments with `overwrite=False` and
+`create_parent_dirs=False`. It does not call the executor, mutate a file, or enter
+the repair loop.
+
+The seal is a module-local identity token and the snapshot retains only path and
+filesystem stat metadata; neither contains source content or secrets. Together
+they conservatively reject public caller-constructed proposals and target changes
+between proposal validation and conversion. They are process-local integrity
+checks, not cryptographic attestations, durable proofs, or a defense against
+hostile code already executing inside the Jarvis Python process. The existing
+repair-loop approval and mutation validation remain the final authority.
+
+The immediate trusted caller may inspect a full proposal. Phase 6 does not write
+the prompt, raw model output, failure text, source excerpt, or repair payload to
+logs, Brain status, session history, exact/semantic memory, or other persistence.
+Brain v2 advertises `developer.propose_repair` as enabled, read-only,
+non-mutating, confirmation-free, and `executable=False`. There is no planner,
+router, natural-language, Brain-autonomous, or automatic post-repair/checkpoint
+entry point. Existing approval, mutation, verification, repair-loop, and Git gates
+remain authoritative.
+
 ## Execution limitations
 
 Phase 2 can create or replace text only through the two explicit mutation tools.
@@ -293,6 +381,7 @@ fixed registered IDs and arguments. Phase 4 adds only the bounded, predefined
 sequence described above; it does not provide generated self-correction, planning,
 or natural-language invocation. Phase 5 adds only the two dedicated local Git
 checkpoint tools; the generic command tool still cannot stage, commit, or push.
+Phase 6 only proposes and converts repair data; it cannot apply that data.
 
 This command policy is a constrained developer workflow boundary, not an operating
 system sandbox. An approved pytest command necessarily imports and executes the
@@ -325,8 +414,9 @@ executable paths, pytest plugin injection, and Git mutation commands.
 - Phase 3: constrained verification command execution
 - Phase 4: bounded verify/repair/reverify loop using predefined repairs
 - Phase 5: controlled explicit staging and verification-gated local commit
-- Phase 6: LLM-assisted repair proposal and constrained developer reasoning
-- Phase 7: Farkle-2 autonomous benchmark
+- Phase 6: bounded LLM-assisted repair proposals (data only)
+- Phase 7: bounded autonomous developer session
+- Phase 8: Farkle-2 autonomous benchmark
 
-Each later phase requires a separate security design and validation. Phase 6 and
+Each later phase requires a separate security design and validation. Phase 7 and
 beyond are not currently available.

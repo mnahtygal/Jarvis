@@ -98,6 +98,16 @@ _CAPABILITIES = (
         mutating=True,
         requires_confirmation=True,
     ),
+    Capability(
+        capability_id="developer.propose_repair",
+        category="developer",
+        enabled=True,
+        executable=False,
+        description="Propose one bounded data-only developer repair",
+        read_only=True,
+        mutating=False,
+        requires_confirmation=False,
+    ),
 )
 
 _CAPABILITY_BY_ID = {
