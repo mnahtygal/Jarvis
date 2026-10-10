@@ -68,6 +68,16 @@ _CAPABILITIES = (
         mutating=True,
         requires_confirmation=True,
     ),
+    Capability(
+        capability_id="developer.repair_loop",
+        category="developer",
+        enabled=True,
+        executable=False,
+        description="Run a bounded predefined verify and repair sequence",
+        read_only=False,
+        mutating=True,
+        requires_confirmation=True,
+    ),
 )
 
 _CAPABILITY_BY_ID = {

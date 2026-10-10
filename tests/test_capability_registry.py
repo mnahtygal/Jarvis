@@ -41,6 +41,7 @@ EXPECTED_CAPABILITY_IDS = (
     "developer.write_file",
     "developer.patch_file",
     "developer.run_command",
+    "developer.repair_loop",
 )
 
 
@@ -79,14 +80,40 @@ def test_registry_lookup_and_category_filter_are_safe():
     write_file = get_capability("developer.write_file")
     patch_file = get_capability("developer.patch_file")
     run_command = get_capability("developer.run_command")
-    assert write_file.enabled is patch_file.enabled is run_command.enabled is True
-    assert write_file.executable is patch_file.executable is run_command.executable is False
-    assert write_file.read_only is patch_file.read_only is run_command.read_only is False
-    assert write_file.mutating is patch_file.mutating is run_command.mutating is True
+    repair_loop = get_capability("developer.repair_loop")
+    assert (
+        write_file.enabled
+        is patch_file.enabled
+        is run_command.enabled
+        is repair_loop.enabled
+        is True
+    )
+    assert (
+        write_file.executable
+        is patch_file.executable
+        is run_command.executable
+        is repair_loop.executable
+        is False
+    )
+    assert (
+        write_file.read_only
+        is patch_file.read_only
+        is run_command.read_only
+        is repair_loop.read_only
+        is False
+    )
+    assert (
+        write_file.mutating
+        is patch_file.mutating
+        is run_command.mutating
+        is repair_loop.mutating
+        is True
+    )
     assert (
         write_file.requires_confirmation
         is patch_file.requires_confirmation
         is run_command.requires_confirmation
+        is repair_loop.requires_confirmation
         is True
     )
 
@@ -101,6 +128,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         (PlanStep(1, "retrieve relevant memory", "memory"), ("memory.search_semantic",)),
         (PlanStep(1, "write file", "developer"), ()),
         (PlanStep(1, "run tests", "developer"), ()),
+        (PlanStep(1, "repair code", "developer"), ()),
         (PlanStep(1, "unsupported action", "system"), ()),
     ],
 )
