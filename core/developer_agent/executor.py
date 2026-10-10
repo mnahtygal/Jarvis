@@ -1,4 +1,4 @@
-"""Fixed dispatcher for the three Phase 1 read-only developer tools."""
+"""Fixed dispatcher for registered Phase 1 and Phase 2 developer tools."""
 
 from __future__ import annotations
 
@@ -7,7 +7,13 @@ from typing import Callable
 
 from core.developer_agent.registry import get_tool
 from core.developer_agent.tool_models import ToolResult, failure_result
-from core.developer_agent.tools import git_status, list_files, read_file
+from core.developer_agent.tools import (
+    git_status,
+    list_files,
+    patch_file,
+    read_file,
+    write_file,
+)
 from core.developer_agent.workspace import Workspace
 
 
@@ -15,6 +21,12 @@ _TOOL_ARGUMENTS = {
     "developer.list_files": frozenset({"path", "recursive", "max_entries"}),
     "developer.read_file": frozenset({"path", "start_line", "end_line", "max_bytes"}),
     "developer.git_status": frozenset(),
+    "developer.write_file": frozenset({
+        "path", "content", "overwrite", "create_parent_dirs",
+    }),
+    "developer.patch_file": frozenset({
+        "path", "old_text", "new_text", "expected_matches",
+    }),
 }
 
 
@@ -30,10 +42,20 @@ def _run_git_status(arguments: dict[str, object], workspace: Workspace) -> ToolR
     return git_status(workspace=workspace, **arguments)
 
 
+def _run_write_file(arguments: dict[str, object], workspace: Workspace) -> ToolResult:
+    return write_file(workspace=workspace, **arguments)
+
+
+def _run_patch_file(arguments: dict[str, object], workspace: Workspace) -> ToolResult:
+    return patch_file(workspace=workspace, **arguments)
+
+
 _DISPATCH: dict[str, Callable[[dict[str, object], Workspace], ToolResult]] = {
     "developer.list_files": _run_list_files,
     "developer.read_file": _run_read_file,
     "developer.git_status": _run_git_status,
+    "developer.write_file": _run_write_file,
+    "developer.patch_file": _run_patch_file,
 }
 
 
@@ -60,8 +82,13 @@ def execute_tool(
     copied_arguments = dict(arguments)
     if set(copied_arguments) - _TOOL_ARGUMENTS[tool_id]:
         return failure_result(tool_id, "invalid_arguments", "Arguments are not supported")
-    if tool_id == "developer.read_file" and "path" not in copied_arguments:
-        return failure_result(tool_id, "invalid_arguments", "path is required")
+    required_arguments = {
+        "developer.read_file": frozenset({"path"}),
+        "developer.write_file": frozenset({"path", "content"}),
+        "developer.patch_file": frozenset({"path", "old_text", "new_text"}),
+    }
+    if not required_arguments.get(tool_id, frozenset()).issubset(copied_arguments):
+        return failure_result(tool_id, "invalid_arguments", "Required arguments are missing")
 
     try:
         return _DISPATCH[tool_id](copied_arguments, workspace or Workspace())

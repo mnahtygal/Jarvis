@@ -5,6 +5,7 @@ from __future__ import annotations
 import codecs
 from pathlib import Path
 
+from core.developer_agent.policy import is_sensitive_path
 from core.developer_agent.tool_models import ToolResult, failure_result, success_result
 from core.developer_agent.workspace import Workspace, WorkspacePathError
 
@@ -13,17 +14,6 @@ TOOL_ID = "developer.read_file"
 DEFAULT_MAX_BYTES = 64 * 1024
 MAX_BYTES = 1024 * 1024
 MAX_LINE_RANGE = 2_000
-
-
-def _is_sensitive(path: Path) -> bool:
-    name = path.name.casefold()
-    return (
-        name == ".env"
-        or name.startswith(".env.")
-        or path.suffix.casefold() in {".pem", ".key"}
-        or name.startswith("credentials")
-        or name.startswith("secrets")
-    )
 
 
 def _valid_line_number(value: int | None) -> bool:
@@ -80,7 +70,16 @@ def read_file(
         return failure_result(TOOL_ID, "not_a_file", "Path is a directory")
     if not resolved.is_file():
         return failure_result(TOOL_ID, "not_a_file", "Path is not a regular file")
-    if _is_sensitive(requested_name) or _is_sensitive(resolved):
+    requested_policy_path = requested_name
+    if requested_name.is_absolute():
+        try:
+            requested_policy_path = requested_name.relative_to(active_workspace.root)
+        except ValueError:
+            requested_policy_path = Path(requested_name.name)
+    if (
+        is_sensitive_path(requested_policy_path)
+        or is_sensitive_path(resolved.relative_to(active_workspace.root))
+    ):
         return failure_result(TOOL_ID, "sensitive_file", "Sensitive files cannot be read")
 
     try:

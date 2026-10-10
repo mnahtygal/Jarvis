@@ -1,4 +1,4 @@
-"""Immutable models shared by the read-only developer tools."""
+"""Immutable models shared by the controlled developer tools."""
 
 from __future__ import annotations
 

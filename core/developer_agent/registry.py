@@ -13,32 +13,29 @@ class ToolDefinition:
     mutating: bool
     requires_confirmation: bool
     enabled: bool
+    executable: bool
 
 
 _TOOLS = (
     ToolDefinition(
-        "developer.list_files",
-        "List bounded workspace directory entries",
-        True,
-        False,
-        False,
-        True,
+        "developer.list_files", "List bounded workspace directory entries",
+        True, False, False, True, True,
     ),
     ToolDefinition(
-        "developer.read_file",
-        "Read bounded UTF-8 text from the workspace",
-        True,
-        False,
-        False,
-        True,
+        "developer.read_file", "Read bounded UTF-8 text from the workspace",
+        True, False, False, True, True,
     ),
     ToolDefinition(
-        "developer.git_status",
-        "Inspect the workspace Git branch and file status",
-        True,
-        False,
-        False,
-        True,
+        "developer.git_status", "Inspect workspace Git status",
+        True, False, False, True, True,
+    ),
+    ToolDefinition(
+        "developer.write_file", "Write bounded workspace text files",
+        False, True, True, True, False,
+    ),
+    ToolDefinition(
+        "developer.patch_file", "Patch exact text in workspace files",
+        False, True, True, True, False,
     ),
 )
 

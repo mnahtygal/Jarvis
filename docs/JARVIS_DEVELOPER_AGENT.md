@@ -3,9 +3,9 @@
 ## Purpose
 
 The Developer Agent is a controlled, local-first tool boundary for future software
-development workflows. Phase 1 is deliberately read-only: it lets trusted Jarvis
-code inspect the project workspace without exposing arbitrary filesystem or command
-access.
+development workflows. Phase 1 provides read-only inspection. Phase 2 adds two
+explicit, bounded file-mutation tools without exposing arbitrary filesystem or
+command access.
 
 Brain v2 advertises these capabilities, but does not invoke them from natural
 language or run an autonomous tool loop.
@@ -15,11 +15,13 @@ language or run an autonomous tool loop.
 The implementation is intentionally small:
 
 - `core/developer_agent/tool_models.py` defines immutable tool results.
-- `core/developer_agent/workspace.py` owns the shared workspace boundary.
+- `core/developer_agent/workspace.py` owns the shared workspace boundary and
+  `core/developer_agent/policy.py` owns sensitive/protected path rules.
 - `core/developer_agent/registry.py` contains a fixed tool registry.
 - `core/developer_agent/executor.py` validates arguments and uses a fixed dispatch
   table.
-- `core/developer_agent/tools/` contains the three read-only implementations.
+- `core/developer_agent/mutation.py` provides shared atomic-write behavior.
+- `core/developer_agent/tools/` contains the fixed tool implementations.
 - `core/capability_registry.py` advertises the matching Brain v2 capabilities.
 
 There is no dynamic registration, dynamic import, `eval`, `exec`, or generic shell
@@ -52,6 +54,28 @@ git status --short --branch
 It uses the workspace root as its working directory, never enables a shell, and
 sets `GIT_OPTIONAL_LOCKS=0` to prevent optional index refresh writes.
 
+## Phase 2 tools
+
+Phase 2 tools are enabled for explicit calls through the developer executor. Both
+are marked mutating, non-read-only, and `requires_confirmation=True`. They are
+marked `executable=False` for autonomous planning. No interactive confirmation UI
+exists yet; a future caller must enforce a confirmation or policy gate before any
+autonomous invocation.
+
+### `developer.write_file`
+
+Creates bounded UTF-8 text files. Existing files are refused unless
+`overwrite=True`, and missing parent directories are refused unless
+`create_parent_dirs=True`. Existing targets must already be bounded UTF-8 text;
+binary files are not overwritten.
+
+### `developer.patch_file`
+
+Performs literal, case-sensitive text replacement without regular expressions,
+fuzzy matching, or arbitrary diff application. `old_text` must be non-empty. The
+actual exact match count must equal `expected_matches` (default `1`) or the file is
+left byte-for-byte unchanged.
+
 ## Workspace and security model
 
 The default approved root is the Jarvis repository containing the implementation.
@@ -68,11 +92,24 @@ Tool results contain stable error codes and safe messages; raw exceptions are no
 returned. File reads, line ranges, directory output, Git output, and subprocess
 duration are bounded.
 
-## Read-only limitation
+Mutation additionally refuses `.env*`, `*.pem`, `*.key`, `credentials*`,
+`secrets*`, every path beneath `.git/`, and the three protected personal audio
+tester filenames. `.gitignore` remains editable. Content and patch payload sizes
+are bounded.
 
-Phase 1 cannot create, modify, delete, stage, commit, or push files. The executor
-allows exactly the three registered IDs. It does not provide command execution,
-automatic retries, self-correction, planning, or natural-language invocation.
+Successful mutations write a temporary file in the validated target directory,
+flush and sync it, revalidate containment and protection immediately before the
+mutation, and atomically link or replace the target. Existing file modes are
+preserved. Concurrent changes detected during patching or overwrite validation
+cause a safe refusal.
+
+## Execution limitation
+
+Phase 2 can create or replace text only through the two explicit mutation tools. It
+cannot delete files or directories, change user-selected permissions, stage,
+commit, or push. The executor allows only fixed registered IDs. It does not provide
+command execution, automatic retries, self-correction, planning, or
+natural-language invocation.
 
 Allowed examples:
 
@@ -80,15 +117,16 @@ Allowed examples:
 execute_tool("developer.list_files", {"path": "core", "recursive": False})
 execute_tool("developer.read_file", {"path": "README.md", "start_line": 1, "end_line": 20})
 execute_tool("developer.git_status", {})
+execute_tool("developer.write_file", {"path": "notes/todo.md", "content": "TODO\n", "create_parent_dirs": True})
+execute_tool("developer.patch_file", {"path": "notes/todo.md", "old_text": "TODO", "new_text": "DONE"})
 ```
 
 Rejected examples include `../` or symlink escapes, `/etc/passwd`, `.env`, binary
-files, unknown tool IDs, unsupported arguments, and any attempted
-`developer.run_command` or write/edit tool.
+files, protected audio tester files, Git metadata, unknown tool IDs, unsupported
+arguments, and any attempted `developer.run_command`.
 
 ## Roadmap
 
-- Phase 2: controlled `write_file` and `patch_file`
 - Phase 3: controlled `run_command`
 - Phase 4: build/test/verify loop
 - Phase 5: Git commit
