@@ -8,11 +8,13 @@ from core.developer_agent.repair_loop import (
 )
 from core.developer_agent.registry import ToolDefinition, get_tool, list_tools
 from core.developer_agent.tool_models import ToolResult
+from core.developer_agent.verification import VerificationEvidence
 from core.developer_agent.workspace import Workspace, resolve_workspace_path
 
 __all__ = (
     "ToolDefinition",
     "ToolResult",
+    "VerificationEvidence",
     "Workspace",
     "execute_tool",
     "get_tool",

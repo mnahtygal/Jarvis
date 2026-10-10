@@ -7,6 +7,7 @@ development workflows. Phase 1 provides read-only inspection. Phase 2 adds two
 explicit, bounded file-mutation tools. Phase 3 adds a confirmation-gated command
 boundary with fixed command grammars, not a generic shell. Phase 4 adds a bounded,
 confirmation-gated verify/repair/reverify orchestrator for predefined repairs.
+Phase 5 adds explicit-path staging and one verification-gated local commit.
 
 Brain v2 advertises these capabilities, but does not invoke them from natural
 language or run an autonomous tool loop.
@@ -25,6 +26,10 @@ The implementation is intentionally small:
   table.
 - `core/developer_agent/repair_loop.py` sequences approved verification commands
   and predefined repairs through that executor with hard attempt limits.
+- `core/developer_agent/verification.py` reduces successful verification results
+  to immutable, output-free evidence.
+- `core/developer_agent/git_safety.py` owns fixed local Git inspection, staging,
+  and commit operations plus their isolated environment.
 - `core/developer_agent/mutation.py` provides shared atomic-write behavior.
 - `core/developer_agent/tools/` contains the fixed tool implementations.
 - `core/capability_registry.py` advertises the matching Brain v2 capabilities.
@@ -101,6 +106,10 @@ Mutation additionally refuses `.env*`, `*.pem`, `*.key`, `credentials*`,
 `secrets*`, every path beneath `.git/`, and the three protected personal audio
 tester filenames. `.gitignore` remains editable. Content and patch payload sizes
 are bounded.
+
+Git checkpoint policy additionally protects `testbrain.py` and applies the same
+sensitive-name, Git-metadata, and personal audio tester restrictions to both
+requested stage paths and the complete staged index.
 
 Successful mutations write a temporary file in the validated target directory,
 flush and sync it, revalidate containment and protection immediately before the
@@ -211,6 +220,67 @@ natural-language route, interactive confirmation UI, or autonomous Brain entry
 point. Phase 4 remains a manual/internal API whose caller must explicitly approve
 the supplied sequence.
 
+## Phase 5 controlled Git checkpoint
+
+Phase 5 provides two dedicated tools instead of broadening the Phase 3 command
+grammar:
+
+### `developer.git_stage`
+
+Stages an explicitly approved, bounded list of canonical repository-relative
+regular files. `approved=True` is required. Directories, `.`, option-like values,
+wildcards, caller pathspec magic, absolute paths, traversal, symlinks, missing
+files, protected paths, duplicates, and tracked deletions are refused. Explicit
+new source files and modified tracked files are supported.
+
+The tool inspects the existing staged index before mutation. Any already-staged
+path must be within the caller's approved set, must pass protected-file policy,
+and must have only `A` or `M` status. After the fixed `git add -- <paths>` operation,
+the complete staged index is inspected again. The literal-path environment and
+required `--` separator prevent option and pathspec interpretation. Repositories
+with configured external clean/process filters are rejected before staging so Git
+cannot invoke a repository-defined filter command.
+
+### `developer.git_commit`
+
+Creates one local commit from the already-staged index. It requires
+`approved=True`, a caller-supplied single-line message of at most 200 UTF-8 bytes,
+and a `VerificationEvidence` object derived from a successful
+`developer.run_command` result for `pytest`, `compileall`, or `py_compile`.
+Evidence stores only success, command family, exit code, and source; command output
+is not copied into the evidence or commit result. A bare `tests_passed=True` flag
+is not accepted.
+
+Verification evidence is a trusted-manual-caller gate, not a cryptographic
+attestation. It is intentionally not bound to a particular HEAD, staged index,
+worktree state, timestamp, or freshness window. The trusted caller must therefore
+run verification against the intended state immediately before creating a
+checkpoint; Phase 5 does not claim protection against a caller that fabricates or
+reuses an otherwise valid result object.
+
+Immediately before commit, the tool runs fixed internal equivalents of
+`git diff --cached --check` and NUL-delimited
+`git diff --cached --name-status`. It refuses an empty index, protected or
+sensitive paths, deletions, renames, copies, type changes, conflicts, whitespace
+errors, and any status other than addition or modification. It commits exactly the
+already-staged safe set and returns only a file count, branch, and commit SHA.
+
+All Git subprocesses use fixed argv, a fixed system `PATH`, no shell or stdin, a
+minimal environment, disabled prompts/editors/pagers, disabled external diffs and
+filesystem monitors, and bounded time/output. Commit uses fixed `--no-verify` and
+`--no-gpg-sign` options and overrides `core.hooksPath=/dev/null`. Hooks are disabled
+because running repository-controlled hook programs would cross the controlled
+tool boundary; this also suppresses hook types that `--no-verify` alone does not
+bypass. No caller can supply Git flags or options.
+
+Phase 5 has no push, branch mutation, amend, signing, deletion staging, reset,
+cleanup, or history-rewriting operation. If explicit staging succeeds but a later
+inspection or commit gate fails, the staged changes remain visible for manual
+review; the tool never attempts a dangerous rollback. Both capabilities remain
+mutating, confirmation-required, `executable=False`, and unavailable to natural
+language, the planner, and autonomous Brain execution. The approval flag is a
+trusted-caller gate, not an interactive confirmation UI.
+
 ## Execution limitations
 
 Phase 2 can create or replace text only through the two explicit mutation tools.
@@ -221,7 +291,8 @@ though its Git subset is read-only. It cannot delete files or directories, chang
 permissions, install packages, stage, commit, or push. The executor allows only
 fixed registered IDs and arguments. Phase 4 adds only the bounded, predefined
 sequence described above; it does not provide generated self-correction, planning,
-or natural-language invocation.
+or natural-language invocation. Phase 5 adds only the two dedicated local Git
+checkpoint tools; the generic command tool still cannot stage, commit, or push.
 
 This command policy is a constrained developer workflow boundary, not an operating
 system sandbox. An approved pytest command necessarily imports and executes the
@@ -253,9 +324,9 @@ executable paths, pytest plugin injection, and Git mutation commands.
 - Phase 2: confirmation-sensitive file mutation tools
 - Phase 3: constrained verification command execution
 - Phase 4: bounded verify/repair/reverify loop using predefined repairs
-- Phase 5: controlled Git commit
+- Phase 5: controlled explicit staging and verification-gated local commit
 - Phase 6: LLM-assisted repair proposal and constrained developer reasoning
 - Phase 7: Farkle-2 autonomous benchmark
 
-Each later phase requires a separate security design and validation. Phase 5 and
+Each later phase requires a separate security design and validation. Phase 6 and
 beyond are not currently available.

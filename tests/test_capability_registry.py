@@ -42,6 +42,8 @@ EXPECTED_CAPABILITY_IDS = (
     "developer.patch_file",
     "developer.run_command",
     "developer.repair_loop",
+    "developer.git_stage",
+    "developer.git_commit",
 )
 
 
@@ -81,11 +83,15 @@ def test_registry_lookup_and_category_filter_are_safe():
     patch_file = get_capability("developer.patch_file")
     run_command = get_capability("developer.run_command")
     repair_loop = get_capability("developer.repair_loop")
+    git_stage = get_capability("developer.git_stage")
+    git_commit = get_capability("developer.git_commit")
     assert (
         write_file.enabled
         is patch_file.enabled
         is run_command.enabled
         is repair_loop.enabled
+        is git_stage.enabled
+        is git_commit.enabled
         is True
     )
     assert (
@@ -93,6 +99,8 @@ def test_registry_lookup_and_category_filter_are_safe():
         is patch_file.executable
         is run_command.executable
         is repair_loop.executable
+        is git_stage.executable
+        is git_commit.executable
         is False
     )
     assert (
@@ -100,6 +108,8 @@ def test_registry_lookup_and_category_filter_are_safe():
         is patch_file.read_only
         is run_command.read_only
         is repair_loop.read_only
+        is git_stage.read_only
+        is git_commit.read_only
         is False
     )
     assert (
@@ -107,6 +117,8 @@ def test_registry_lookup_and_category_filter_are_safe():
         is patch_file.mutating
         is run_command.mutating
         is repair_loop.mutating
+        is git_stage.mutating
+        is git_commit.mutating
         is True
     )
     assert (
@@ -114,6 +126,8 @@ def test_registry_lookup_and_category_filter_are_safe():
         is patch_file.requires_confirmation
         is run_command.requires_confirmation
         is repair_loop.requires_confirmation
+        is git_stage.requires_confirmation
+        is git_commit.requires_confirmation
         is True
     )
 
@@ -129,6 +143,8 @@ def test_registry_lookup_and_category_filter_are_safe():
         (PlanStep(1, "write file", "developer"), ()),
         (PlanStep(1, "run tests", "developer"), ()),
         (PlanStep(1, "repair code", "developer"), ()),
+        (PlanStep(1, "stage files", "developer"), ()),
+        (PlanStep(1, "commit changes", "developer"), ()),
         (PlanStep(1, "unsupported action", "system"), ()),
     ],
 )

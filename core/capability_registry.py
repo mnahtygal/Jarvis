@@ -78,6 +78,26 @@ _CAPABILITIES = (
         mutating=True,
         requires_confirmation=True,
     ),
+    Capability(
+        capability_id="developer.git_stage",
+        category="developer",
+        enabled=True,
+        executable=False,
+        description="Stage explicit safe files for a local checkpoint",
+        read_only=False,
+        mutating=True,
+        requires_confirmation=True,
+    ),
+    Capability(
+        capability_id="developer.git_commit",
+        category="developer",
+        enabled=True,
+        executable=False,
+        description="Create a verified local Git checkpoint",
+        read_only=False,
+        mutating=True,
+        requires_confirmation=True,
+    ),
 )
 
 _CAPABILITY_BY_ID = {
