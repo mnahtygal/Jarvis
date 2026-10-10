@@ -35,6 +35,9 @@ EXPECTED_CAPABILITY_IDS = (
     "vision.measure",
     "help.docs",
     "llm.respond",
+    "developer.list_files",
+    "developer.read_file",
+    "developer.git_status",
 )
 
 
@@ -67,6 +70,9 @@ def test_registry_lookup_and_category_filter_are_safe():
     assert get_capability("memory.write_explicit").executable is False
     assert get_capability("camera.capture").executable is False
     assert get_capability("vision.measure").executable is False
+    assert get_capability("developer.list_files").read_only is True
+    assert get_capability("developer.read_file").read_only is True
+    assert get_capability("developer.git_status").read_only is True
 
 
 @pytest.mark.parametrize(

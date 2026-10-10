@@ -20,6 +20,7 @@ SUPPORTED_PLAN_CATEGORIES = frozenset({
     "llm",
     "comparison",
     "summary",
+    "developer",
 })
 
 
