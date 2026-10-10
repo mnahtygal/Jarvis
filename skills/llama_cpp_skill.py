@@ -63,6 +63,7 @@ def get_llama_cpp_raw_response(
     system_prompt: str = "You are Jarvis, a local assistant. Follow the user's instructions exactly.",
     temperature: float = 0.2,
     max_tokens: int = 1800,
+    log_errors: bool = True,
 ) -> str:
     payload = {
         "model": get_active_model_id(),
@@ -98,7 +99,8 @@ def get_llama_cpp_raw_response(
         return answer if answer else ""
 
     except Exception as error:
-        print(f"[LLM] llama.cpp raw error: {error}")
+        if log_errors:
+            print(f"[LLM] llama.cpp raw error: {error}")
         return ""
 
 

@@ -44,6 +44,7 @@ EXPECTED_CAPABILITY_IDS = (
     "developer.repair_loop",
     "developer.git_stage",
     "developer.git_commit",
+    "developer.propose_repair",
 )
 
 
@@ -85,6 +86,7 @@ def test_registry_lookup_and_category_filter_are_safe():
     repair_loop = get_capability("developer.repair_loop")
     git_stage = get_capability("developer.git_stage")
     git_commit = get_capability("developer.git_commit")
+    propose_repair = get_capability("developer.propose_repair")
     assert (
         write_file.enabled
         is patch_file.enabled
@@ -92,6 +94,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is repair_loop.enabled
         is git_stage.enabled
         is git_commit.enabled
+        is propose_repair.enabled
         is True
     )
     assert (
@@ -101,6 +104,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is repair_loop.executable
         is git_stage.executable
         is git_commit.executable
+        is propose_repair.executable
         is False
     )
     assert (
@@ -112,6 +116,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is git_commit.read_only
         is False
     )
+    assert propose_repair.read_only is True
     assert (
         write_file.mutating
         is patch_file.mutating
@@ -121,6 +126,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is git_commit.mutating
         is True
     )
+    assert propose_repair.mutating is False
     assert (
         write_file.requires_confirmation
         is patch_file.requires_confirmation
@@ -130,6 +136,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is git_commit.requires_confirmation
         is True
     )
+    assert propose_repair.requires_confirmation is False
 
 
 @pytest.mark.parametrize(
@@ -145,6 +152,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         (PlanStep(1, "repair code", "developer"), ()),
         (PlanStep(1, "stage files", "developer"), ()),
         (PlanStep(1, "commit changes", "developer"), ()),
+        (PlanStep(1, "propose repair", "developer"), ()),
         (PlanStep(1, "unsupported action", "system"), ()),
     ],
 )
