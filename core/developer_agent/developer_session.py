@@ -29,12 +29,18 @@ MAX_SESSION_PROPOSAL_REQUESTS = 2
 MAX_MUTATION_PATHS = 5
 MAX_SESSION_MODEL_CALLS = MAX_SESSION_PROPOSAL_REQUESTS * MAX_MODEL_CALLS
 
-_VERIFICATION_TOOL_ID = "developer.run_command"
+_RUN_COMMAND_VERIFICATION = "run_command"
+_GRADLE_TEST_VERIFICATION = "gradle_test"
+_VERIFICATION_TOOL_IDS = {
+    _RUN_COMMAND_VERIFICATION: "developer.run_command",
+    _GRADLE_TEST_VERIFICATION: "developer.gradle_test",
+}
 _ALLOWED_MUTATION_TOOLS = frozenset({
     "developer.patch_file",
     "developer.write_file",
 })
 _VERIFICATION_POLICY_ERRORS = frozenset({
+    "approval_required",
     "argument_file",
     "argument_too_long",
     "arguments_too_large",
@@ -53,6 +59,41 @@ _VERIFICATION_POLICY_ERRORS = frozenset({
     "shell_syntax",
     "too_many_arguments",
     "validation_failed",
+    "distribution_sha256_mismatch",
+    "gradlew_not_executable",
+    "invalid_distribution_sha256",
+    "invalid_project_path",
+    "missing_gradlew",
+    "missing_wrapper_jar",
+    "missing_wrapper_properties",
+    "project_init_script_not_allowed",
+    "project_not_directory",
+    "project_not_found",
+    "project_path_not_allowed",
+    "unsafe_gradle_properties",
+    "unsafe_gradle_distribution",
+    "unsafe_gradlew",
+    "unsafe_project_symlink",
+    "unsafe_wrapper_jar",
+    "unsafe_wrapper_properties",
+    "unsafe_wrapper_url",
+    "unsupported_gradle_version",
+    "untrusted_gradlew",
+    "untrusted_wrapper_jar",
+    "wrapper_properties_invalid",
+    "wrapper_properties_not_allowed",
+    "wrapper_properties_unreadable",
+})
+_VERIFICATION_INFRASTRUCTURE_ERRORS = frozenset({
+    "aapt2_unavailable",
+    "android_sdk_incomplete",
+    "android_sdk_unavailable",
+    "command_unavailable",
+    "execution_failed",
+    "gradle_cache_unavailable",
+    "gradle_distribution_not_cached",
+    "offline_cache_miss",
+    "untrusted_aapt2",
 })
 _MUTATION_OPERATION_ERRORS = frozenset({
     "create_parent_failed",
@@ -70,16 +111,26 @@ ExecutorCall = Callable[..., ToolResult]
 
 
 @dataclass(frozen=True)
+class VerificationSpec:
+    """One immutable verification kind and its kind-specific parameters."""
+
+    kind: str
+    argv: tuple[str, ...] = ()
+    project_path: str | None = None
+
+
+@dataclass(frozen=True)
 class DeveloperSessionRequest:
     """One ephemeral approval and its complete static session scope."""
 
-    verification_argv: tuple[str, ...]
+    verification_argv: tuple[str, ...] | None
     candidate_files: tuple[str, ...]
     allowed_mutation_paths: tuple[str, ...]
     approved: bool
     max_repairs: int = MAX_SESSION_REPAIRS
     max_verification_runs: int = MAX_SESSION_VERIFICATION_RUNS
     max_proposal_requests: int = MAX_SESSION_PROPOSAL_REQUESTS
+    verification_spec: VerificationSpec | None = None
 
 
 @dataclass(frozen=True)
@@ -120,7 +171,7 @@ class DiagnosticExcerpt:
 
 @dataclass(frozen=True)
 class _FrozenSessionScope:
-    verification_argv: tuple[str, ...]
+    verification: VerificationSpec
     candidate_files: tuple[str, ...]
     allowed_mutation_paths: tuple[str, ...]
     max_repairs: int
@@ -236,13 +287,7 @@ def _freeze_request(
 ) -> _FrozenSessionScope:
     if type(request) is not DeveloperSessionRequest:
         raise _RequestError("invalid_request")
-    if type(request.verification_argv) is not tuple or not request.verification_argv:
-        raise _RequestError("invalid_verification_argv")
-    if any(
-        not isinstance(argument, str) or not argument or "\x00" in argument
-        for argument in request.verification_argv
-    ):
-        raise _RequestError("invalid_verification_argv")
+    verification = _freeze_verification(request, workspace)
     candidates = _validate_path_tuple(
         request.candidate_files,
         workspace=workspace,
@@ -256,7 +301,7 @@ def _freeze_request(
         count_code="invalid_mutation_path_count",
     )
     return _FrozenSessionScope(
-        verification_argv=tuple(request.verification_argv),
+        verification=verification,
         candidate_files=candidates,
         allowed_mutation_paths=mutation_paths,
         max_repairs=_validate_limit(
@@ -278,6 +323,66 @@ def _freeze_request(
             code="invalid_proposal_limit",
         ),
     )
+
+
+def _valid_verification_argv(value: object) -> tuple[str, ...]:
+    if type(value) is not tuple or not value:
+        raise _RequestError("invalid_verification_argv")
+    if any(
+        not isinstance(argument, str) or not argument or "\x00" in argument
+        for argument in value
+    ):
+        raise _RequestError("invalid_verification_argv")
+    return tuple(value)
+
+
+def _freeze_gradle_project_path(value: object, workspace: Workspace) -> str:
+    if not isinstance(value, str) or not value or "\x00" in value:
+        raise _RequestError("invalid_gradle_project_path")
+    requested = Path(value)
+    if ".." in requested.parts or "~" in requested.parts:
+        raise _RequestError("invalid_gradle_project_path")
+    expected = requested if requested.is_absolute() else workspace.root / requested
+    try:
+        resolved = expected.resolve(strict=True)
+    except (FileNotFoundError, OSError):
+        raise _RequestError("invalid_gradle_project_path") from None
+    if (
+        not resolved.is_relative_to(workspace.root)
+        or not resolved.is_dir()
+        or resolved != expected.absolute()
+    ):
+        raise _RequestError("invalid_gradle_project_path")
+    return value
+
+
+def _freeze_verification(
+    request: DeveloperSessionRequest,
+    workspace: Workspace,
+) -> VerificationSpec:
+    if request.verification_spec is None:
+        return VerificationSpec(
+            _RUN_COMMAND_VERIFICATION,
+            argv=_valid_verification_argv(request.verification_argv),
+        )
+    if request.verification_argv is not None:
+        raise _RequestError("ambiguous_verification")
+    if type(request.verification_spec) is not VerificationSpec:
+        raise _RequestError("invalid_verification_spec")
+
+    spec = request.verification_spec
+    if spec.kind == _RUN_COMMAND_VERIFICATION:
+        if spec.project_path is not None:
+            raise _RequestError("invalid_verification_spec")
+        return VerificationSpec(spec.kind, argv=_valid_verification_argv(spec.argv))
+    if spec.kind == _GRADLE_TEST_VERIFICATION:
+        if type(spec.argv) is not tuple or spec.argv:
+            raise _RequestError("invalid_verification_spec")
+        return VerificationSpec(
+            spec.kind,
+            project_path=_freeze_gradle_project_path(spec.project_path, workspace),
+        )
+    raise _RequestError("invalid_verification_kind")
 
 
 def _valid_utf8_prefix(value: bytes, maximum: int) -> str:
@@ -330,8 +435,8 @@ def build_diagnostic_excerpt(
     return DiagnosticExcerpt(text, True, len(raw))
 
 
-def _verification_status(result: ToolResult) -> str:
-    if result.tool_name != _VERIFICATION_TOOL_ID:
+def _verification_status(result: ToolResult, expected_tool_id: str) -> str:
+    if result.tool_name != expected_tool_id:
         return "unexpected_executor_failure"
     if result.success:
         return "verification_passed"
@@ -339,6 +444,8 @@ def _verification_status(result: ToolResult) -> str:
         return "verification_timeout"
     if result.error_code in _VERIFICATION_POLICY_ERRORS:
         return "verification_policy_rejected"
+    if result.error_code in _VERIFICATION_INFRASTRUCTURE_ERRORS:
+        return "verification_infrastructure_failure"
     return "verification_failed"
 
 
@@ -350,11 +457,18 @@ def _verification_summary(result: ToolResult, excerpt: DiagnosticExcerpt) -> str
         else None
     )
     return (
-        "developer.run_command failed; "
+        f"{result.tool_name} failed; "
         f"error_code={result.error_code or 'command_failed'}; "
         f"exit_code={safe_exit_code}; "
         f"diagnostic_truncated={str(excerpt.truncated).lower()}"
     )
+
+
+def _verification_call(spec: VerificationSpec) -> tuple[str, dict[str, object]]:
+    tool_id = _VERIFICATION_TOOL_IDS[spec.kind]
+    if spec.kind == _RUN_COMMAND_VERIFICATION:
+        return tool_id, {"argv": spec.argv}
+    return tool_id, {"project_path": spec.project_path, "approved": True}
 
 
 def _attempt(
@@ -419,10 +533,13 @@ def run_developer_session_request(
         )
 
     while verification_runs < scope.max_verification_runs:
+        verification_tool_id, verification_arguments = _verification_call(
+            scope.verification
+        )
         try:
             verification = executor(
-                _VERIFICATION_TOOL_ID,
-                {"argv": scope.verification_argv},
+                verification_tool_id,
+                verification_arguments,
                 workspace=active_workspace,
             )
         except Exception:
@@ -439,7 +556,10 @@ def run_developer_session_request(
             ))
             return finish(False, "unexpected_executor_failure")
 
-        verification_status = _verification_status(verification)
+        verification_status = _verification_status(
+            verification,
+            verification_tool_id,
+        )
         if verification_status == "verification_passed":
             attempts.append(_attempt(verification_runs, verification_status))
             return finish(True, verification_status)
@@ -634,6 +754,7 @@ def run_bounded_developer_session(
     workspace: Workspace | None = None,
     model_call: ModelCall | None = None,
     _executor: ExecutorCall | None = None,
+    verification_spec: VerificationSpec | None = None,
 ) -> DeveloperSessionResult:
     """Construct and run one strictly validated bounded session request."""
 
@@ -645,6 +766,7 @@ def run_bounded_developer_session(
         max_repairs=max_repairs,
         max_verification_runs=max_verification_runs,
         max_proposal_requests=max_proposal_requests,
+        verification_spec=verification_spec,
     )
     return run_developer_session_request(
         request,

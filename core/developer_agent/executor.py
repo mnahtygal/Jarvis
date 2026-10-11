@@ -9,6 +9,7 @@ from core.developer_agent.registry import get_tool
 from core.developer_agent.tool_models import ToolResult, failure_result
 from core.developer_agent.tools import (
     git_commit,
+    gradle_test,
     git_stage,
     git_status,
     list_files,
@@ -32,6 +33,9 @@ _TOOL_ARGUMENTS = {
     }),
     "developer.run_command": frozenset({
         "argv", "timeout_seconds", "max_output_bytes",
+    }),
+    "developer.gradle_test": frozenset({
+        "project_path", "approved", "timeout_seconds", "max_output_bytes",
     }),
     "developer.git_stage": frozenset({"paths", "approved"}),
     "developer.git_commit": frozenset({
@@ -64,6 +68,10 @@ def _run_command(arguments: dict[str, object], workspace: Workspace) -> ToolResu
     return run_command(workspace=workspace, **arguments)
 
 
+def _run_gradle_test(arguments: dict[str, object], workspace: Workspace) -> ToolResult:
+    return gradle_test(workspace=workspace, **arguments)
+
+
 def _run_git_stage(arguments: dict[str, object], workspace: Workspace) -> ToolResult:
     return git_stage(workspace=workspace, **arguments)
 
@@ -79,6 +87,7 @@ _DISPATCH: dict[str, Callable[[dict[str, object], Workspace], ToolResult]] = {
     "developer.write_file": _run_write_file,
     "developer.patch_file": _run_patch_file,
     "developer.run_command": _run_command,
+    "developer.gradle_test": _run_gradle_test,
     "developer.git_stage": _run_git_stage,
     "developer.git_commit": _run_git_commit,
 }
@@ -112,6 +121,7 @@ def execute_tool(
         "developer.write_file": frozenset({"path", "content"}),
         "developer.patch_file": frozenset({"path", "old_text", "new_text"}),
         "developer.run_command": frozenset({"argv"}),
+        "developer.gradle_test": frozenset({"project_path"}),
         "developer.git_stage": frozenset({"paths"}),
         "developer.git_commit": frozenset({"message", "verification_evidence"}),
     }

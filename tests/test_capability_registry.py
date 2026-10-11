@@ -41,6 +41,7 @@ EXPECTED_CAPABILITY_IDS = (
     "developer.write_file",
     "developer.patch_file",
     "developer.run_command",
+    "developer.gradle_test",
     "developer.repair_loop",
     "developer.git_stage",
     "developer.git_commit",
@@ -84,6 +85,7 @@ def test_registry_lookup_and_category_filter_are_safe():
     write_file = get_capability("developer.write_file")
     patch_file = get_capability("developer.patch_file")
     run_command = get_capability("developer.run_command")
+    gradle_test = get_capability("developer.gradle_test")
     repair_loop = get_capability("developer.repair_loop")
     git_stage = get_capability("developer.git_stage")
     git_commit = get_capability("developer.git_commit")
@@ -93,6 +95,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         write_file.enabled
         is patch_file.enabled
         is run_command.enabled
+        is gradle_test.enabled
         is repair_loop.enabled
         is git_stage.enabled
         is git_commit.enabled
@@ -104,6 +107,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         write_file.executable
         is patch_file.executable
         is run_command.executable
+        is gradle_test.executable
         is repair_loop.executable
         is git_stage.executable
         is git_commit.executable
@@ -120,6 +124,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is git_commit.read_only
         is False
     )
+    assert gradle_test.read_only is True
     assert propose_repair.read_only is True
     assert bounded_session.read_only is False
     assert (
@@ -132,11 +137,13 @@ def test_registry_lookup_and_category_filter_are_safe():
         is bounded_session.mutating
         is True
     )
+    assert gradle_test.mutating is False
     assert propose_repair.mutating is False
     assert (
         write_file.requires_confirmation
         is patch_file.requires_confirmation
         is run_command.requires_confirmation
+        is gradle_test.requires_confirmation
         is repair_loop.requires_confirmation
         is git_stage.requires_confirmation
         is git_commit.requires_confirmation

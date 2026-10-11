@@ -191,6 +191,7 @@ def test_registry_ids_are_unique_and_metadata_matches_phase_boundaries():
         "developer.write_file",
         "developer.patch_file",
         "developer.run_command",
+        "developer.gradle_test",
         "developer.git_stage",
         "developer.git_commit",
     )
@@ -200,10 +201,18 @@ def test_registry_ids_are_unique_and_metadata_matches_phase_boundaries():
     assert all(not tool.mutating for tool in tools[:3])
     assert all(not tool.requires_confirmation for tool in tools[:3])
     assert all(tool.executable for tool in tools[:3])
-    assert all(not tool.read_only for tool in tools[3:])
-    assert all(tool.mutating for tool in tools[3:])
-    assert all(tool.requires_confirmation for tool in tools[3:])
-    assert all(not tool.executable for tool in tools[3:])
+    gradle_test = next(tool for tool in tools if tool.tool_id == "developer.gradle_test")
+    assert gradle_test.read_only is True
+    assert gradle_test.mutating is False
+    assert gradle_test.requires_confirmation is True
+    assert gradle_test.executable is False
+    mutating_tools = tuple(
+        tool for tool in tools[3:] if tool.tool_id != "developer.gradle_test"
+    )
+    assert all(not tool.read_only for tool in mutating_tools)
+    assert all(tool.mutating for tool in mutating_tools)
+    assert all(tool.requires_confirmation for tool in mutating_tools)
+    assert all(not tool.executable for tool in mutating_tools)
     with pytest.raises(FrozenInstanceError):
         tools[0].enabled = False
 

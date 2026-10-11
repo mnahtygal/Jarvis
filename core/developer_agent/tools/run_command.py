@@ -8,6 +8,8 @@ import signal
 import subprocess
 import sys
 import threading
+from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 from core.developer_agent.command_policy import (
     SAFE_SYSTEM_PATH,
@@ -166,10 +168,11 @@ def _result(
     stdout_bytes: int,
     stderr_bytes: int,
     output_truncated: bool,
+    tool_id: str = TOOL_ID,
 ) -> ToolResult:
     return ToolResult(
         success,
-        TOOL_ID,
+        tool_id,
         output,
         error_code=error_code,
         metadata={
@@ -182,6 +185,165 @@ def _result(
             "stderr_bytes": stderr_bytes,
             "output_truncated": output_truncated,
         },
+    )
+
+
+def _execute_fixed_argv(
+    execution_argv: Sequence[str],
+    *,
+    cwd: Path,
+    environment: Mapping[str, str],
+    timeout: int | float,
+    output_limit: int,
+    tool_id: str,
+    command_family: str,
+) -> ToolResult:
+    """Execute an already-validated fixed argv through the bounded process path."""
+
+    capture = _BoundedCapture(output_limit)
+    try:
+        process = subprocess.Popen(
+            tuple(execution_argv),
+            cwd=cwd,
+            env=dict(environment),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=False,
+            start_new_session=os.name == "posix",
+        )
+    except (OSError, subprocess.SubprocessError):
+        return _result(
+            success=False,
+            output="Approved command could not start",
+            error_code="command_unavailable",
+            command_family=command_family,
+            exit_code=None,
+            timed_out=False,
+            stdout="",
+            stderr="",
+            stdout_bytes=0,
+            stderr_bytes=0,
+            output_truncated=False,
+            tool_id=tool_id,
+        )
+
+    if process.stdout is None or process.stderr is None:
+        _stop_process(process)
+        return _result(
+            success=False,
+            output="Command output capture failed safely",
+            error_code="execution_failed",
+            command_family=command_family,
+            exit_code=process.returncode,
+            timed_out=False,
+            stdout="",
+            stderr="",
+            stdout_bytes=0,
+            stderr_bytes=0,
+            output_truncated=False,
+            tool_id=tool_id,
+        )
+    readers = (
+        threading.Thread(
+            target=_read_stream,
+            args=(process.stdout, "stdout", capture),
+            daemon=True,
+        ),
+        threading.Thread(
+            target=_read_stream,
+            args=(process.stderr, "stderr", capture),
+            daemon=True,
+        ),
+    )
+    started_readers: list[threading.Thread] = []
+    try:
+        for reader in readers:
+            reader.start()
+            started_readers.append(reader)
+    except RuntimeError:
+        _stop_process(process)
+        for reader in started_readers:
+            reader.join(timeout=TERMINATE_GRACE_SECONDS)
+        return _result(
+            success=False,
+            output="Command output capture failed safely",
+            error_code="execution_failed",
+            command_family=command_family,
+            exit_code=process.returncode,
+            timed_out=False,
+            stdout=capture.text("stdout"),
+            stderr=capture.text("stderr"),
+            stdout_bytes=capture.total("stdout"),
+            stderr_bytes=capture.total("stderr"),
+            output_truncated=capture.truncated,
+            tool_id=tool_id,
+        )
+
+    timed_out = False
+    process_error = False
+    try:
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        timed_out = True
+        _stop_process(process)
+    except (OSError, subprocess.SubprocessError):
+        process_error = True
+        _stop_process(process)
+    else:
+        _kill_remaining_process_group(process.pid)
+
+    for reader in readers:
+        reader.join(timeout=TERMINATE_GRACE_SECONDS)
+
+    stdout = capture.text("stdout")
+    stderr = capture.text("stderr")
+    rendered = _render_output(stdout, stderr)
+    if timed_out:
+        return _result(
+            success=False,
+            output=rendered or "Command timed out",
+            error_code="timeout",
+            command_family=command_family,
+            exit_code=process.returncode,
+            timed_out=True,
+            stdout=stdout,
+            stderr=stderr,
+            stdout_bytes=capture.total("stdout"),
+            stderr_bytes=capture.total("stderr"),
+            output_truncated=capture.truncated,
+            tool_id=tool_id,
+        )
+    if process_error:
+        return _result(
+            success=False,
+            output=rendered or "Command execution failed safely",
+            error_code="execution_failed",
+            command_family=command_family,
+            exit_code=process.returncode,
+            timed_out=False,
+            stdout=stdout,
+            stderr=stderr,
+            stdout_bytes=capture.total("stdout"),
+            stderr_bytes=capture.total("stderr"),
+            output_truncated=capture.truncated,
+            tool_id=tool_id,
+        )
+
+    exit_code = process.returncode
+    return _result(
+        success=exit_code == 0,
+        output=rendered,
+        error_code=None if exit_code == 0 else "command_failed",
+        command_family=command_family,
+        exit_code=exit_code,
+        timed_out=False,
+        stdout=stdout,
+        stderr=stderr,
+        stdout_bytes=capture.total("stdout"),
+        stderr_bytes=capture.total("stderr"),
+        output_truncated=capture.truncated,
+        tool_id=tool_id,
     )
 
 
@@ -240,134 +402,12 @@ def run_command(
             output_truncated=False,
         )
 
-    capture = _BoundedCapture(output_limit)
-    try:
-        process = subprocess.Popen(
-            approved.execution_argv,
-            cwd=active_workspace.root,
-            env=_safe_environment(active_workspace, approved.family),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=False,
-            start_new_session=os.name == "posix",
-        )
-    except (OSError, subprocess.SubprocessError):
-        return _result(
-            success=False,
-            output="Approved command could not start",
-            error_code="command_unavailable",
-            command_family=approved.family,
-            exit_code=None,
-            timed_out=False,
-            stdout="",
-            stderr="",
-            stdout_bytes=0,
-            stderr_bytes=0,
-            output_truncated=False,
-        )
-
-    if process.stdout is None or process.stderr is None:
-        _stop_process(process)
-        return _result(
-            success=False,
-            output="Command output capture failed safely",
-            error_code="execution_failed",
-            command_family=approved.family,
-            exit_code=process.returncode,
-            timed_out=False,
-            stdout="",
-            stderr="",
-            stdout_bytes=0,
-            stderr_bytes=0,
-            output_truncated=False,
-        )
-    readers = (
-        threading.Thread(target=_read_stream, args=(process.stdout, "stdout", capture), daemon=True),
-        threading.Thread(target=_read_stream, args=(process.stderr, "stderr", capture), daemon=True),
-    )
-    started_readers: list[threading.Thread] = []
-    try:
-        for reader in readers:
-            reader.start()
-            started_readers.append(reader)
-    except RuntimeError:
-        _stop_process(process)
-        for reader in started_readers:
-            reader.join(timeout=TERMINATE_GRACE_SECONDS)
-        return _result(
-            success=False,
-            output="Command output capture failed safely",
-            error_code="execution_failed",
-            command_family=approved.family,
-            exit_code=process.returncode,
-            timed_out=False,
-            stdout=capture.text("stdout"),
-            stderr=capture.text("stderr"),
-            stdout_bytes=capture.total("stdout"),
-            stderr_bytes=capture.total("stderr"),
-            output_truncated=capture.truncated,
-        )
-
-    timed_out = False
-    process_error = False
-    try:
-        process.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        _stop_process(process)
-    except (OSError, subprocess.SubprocessError):
-        process_error = True
-        _stop_process(process)
-    else:
-        _kill_remaining_process_group(process.pid)
-
-    for reader in readers:
-        reader.join(timeout=TERMINATE_GRACE_SECONDS)
-
-    stdout = capture.text("stdout")
-    stderr = capture.text("stderr")
-    rendered = _render_output(stdout, stderr)
-    if timed_out:
-        return _result(
-            success=False,
-            output=rendered or "Command timed out",
-            error_code="timeout",
-            command_family=approved.family,
-            exit_code=process.returncode,
-            timed_out=True,
-            stdout=stdout,
-            stderr=stderr,
-            stdout_bytes=capture.total("stdout"),
-            stderr_bytes=capture.total("stderr"),
-            output_truncated=capture.truncated,
-        )
-    if process_error:
-        return _result(
-            success=False,
-            output=rendered or "Command execution failed safely",
-            error_code="execution_failed",
-            command_family=approved.family,
-            exit_code=process.returncode,
-            timed_out=False,
-            stdout=stdout,
-            stderr=stderr,
-            stdout_bytes=capture.total("stdout"),
-            stderr_bytes=capture.total("stderr"),
-            output_truncated=capture.truncated,
-        )
-
-    exit_code = process.returncode
-    return _result(
-        success=exit_code == 0,
-        output=rendered,
-        error_code=None if exit_code == 0 else "command_failed",
+    return _execute_fixed_argv(
+        approved.execution_argv,
+        cwd=active_workspace.root,
+        environment=_safe_environment(active_workspace, approved.family),
+        timeout=timeout,
+        output_limit=output_limit,
+        tool_id=TOOL_ID,
         command_family=approved.family,
-        exit_code=exit_code,
-        timed_out=False,
-        stdout=stdout,
-        stderr=stderr,
-        stdout_bytes=capture.total("stdout"),
-        stderr_bytes=capture.total("stderr"),
-        output_truncated=capture.truncated,
     )

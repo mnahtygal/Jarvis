@@ -10,7 +10,8 @@ confirmation-gated verify/repair/reverify orchestrator for predefined repairs.
 Phase 5 adds explicit-path staging and one verification-gated local commit.
 Phase 6 adds one bounded, data-only LLM-assisted repair proposal.
 Phase 7 connects those boundaries into one explicitly approved, bounded autonomous
-developer session.
+developer session. Phase 8B adds one dedicated offline Android/Gradle unit-test
+verification capability without widening the generic command grammar.
 
 Brain v2 advertises these capabilities, but does not invoke them from natural
 language or run an autonomous tool loop.
@@ -24,6 +25,8 @@ The implementation is intentionally small:
   `core/developer_agent/policy.py` owns sensitive/protected path rules.
 - `core/developer_agent/command_policy.py` owns the fixed executable and argument
   allowlist for command execution.
+- `core/developer_agent/tools/gradle_test.py` validates one supported Gradle
+  wrapper and runs one fixed Android JVM unit-test task.
 - `core/developer_agent/registry.py` contains a fixed tool registry.
 - `core/developer_agent/executor.py` validates arguments and uses a fixed dispatch
   table.
@@ -253,10 +256,11 @@ cannot invoke a repository-defined filter command.
 Creates one local commit from the already-staged index. It requires
 `approved=True`, a caller-supplied single-line message of at most 200 UTF-8 bytes,
 and a `VerificationEvidence` object derived from a successful
-`developer.run_command` result for `pytest`, `compileall`, or `py_compile`.
-Evidence stores only success, command family, exit code, and source; command output
-is not copied into the evidence or commit result. A bare `tests_passed=True` flag
-is not accepted.
+`developer.run_command` result for `pytest`, `compileall`, or `py_compile`, or a
+successful `developer.gradle_test` result for the fixed Android task. Evidence
+stores only success, command family, exit code, and source; command output is not
+copied into the evidence or commit result. A bare `tests_passed=True` flag is not
+accepted.
 
 Verification evidence is a trusted-manual-caller gate, not a cryptographic
 attestation. It is intentionally not bound to a particular HEAD, staged index,
@@ -383,11 +387,14 @@ verify -> diagnose -> propose -> validate -> apply -> reverify -> stop or repeat
 ```
 
 The trusted human caller must pass `approved=True` for that one call. Approval is
-ephemeral and delegates only the request's immutable scope: one verification argv
-tuple, at most five explicit candidate read paths, at most five explicit mutation
-paths, and caller-selected limits no greater than the hard maxima. With approval
-missing, the session performs no verification, model call, source read, mutation,
-or Git operation. Approval is neither global nor persisted.
+ephemeral and delegates only the request's immutable scope: one typed verification
+specification, at most five explicit candidate read paths, at most five explicit
+mutation paths, and caller-selected limits no greater than the hard maxima. A
+verification specification is either the existing fixed `run_command` argv tuple
+or a `gradle_test` project root; it cannot contain both. Existing
+`verification_argv` callers are adapted to the `run_command` specification. With
+approval missing, the session performs no verification, model call, source read,
+mutation, or Git operation. Approval is neither global nor persisted.
 
 The hard maxima are two repairs, three verification runs (the initial run plus two
 reverification runs), and two Phase 6 proposal requests. Each proposal request
@@ -397,13 +404,14 @@ cannot raise them.
 
 ### Static scope, dynamic repairs
 
-The verification command, candidate read set, mutation allowlist, and limits are
-validated and frozen before the first command runs. Scope paths must be unique,
-canonical repository-relative file paths with contained existing parents. The
-session rejects `.`, absolute paths, traversal, wildcards and pathspec-like input,
-Git metadata, sensitive names, protected personal files, directories, and unsafe
-symlinks. The model cannot browse, search, add candidates, select a new command, or
-expand the mutation allowlist.
+The verification kind and its kind-specific arguments, candidate read set,
+mutation allowlist, and limits are validated and frozen before the first command
+runs. Scope paths must be unique, canonical repository-relative file paths with
+contained existing parents. The session rejects `.`, absolute paths, traversal,
+wildcards and pathspec-like input, Git metadata, sensitive names, protected
+personal files, directories, and unsafe symlinks. The model cannot browse, search,
+add candidates, select a new verification kind, change a Gradle task or project,
+or expand the mutation allowlist.
 
 Repair payloads are dynamic: after each failed reverification, Phase 7 asks Phase 6
 for a fresh proposal using the current source state and new diagnostic. A readable
@@ -421,10 +429,11 @@ Phase 6 remains authoritative for prompt isolation, strict JSON/schema handling,
 confidence threshold, protected-path and exact-patch validation, bounded format
 retry, and filesystem snapshot/seal revalidation. Phase 7 converts eligible
 proposals only through `proposal_to_predefined_repair(...)`. Verification is
-always dispatched as `developer.run_command`; mutation is always dispatched as
-the converted `developer.patch_file` or `developer.write_file` operation through
-the existing fixed executor. The session module has no subprocess or direct file
-write implementation.
+dispatched through the frozen specification as either `developer.run_command` or
+`developer.gradle_test`; mutation is always dispatched as the converted
+`developer.patch_file` or `developer.write_file` operation through the existing
+fixed executor. The session module has no subprocess or direct file-write
+implementation.
 
 ### Diagnostics, stopping, and results
 
@@ -456,6 +465,93 @@ the explicit internal/manual Python API. There is no executor tool registration,
 planner mapping, router or natural-language trigger, autonomous Brain entry point,
 background task, or recurring execution.
 
+## Phase 8B dedicated Android/Gradle verification
+
+### `developer.gradle_test`
+
+Phase 8B adds a confirmation-required verification tool for reviewed Android
+projects. Its only task is `:app:testDebugUnitTest`; callers cannot supply a task,
+Gradle flag, wrapper path, command argv, environment, init script, system property,
+or shell fragment. The fixed process argv is equivalent to:
+
+```text
+./gradlew --offline --no-daemon --console=plain :app:testDebugUnitTest
+```
+
+The wrapper is executed with `shell=False`, no stdin, a fixed project working
+directory, a 300-second maximum timeout, process-session isolation, terminate/kill
+handling, and independent bounded stdout/stderr draining. Combined captured output
+defaults to 256 KiB and cannot exceed 1 MiB. Results retain safe exit, timeout,
+byte-count, truncation, Gradle-version, fixed-task, and command-family metadata.
+
+### Project, wrapper, SDK, and cache policy
+
+The caller supplies only a project root contained by the explicit `Workspace`.
+The root must be an existing canonical directory with no traversal or symlinked
+path component. The tool does not search parents. `gradlew`,
+`gradle/wrapper/gradle-wrapper.jar`, and
+`gradle/wrapper/gradle-wrapper.properties` must be regular non-symlink files, and
+`gradlew` must be executable.
+
+Phase 8B supports only Gradle 9.5.0. The generated POSIX wrapper script and wrapper
+JAR are SHA-256 allowlisted. Wrapper properties must exactly match the reviewed
+Gradle 9.5.0 configuration: the HTTPS services.gradle.org binary-distribution URL,
+the recorded distribution SHA-256
+`553c78f50dafcd54d65b9a444649057857469edf836431389695608536d6b746`,
+standard `GRADLE_USER_HOME` paths, URL validation, and fixed retry/timeout values.
+Unknown properties, missing or malformed hashes, another version, another URL,
+and hash mismatches are refused. The matching extracted distribution and `.ok`
+marker must already exist in the trusted local cache, and its distribution-level
+`init.d` directory may contain only the known Gradle readme. The wrapper is never
+used to select or intentionally download another version.
+
+The Android SDK is fixed trusted local configuration at
+`/home/mnahtygal/Android/Sdk`; its canonical directory and platform 37 JAR must
+already exist. The tool never installs an SDK component. `ANDROID_HOME` and
+`ANDROID_SDK_ROOT` are set to that validated path instead of inheriting caller
+values. Thor's reviewed ARM-compatible AAPT2 launcher, QEMU entry point, and
+x86-64 AAPT2 binary are also fixed-path and SHA-256 validated before the tool
+writes the corresponding `android.aapt2FromMavenOverride` into its temporary
+Gradle user-home properties. No caller can select that executable or property.
+
+The process receives a new temporary `HOME` and `GRADLE_USER_HOME` containing no
+user init scripts. Only the trusted real user's `caches`, `wrapper`, and `jdks`
+directories are linked into that controlled home so existing offline dependencies,
+the reviewed distribution, and local Java toolchains remain usable. A generated
+Gradle-user-home property disables Java toolchain auto-download. Project-local
+`init.gradle`, `init.gradle.kts`, and `init.d` are refused, as are dangerous
+project `gradle.properties` Java, JVM, system-property, and Gradle-project injection
+keys. Ambient `JAVA_HOME`, `JAVA_TOOL_OPTIONS`, `GRADLE_OPTS`,
+`ORG_GRADLE_PROJECT_*`, proxy credentials, and arbitrary environment values are
+not inherited. `--offline` makes missing plugin or dependency artifacts a safe
+`offline_cache_miss` infrastructure failure; it is never relaxed to allow network
+fallback.
+
+`VerificationEvidence` accepts a successful, non-timeout, zero-exit
+`developer.gradle_test` result only when its command family is exactly
+`gradle_test`. Existing `pytest`, `compileall`, and `py_compile` evidence remains
+unchanged. Phase 7 freezes either verification kind and its parameters before the
+first attempt and dispatches the identical specification on every reverification.
+The repair model cannot change the kind, root, task, flags, or environment.
+
+### Trust boundary
+
+Gradle necessarily executes the approved project's settings and build scripts,
+the allowlisted wrapper, cached Gradle distribution, and resolved plugins. This
+capability is not an OS sandbox and does not make an untrusted Android repository
+safe. An approved project can create normal build outputs and trusted build logic
+can perform actions beyond compilation. The boundary restricts the selected
+wrapper, project root, task, flags, offline mode, environment, init-script sources,
+timeout, and captured output; it assumes those reviewed project files, cached
+plugins, toolchains, SDK, and real-user Gradle cache are trusted.
+
+The capability is `enabled=True`, `read_only=True`, `mutating=False`,
+`requires_confirmation=True`, and `executable=False`. “Read-only” describes its
+source intent; Gradle may create `.gradle/` and `build/` artifacts. It has no
+planner mapping, natural-language or router trigger, Brain invocation, package
+installation, network enablement, or Git operation. `developer.run_command`
+remains unchanged and still rejects `./gradlew`.
+
 ## Execution limitations
 
 Phase 2 can create or replace text only through the two explicit mutation tools.
@@ -470,7 +566,9 @@ or natural-language invocation. Phase 5 adds only the two dedicated local Git
 checkpoint tools; the generic command tool still cannot stage, commit, or push.
 Phase 6 only proposes and converts repair data; it cannot apply that data. Phase 7
 can apply converted data only within the explicit static session boundary described
-above and stops before any Git checkpoint operation.
+above and stops before any Git checkpoint operation. Phase 8B adds only the fixed
+Gradle verification path described above; it does not add generic project-local
+executable access.
 
 This command policy is a constrained developer workflow boundary, not an operating
 system sandbox. An approved pytest command necessarily imports and executes the
@@ -506,7 +604,8 @@ executable paths, pytest plugin injection, and Git mutation commands.
 - Phase 6: bounded LLM-assisted repair proposals (data only)
 - Phase 7: bounded autonomous developer session (explicit manual approval and
   static scope)
-- Phase 8: Farkle-2 autonomous benchmark
+- Phase 8A: deterministic Farkle-2 Android benchmark fixture
+- Phase 8B: narrow offline Android/Gradle verification capability
+- Phase 8 rerun: one human-controlled Farkle-2 four-of-a-kind repair benchmark
 
-Each later phase requires a separate security design and validation. Phase 8 is
-not currently available.
+No broader phase is defined here.

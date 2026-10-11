@@ -1,6 +1,7 @@
 """Fixed controlled Developer Agent tools."""
 
 from core.developer_agent.tools.git_commit import git_commit
+from core.developer_agent.tools.gradle_test import gradle_test
 from core.developer_agent.tools.git_stage import git_stage
 from core.developer_agent.tools.git_status import git_status
 from core.developer_agent.tools.list_files import list_files
@@ -13,6 +14,7 @@ __all__ = (
     "git_status",
     "git_stage",
     "git_commit",
+    "gradle_test",
     "list_files",
     "patch_file",
     "read_file",
