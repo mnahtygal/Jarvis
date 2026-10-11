@@ -42,6 +42,10 @@ _TOOLS = (
         False, True, True, True, False,
     ),
     ToolDefinition(
+        "developer.gradle_test", "Run one fixed offline Android JVM unit test task",
+        True, False, True, True, False,
+    ),
+    ToolDefinition(
         "developer.git_stage", "Stage explicit safe files for a local checkpoint",
         False, True, True, True, False,
     ),

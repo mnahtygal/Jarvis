@@ -9,9 +9,14 @@ from core.developer_agent.tool_models import ToolResult
 
 VERIFICATION_COMMAND_FAMILIES = frozenset({
     "compileall",
+    "gradle_test",
     "py_compile",
     "pytest",
 })
+_VERIFICATION_SOURCES = {
+    "developer.run_command": frozenset({"compileall", "py_compile", "pytest"}),
+    "developer.gradle_test": frozenset({"gradle_test"}),
+}
 _EVIDENCE_SEAL = object()
 
 
@@ -27,7 +32,7 @@ class VerificationEvidence:
 
     @classmethod
     def from_tool_result(cls, result: ToolResult) -> VerificationEvidence:
-        """Reduce a run-command result to safe, bounded evidence metadata."""
+        """Reduce a recognized verification result to safe evidence metadata."""
 
         if type(result) is not ToolResult:
             raise ValueError("verification result type is invalid")
@@ -39,7 +44,7 @@ class VerificationEvidence:
             evidence,
             "successful",
             (
-                result.tool_name == "developer.run_command"
+                command_family in _VERIFICATION_SOURCES.get(result.tool_name, ())
                 and result.success is True
                 and timed_out is False
                 and isinstance(exit_code, int)
@@ -80,6 +85,6 @@ def is_successful_verification(evidence: object) -> bool:
         and evidence.command_family in VERIFICATION_COMMAND_FAMILIES
         and type(evidence.exit_code) is int
         and evidence.exit_code == 0
-        and evidence.source == "developer.run_command"
+        and evidence.command_family in _VERIFICATION_SOURCES.get(evidence.source, ())
         and evidence._seal is _EVIDENCE_SEAL
     )

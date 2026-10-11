@@ -69,6 +69,16 @@ _CAPABILITIES = (
         requires_confirmation=True,
     ),
     Capability(
+        capability_id="developer.gradle_test",
+        category="developer",
+        enabled=True,
+        executable=False,
+        description="Run one fixed offline Android JVM unit test task",
+        read_only=True,
+        mutating=False,
+        requires_confirmation=True,
+    ),
+    Capability(
         capability_id="developer.repair_loop",
         category="developer",
         enabled=True,
