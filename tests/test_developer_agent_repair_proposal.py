@@ -556,18 +556,22 @@ def test_model_timeout_returns_safe_failure_without_retry(tmp_path):
     assert len(model.calls) == 1
 
 
-def test_default_model_path_uses_raw_llama_prompt_without_memory_context(
+def test_default_model_path_uses_structured_llama_prompt_without_memory_context(
     tmp_path, monkeypatch,
 ):
     _source(tmp_path)
     proposal_module = importlib.import_module("core.developer_agent.repair_proposal")
-    calls: list[tuple[str, dict[str, object]]] = []
+    calls: list[tuple[str, str]] = []
 
-    def fake_raw(prompt, **kwargs):
-        calls.append((prompt, kwargs))
+    def fake_repair(prompt, system_prompt):
+        calls.append((prompt, system_prompt))
         return _model_output()
 
-    monkeypatch.setattr(proposal_module, "get_llama_cpp_raw_response", fake_raw)
+    monkeypatch.setattr(
+        proposal_module,
+        "get_llama_cpp_repair_response",
+        fake_repair,
+    )
 
     proposal = proposal_module.propose_repair(
         _request(excerpts={"example.py": "VALUE = 1"}),
@@ -576,10 +580,9 @@ def test_default_model_path_uses_raw_llama_prompt_without_memory_context(
 
     assert proposal.valid is True
     assert len(calls) == 1
-    prompt, kwargs = calls[0]
+    prompt, system_prompt = calls[0]
     assert "UNTRUSTED_REPAIR_DATA" in prompt
-    assert kwargs["system_prompt"] == proposal_module.REPAIR_PROPOSAL_SYSTEM_PROMPT
-    assert kwargs["log_errors"] is False
+    assert system_prompt == proposal_module.REPAIR_PROPOSAL_SYSTEM_PROMPT
     source = Path(proposal_module.__file__).read_text(encoding="utf-8")
     assert "build_messages" not in source
     assert "build_prompt" not in source

@@ -15,7 +15,7 @@ from core.developer_agent.mutation import MAX_FILE_BYTES
 from core.developer_agent.policy import git_protection_code
 from core.developer_agent.tool_models import ToolResult
 from core.developer_agent.workspace import Workspace, WorkspacePathError
-from skills.llama_cpp_skill import get_llama_cpp_raw_response
+from skills.llama_cpp_skill import get_llama_cpp_repair_response
 
 
 MAX_VERIFICATION_SUMMARY_BYTES = 4 * 1024
@@ -41,7 +41,8 @@ _NO_FIX_FIELDS = frozenset({"proposal_type", "confidence", "reason"})
 _PROPOSAL_SEAL = object()
 
 REPAIR_PROPOSAL_SYSTEM_PROMPT = """
-You produce exactly one bounded software-repair proposal as JSON data.
+Return exactly one bounded software-repair proposal as a JSON object.
+Do not think aloud. Do not return Markdown, prose, or an explanation outside JSON.
 
 You may propose only one of these schemas:
 {"proposal_type":"patch_file","path":"relative/path.py","old_text":"exact existing text","new_text":"replacement text","confidence":0.0,"reason":"short reason"}
@@ -332,7 +333,8 @@ def _prompt_for(
     }
     correction_text = (
         "\nYour previous response failed strict JSON/schema validation. "
-        "Return only one corrected JSON object."
+        "Return exactly one corrected JSON object matching one allowed schema. "
+        "No Markdown, prose, or text outside that object."
         if correction
         else ""
     )
@@ -576,13 +578,7 @@ def _safe_failure(status: str) -> RepairProposal:
 
 
 def _default_model_call(system_prompt: str, user_prompt: str) -> object:
-    return get_llama_cpp_raw_response(
-        user_prompt,
-        system_prompt=system_prompt,
-        temperature=0.1,
-        max_tokens=1200,
-        log_errors=False,
-    )
+    return get_llama_cpp_repair_response(user_prompt, system_prompt)
 
 
 def propose_repair(
