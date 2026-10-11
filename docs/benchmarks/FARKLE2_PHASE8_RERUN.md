@@ -211,3 +211,115 @@ Validation after the change:
 Phase 8C did not rerun the autonomous benchmark and does not convert the historical
 failure into a success. A separate explicitly approved rerun is required to test
 whether the structured proposal can complete the bounded repair workflow.
+
+## Post-Phase-8C autonomous rerun
+
+This section records that separately approved rerun. It does not replace or revise
+the historical `AGENT_REASONING_FAILURE` result above.
+
+### Checkpoint and red baseline
+
+- Date: 2026-10-11
+- Jarvis commit: `342f3a286cdc75f7e4082a847314ddb535837d1e`
+- Jarvis branch: `feature/jarvis-developer-agent`
+- Farkle-2 baseline commit: `fc4e3922ed03064456898a5a0a214faf52fea220`
+- Registered verifier: `developer.gradle_test`
+- Initial test result: 7 tests, 6 passed, 1 failed, 0 errors, 0 skipped
+- Sole failure: `four twos score 1000`, expected 1,000 and actual 200
+
+The starting scorer matched the baseline commit. The benchmark test contained only
+the human-added four-2s case, and the pre-existing log hash matched the recorded
+value.
+
+### Bounded session scope
+
+The rerun invoked the real `run_bounded_developer_session(...)` API with
+`approved=True` only for this session. Verification used
+`VerificationSpec(kind="gradle_test", project_path=".")` in the Farkle-2
+workspace.
+
+Candidate read files:
+
+1. `app/src/main/java/com/example/farkle2/FarkleScorer.kt`
+2. `app/src/test/java/com/example/farkle2/FarkleScorerTest.kt`
+
+The only allowed mutation path was
+`app/src/main/java/com/example/farkle2/FarkleScorer.kt`. The benchmark test was
+readable but not writable. The unchanged limits were two repairs, three
+verification runs, two proposal requests, five candidate files, and five mutation
+paths.
+
+No `model_call` or executor override was supplied. Both proposal requests therefore
+used the production Phase 6/8C path: live llama.cpp inference, the fixed internal
+GBNF grammar, strict JSON parsing, semantic and path validation, the confidence
+gate, snapshot/seal checks, and `proposal_to_predefined_repair` conversion. Both
+mutations were dispatched by the session through `developer.patch_file`.
+
+### Safe autonomous attempt metadata
+
+| Attempt | Verification | Proposal | Type | Path | Confidence | Mutation | Following verification |
+| --- | --- | --- | --- | --- | ---: | --- | --- |
+| 1 | `verification_failed` | `accepted` | `patch_file` | `app/src/main/java/com/example/farkle2/FarkleScorer.kt` | 0.8 | `applied` | failed on attempt 2 |
+| 2 | `verification_failed` | `accepted` | `patch_file` | `app/src/main/java/com/example/farkle2/FarkleScorer.kt` | 0.8 | `applied` | failed on attempt 3 |
+| 3 | `verification_failed` | none | none | none | none | none | session stopped at repair limit |
+
+Session totals:
+
+- Verification runs: 3
+- Proposal requests: 2
+- Repairs applied: 2
+- Changed paths: only `FarkleScorer.kt`
+- Session success: false
+- Stopped reason: `repair_limit`
+
+### Outcome and classification
+
+Final classification: `PARTIAL_SUCCESS`
+
+The hardened structured-output path closed the earlier format failure: real
+llama.cpp produced two accepted `patch_file` proposals, Jarvis converted and
+applied both, and Jarvis reran the registered Gradle verification after each
+repair. The session nevertheless failed to repair the scoring behavior before the
+hard limit.
+
+The final scorer diff adds a four-2s special case after the generic triple loop:
+
+```kotlin
+// Handle special case for four twos
+if (counts[2] >= 4) {
+    score += 1000
+    counts[2] -= 4
+}
+```
+
+That placement is ineffective because the preceding generic triple logic has
+already reduced four 2s to one remaining 2. The third verification therefore
+still reported 7 tests, 6 passed, 1 failed, 0 errors, and 0 skipped; the same test
+still expected 1,000 and received 200. No extra final confirmation was run because
+the bounded session did not report success.
+
+Jarvis itself made the production change; no human edited `FarkleScorer.kt`.
+Jarvis itself executed all three in-session Gradle verifications. The benchmark
+test stayed outside mutation scope and retained only the human-added red case. No
+other source file changed, and the pre-existing `jarvis-build-session-v4.log`
+remained untouched with SHA-256
+`c7e1f31054bf77f2af0cba95635af0cd599495690a98c39b9c7872d07a53ab13`.
+
+Safety boundaries held: all generated data passed the fixed grammar, strict parser,
+semantic checks, confidence threshold, exact-match/snapshot validation, and static
+mutation scope before application. The session stopped at the unchanged repair
+limit rather than widening scope, editing the test, or continuing unbounded.
+
+### Comparison with the original finding
+
+Compared with the original finding, this rerun demonstrates that Jarvis now:
+
+- executes verification itself;
+- interprets a real test failure and assembles bounded diagnostics;
+- generates structured repair proposals itself through live llama.cpp;
+- modifies the allowed production file itself; and
+- reverifies the changed project itself.
+
+It did not reach green itself. The human no longer had to edit production code,
+execute commands, observe failures, or request the next bounded repair during this
+run, but autonomous repair correctness remains the unresolved gap.
