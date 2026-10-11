@@ -11,7 +11,8 @@ Phase 5 adds explicit-path staging and one verification-gated local commit.
 Phase 6 adds one bounded, data-only LLM-assisted repair proposal.
 Phase 7 connects those boundaries into one explicitly approved, bounded autonomous
 developer session. Phase 8B adds one dedicated offline Android/Gradle unit-test
-verification capability without widening the generic command grammar.
+verification capability without widening the generic command grammar. Phase 8C
+hardens repair-model structured output at generation time.
 
 Brain v2 advertises these capabilities, but does not invoke them from natural
 language or run an autonomous tool loop.
@@ -300,7 +301,7 @@ text file, or `no_fix`. A proposal is data only: this API never writes or patche
 a file, runs a command, stages or commits changes, invokes the repair loop, or
 dispatches any tool except the literal read-only `developer.read_file` ID.
 
-The integration uses the existing llama.cpp raw-chat function and active local
+The integration uses a dedicated llama.cpp repair request and the active local
 model. It supplies a purpose-built developer-repair system prompt directly rather
 than using `core.context.build_messages`. Exact memory, semantic memory, recent
 conversation, last-topic state, and Marty's personal context are therefore not
@@ -341,6 +342,24 @@ matching, or regex patch parsing. One correction call is allowed only after JSON
 or schema failure; an unsafe target, ambiguous patch, low confidence, or other
 semantic rejection is never retried. Empty/unavailable model responses and
 backend failures stop immediately. There are at most two model calls.
+
+Phase 8C also constrains repair generation with one fixed internal GBNF grammar
+that expresses exactly the existing patch, write, and no-fix JSON variants. The
+active llama.cpp build advertises JSON Schema response formats, but its automatic
+schema/chat-template integration could not initialize the sampler for the active
+Qwen template. Direct grammar sampling is therefore used instead. The grammar is
+not caller-selectable and permits ordinary escaped JSON string content while
+fixing the object variants, keys, proposal-type literals, and confidence number
+shape. It does not replace any parser, path, payload, confidence, snapshot, or
+semantic validation below.
+
+Repair inference disables Qwen thinking through the chat-template control and
+uses a repair-only deterministic profile: temperature `0.0`, top-p `0.1`, top-k
+`1`, repeat penalty `1.0`, seed `0`, prompt-cache reuse disabled, and at most 1,200
+generated tokens. General Jarvis conversation inference is unchanged. The system
+and correction prompts both require exactly one JSON object with no Markdown or
+surrounding prose. The existing one-initial-plus-one-correction hard limit remains
+unchanged.
 
 Patch proposals require a protected-policy-safe existing text file, non-empty
 `old_text`, a different bounded replacement, and exactly one literal match in a
@@ -552,6 +571,28 @@ planner mapping, natural-language or router trigger, Brain invocation, package
 installation, network enablement, or Git operation. `developer.run_command`
 remains unchanged and still rejects `./gradlew`.
 
+## Phase 8C repair-model structured-output reliability
+
+The Phase 8 rerun reached real verification and live llama.cpp inference but ended
+with `AGENT_REASONING_FAILURE`. Both repair responses exhausted the 1,200-token
+limit inside an unclosed `<think>` block, so neither response began with JSON. The
+strict parser correctly rejected both at byte one and Phase 7 applied no mutation.
+This historical benchmark classification remains unchanged.
+
+Phase 8C remediates the generation path rather than accepting malformed output.
+The exact three-variant JSON Schema remains represented for review, while the
+active server uses the equivalent fixed internal GBNF grammar described above.
+The strict JSON parser is unchanged: it still rejects Markdown fences, surrounding
+prose, duplicate or unknown fields, non-object JSON, invalid confidence, and every
+other prior format violation. Semantic and filesystem validation remains the
+authoritative safety boundary after constrained generation.
+
+The manual reliability runner
+`tools/run_developer_repair_model_reliability.py` makes five proposal-only calls
+against a temporary deterministic fixture. It records only parse/schema success,
+proposal type, confidence, validation status, and whether the fixture remained
+unchanged. It never converts or applies a proposal and never stores raw output.
+
 ## Execution limitations
 
 Phase 2 can create or replace text only through the two explicit mutation tools.
@@ -568,7 +609,8 @@ Phase 6 only proposes and converts repair data; it cannot apply that data. Phase
 can apply converted data only within the explicit static session boundary described
 above and stops before any Git checkpoint operation. Phase 8B adds only the fixed
 Gradle verification path described above; it does not add generic project-local
-executable access.
+executable access. Phase 8C changes only repair-model generation format and does
+not add execution, mutation, Git, planner, router, or Brain entry points.
 
 This command policy is a constrained developer workflow boundary, not an operating
 system sandbox. An approved pytest command necessarily imports and executes the
@@ -607,5 +649,6 @@ executable paths, pytest plugin injection, and Git mutation commands.
 - Phase 8A: deterministic Farkle-2 Android benchmark fixture
 - Phase 8B: narrow offline Android/Gradle verification capability
 - Phase 8 rerun: one human-controlled Farkle-2 four-of-a-kind repair benchmark
+- Phase 8C: repair-model structured-output reliability hardening
 
 No broader phase is defined here.
