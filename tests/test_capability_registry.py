@@ -45,6 +45,7 @@ EXPECTED_CAPABILITY_IDS = (
     "developer.git_stage",
     "developer.git_commit",
     "developer.propose_repair",
+    "developer.bounded_session",
 )
 
 
@@ -87,6 +88,7 @@ def test_registry_lookup_and_category_filter_are_safe():
     git_stage = get_capability("developer.git_stage")
     git_commit = get_capability("developer.git_commit")
     propose_repair = get_capability("developer.propose_repair")
+    bounded_session = get_capability("developer.bounded_session")
     assert (
         write_file.enabled
         is patch_file.enabled
@@ -95,6 +97,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is git_stage.enabled
         is git_commit.enabled
         is propose_repair.enabled
+        is bounded_session.enabled
         is True
     )
     assert (
@@ -105,6 +108,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is git_stage.executable
         is git_commit.executable
         is propose_repair.executable
+        is bounded_session.executable
         is False
     )
     assert (
@@ -117,6 +121,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is False
     )
     assert propose_repair.read_only is True
+    assert bounded_session.read_only is False
     assert (
         write_file.mutating
         is patch_file.mutating
@@ -124,6 +129,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is repair_loop.mutating
         is git_stage.mutating
         is git_commit.mutating
+        is bounded_session.mutating
         is True
     )
     assert propose_repair.mutating is False
@@ -134,6 +140,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is repair_loop.requires_confirmation
         is git_stage.requires_confirmation
         is git_commit.requires_confirmation
+        is bounded_session.requires_confirmation
         is True
     )
     assert propose_repair.requires_confirmation is False

@@ -108,6 +108,16 @@ _CAPABILITIES = (
         mutating=False,
         requires_confirmation=False,
     ),
+    Capability(
+        capability_id="developer.bounded_session",
+        category="developer",
+        enabled=True,
+        executable=False,
+        description="Run one bounded autonomous developer session",
+        read_only=False,
+        mutating=True,
+        requires_confirmation=True,
+    ),
 )
 
 _CAPABILITY_BY_ID = {

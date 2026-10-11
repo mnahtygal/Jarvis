@@ -9,6 +9,8 @@ boundary with fixed command grammars, not a generic shell. Phase 4 adds a bounde
 confirmation-gated verify/repair/reverify orchestrator for predefined repairs.
 Phase 5 adds explicit-path staging and one verification-gated local commit.
 Phase 6 adds one bounded, data-only LLM-assisted repair proposal.
+Phase 7 connects those boundaries into one explicitly approved, bounded autonomous
+developer session.
 
 Brain v2 advertises these capabilities, but does not invoke them from natural
 language or run an autonomous tool loop.
@@ -29,6 +31,8 @@ The implementation is intentionally small:
   and predefined repairs through that executor with hard attempt limits.
 - `core/developer_agent/repair_proposal.py` builds and validates one bounded local
   model proposal without applying it.
+- `core/developer_agent/developer_session.py` runs dynamic Phase 6 proposals inside
+  one immutable, human-approved session scope.
 - `core/developer_agent/verification.py` reduces successful verification results
   to immutable, output-free evidence.
 - `core/developer_agent/git_safety.py` owns fixed local Git inspection, staging,
@@ -369,6 +373,89 @@ router, natural-language, Brain-autonomous, or automatic post-repair/checkpoint
 entry point. Existing approval, mutation, verification, repair-loop, and Git gates
 remain authoritative.
 
+## Phase 7 bounded autonomous developer session
+
+`run_bounded_developer_session(...)` is the first Developer Agent API permitted to
+apply an LLM-generated repair. It runs this fixed sequence:
+
+```text
+verify -> diagnose -> propose -> validate -> apply -> reverify -> stop or repeat
+```
+
+The trusted human caller must pass `approved=True` for that one call. Approval is
+ephemeral and delegates only the request's immutable scope: one verification argv
+tuple, at most five explicit candidate read paths, at most five explicit mutation
+paths, and caller-selected limits no greater than the hard maxima. With approval
+missing, the session performs no verification, model call, source read, mutation,
+or Git operation. Approval is neither global nor persisted.
+
+The hard maxima are two repairs, three verification runs (the initial run plus two
+reverification runs), and two Phase 6 proposal requests. Each proposal request
+retains Phase 6's existing maximum of one schema-format retry, so the theoretical
+session maximum is four local-model calls. A caller may lower these limits but
+cannot raise them.
+
+### Static scope, dynamic repairs
+
+The verification command, candidate read set, mutation allowlist, and limits are
+validated and frozen before the first command runs. Scope paths must be unique,
+canonical repository-relative file paths with contained existing parents. The
+session rejects `.`, absolute paths, traversal, wildcards and pathspec-like input,
+Git metadata, sensitive names, protected personal files, directories, and unsafe
+symlinks. The model cannot browse, search, add candidates, select a new command, or
+expand the mutation allowlist.
+
+Repair payloads are dynamic: after each failed reverification, Phase 7 asks Phase 6
+for a fresh proposal using the current source state and new diagnostic. A readable
+candidate is not automatically writable. The exact proposed path must also be in
+the frozen mutation allowlist. New-file creation works only when that exact future
+path is both a candidate and pre-authorized mutation path.
+
+Phase 4 and Phase 7 therefore have distinct roles:
+
+- Phase 4 runs a caller-supplied sequence of predefined repairs.
+- Phase 7 generates a new repair after each failure, but only within a statically
+  approved session scope.
+
+Phase 6 remains authoritative for prompt isolation, strict JSON/schema handling,
+confidence threshold, protected-path and exact-patch validation, bounded format
+retry, and filesystem snapshot/seal revalidation. Phase 7 converts eligible
+proposals only through `proposal_to_predefined_repair(...)`. Verification is
+always dispatched as `developer.run_command`; mutation is always dispatched as
+the converted `developer.patch_file` or `developer.write_file` operation through
+the existing fixed executor. The session module has no subprocess or direct file
+write implementation.
+
+### Diagnostics, stopping, and results
+
+Failed command output is adapted into an ephemeral `DiagnosticExcerpt`. Output at
+or below 16 KiB is retained as captured. Larger output uses deterministic bounded
+head and tail portions with explicit truncation metadata, preserves valid UTF-8,
+and never exceeds Phase 6's 16 KiB failure-output boundary. Upstream command-output
+truncation is also recorded in the proposal summary. Diagnostics, prompts, source
+excerpts, raw model output, reasons, patch bodies, and created-file contents are
+not copied into the session result or any memory, Brain status, conversation, log,
+or history facility.
+
+The session stops immediately when verification passes or on a timeout, command
+policy rejection, executor failure, backend/model failure, malformed or `no_fix`
+proposal, low confidence, unsafe or out-of-scope path, stale snapshot, conversion
+failure, mutation rejection/failure, or any repair, verification, or proposal
+limit. Results contain only safe immutable counters, per-attempt status/type/path/
+confidence metadata, the authorized paths successfully changed, and a stop reason.
+
+There is intentionally no automatic rollback. If an authorized repair is applied
+and a later verification fails or times out, that modification remains in the
+working tree for human inspection and manual recovery. Phase 7 never calls delete,
+reset, restore, checkout, staging, commit, or push. A green session stops without
+Git mutation; any Phase 5 checkpoint is a separate, later human-directed action.
+
+Brain v2 advertises `developer.bounded_session` as enabled, mutating,
+`requires_confirmation=True`, and `executable=False`. It is available only through
+the explicit internal/manual Python API. There is no executor tool registration,
+planner mapping, router or natural-language trigger, autonomous Brain entry point,
+background task, or recurring execution.
+
 ## Execution limitations
 
 Phase 2 can create or replace text only through the two explicit mutation tools.
@@ -381,7 +468,9 @@ fixed registered IDs and arguments. Phase 4 adds only the bounded, predefined
 sequence described above; it does not provide generated self-correction, planning,
 or natural-language invocation. Phase 5 adds only the two dedicated local Git
 checkpoint tools; the generic command tool still cannot stage, commit, or push.
-Phase 6 only proposes and converts repair data; it cannot apply that data.
+Phase 6 only proposes and converts repair data; it cannot apply that data. Phase 7
+can apply converted data only within the explicit static session boundary described
+above and stops before any Git checkpoint operation.
 
 This command policy is a constrained developer workflow boundary, not an operating
 system sandbox. An approved pytest command necessarily imports and executes the
@@ -415,8 +504,9 @@ executable paths, pytest plugin injection, and Git mutation commands.
 - Phase 4: bounded verify/repair/reverify loop using predefined repairs
 - Phase 5: controlled explicit staging and verification-gated local commit
 - Phase 6: bounded LLM-assisted repair proposals (data only)
-- Phase 7: bounded autonomous developer session
+- Phase 7: bounded autonomous developer session (explicit manual approval and
+  static scope)
 - Phase 8: Farkle-2 autonomous benchmark
 
-Each later phase requires a separate security design and validation. Phase 7 and
-beyond are not currently available.
+Each later phase requires a separate security design and validation. Phase 8 is
+not currently available.
