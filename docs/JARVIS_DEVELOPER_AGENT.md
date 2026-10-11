@@ -315,9 +315,15 @@ candidate paths, and optional excerpts. The limits are 4 KiB for the summary,
 16 KiB for failure output, 8 KiB per excerpt, and 48 KiB for the combined repair
 context. Candidate paths are at most 4,096 UTF-8 bytes. Oversized inputs are
 rejected rather than silently truncated. If an excerpt is omitted for an existing
-candidate, Phase 6 obtains a bounded line-numbered excerpt through
+candidate, Phase 6 obtains bounded line-numbered context through
 `developer.read_file` and the fixed executor; it does not call `open`,
-`Path.read_text`, or a repository search.
+`Path.read_text`, or a repository search. A file whose complete numbered content
+fits the existing 8 KiB bound is labeled `complete_file`. A larger file uses a
+bounded window around a candidate-specific `path:line` failure reference when one
+is available, otherwise it uses a bounded prefix. Context records explicitly mark
+their selection, completeness, and line-numbering status. Numbering expansion is
+also bounded, so a large file produces useful context rather than rejecting the
+whole proposal request.
 
 Candidates must be canonical workspace-relative paths with an existing contained
 parent. Absolute paths, traversal, duplicates, directories, unsafe symlinks,
@@ -329,7 +335,12 @@ Failure output, stack traces, filenames, source comments, and excerpts are marke
 as untrusted JSON data in the prompt. The system contract tells the model that
 embedded instructions cannot redefine the schema, permissions, output format, or
 system behavior; it must not issue commands, claim execution, or reveal
-chain-of-thought. It must choose `no_fix` when the evidence is insufficient.
+chain-of-thought. It must choose `no_fix` when the evidence is insufficient. The
+repair contract requires checking surrounding control flow, data flow, mutation
+order, and original versus residual consumable state. When ordering matters, it
+explicitly permits and prefers a larger exact block replacement over an ineffective
+append or compensating threshold change. The reason remains a short observable
+repair rationale, not hidden reasoning.
 
 ### Strict output and repair-data conversion
 
@@ -593,6 +604,51 @@ against a temporary deterministic fixture. It records only parse/schema success,
 proposal type, confidence, validation status, and whether the fixture remained
 unchanged. It never converts or applies a proposal and never stores raw output.
 
+## Phase 8D semantic repair quality hardening
+
+The post-Phase-8C Farkle rerun proved that the bounded mechanics worked: real
+Gradle verification ran, live llama.cpp returned two accepted structured patches,
+Jarvis applied both within scope, and the unchanged repair limit stopped the
+session. It ended in `PARTIAL_SUCCESS` because the resulting special-case check
+was placed after generic triple processing had already consumed the original count.
+
+A prompt audit showed that this was not missing Farkle source context. The model
+received the complete 23-line scorer, complete 45-line test, visible count mutation,
+failing test name, and ordered candidate list in a combined 6,786-byte system/user
+prompt. The observable failure is therefore primarily semantic control/data-flow
+reasoning, with a contributing prompt weakness: the previous contract did not
+require validating state at the proposed insertion point or explicitly encourage
+replacing a larger exact block.
+
+Phase 8D improves bounded context representation and the semantic repair contract.
+Small files are sent as explicitly complete numbered files; large files use a
+bounded failure-line window or bounded-prefix fallback. The prompt requires a
+repair to account for earlier state mutation, distinguish original from residual
+consumable state, and use a larger exact block when execution order must change.
+It also requires preserving existing behavior not contradicted by failure evidence
+and keeping the replacement block no broader than necessary. It does not request
+or persist chain-of-thought.
+
+Model-independent fixtures cover a generic function where state is consumed before
+a later condition, complete small-file and test context, bounded large-file
+fallback, failure-line selection, and validation of a larger exact-block proposal
+without applying it. Proposal-only live checks remain mixed: the generic fixture
+produced a semantically promising pre-mutation insertion but reported confidence
+`0.0`, so the unchanged confidence gate kept it ineligible. The Farkle proposal was
+valid and accepted at confidence `0.8`, but trusted inspection found that it still
+appended the four-of-a-kind check after generic triple consumption. It was not
+converted or applied. Phase 8D therefore improves the generic input contract but
+does not claim that the active model has solved the benchmark's semantic reasoning
+gap.
+
+The 8 KiB per-file context bound, 16 KiB repair payload bound, 48 KiB total context
+bound, fixed GBNF grammar, thinking control, deterministic sampling, strict parser,
+`0.70` confidence threshold, one correction retry, exact one-match validation,
+snapshot/seal checks, candidate and mutation scopes, and Phase 7 limits are
+unchanged. No critique pass, judge model, reflection loop, extra runtime model call,
+command capability, Git behavior, planner/router entry point, or autonomy expansion
+is added.
+
 ## Execution limitations
 
 Phase 2 can create or replace text only through the two explicit mutation tools.
@@ -610,7 +666,9 @@ can apply converted data only within the explicit static session boundary descri
 above and stops before any Git checkpoint operation. Phase 8B adds only the fixed
 Gradle verification path described above; it does not add generic project-local
 executable access. Phase 8C changes only repair-model generation format and does
-not add execution, mutation, Git, planner, router, or Brain entry points.
+not add execution, mutation, Git, planner, router, or Brain entry points. Phase 8D
+changes only bounded repair context and semantic instructions; it adds no execution
+or autonomy surface.
 
 This command policy is a constrained developer workflow boundary, not an operating
 system sandbox. An approved pytest command necessarily imports and executes the
@@ -650,5 +708,6 @@ executable paths, pytest plugin injection, and Git mutation commands.
 - Phase 8B: narrow offline Android/Gradle verification capability
 - Phase 8 rerun: one human-controlled Farkle-2 four-of-a-kind repair benchmark
 - Phase 8C: repair-model structured-output reliability hardening
+- Phase 8D: semantic repair quality hardening
 
 No broader phase is defined here.
