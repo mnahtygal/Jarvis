@@ -143,9 +143,12 @@ def test_cancel_and_unrelated_conversation_clear_pending(isolated_workspace, mon
     assert orchestrator.process_request("approve").developer_error_code == "no_pending_action"
 
     orchestrator.process_request("Create demo.py with hello world")
-    monkeypatch.setattr(orchestrator, "route", lambda command: "12:00")
+    route = Mock(return_value="12:00")
+    monkeypatch.setattr(orchestrator, "route", route)
     ordinary = orchestrator.process_request("What time is it?")
-    assert ordinary.response == "12:00"
+    assert ordinary.developer_error_code == "approval_not_recognized"
+    assert "nothing was executed" in ordinary.response
+    route.assert_not_called()
     assert not target.exists()
     assert orchestrator.process_request("approve").developer_error_code == "no_pending_action"
 
@@ -526,16 +529,20 @@ def test_non_exact_affirmation_is_not_approval(
     isolated_workspace, monkeypatch, response
 ):
     orchestrator.process_request("Create demo.py with hello")
-    monkeypatch.setattr(orchestrator, "route", lambda command: "ordinary yes")
+    route = Mock(return_value="ordinary yes")
+    monkeypatch.setattr(orchestrator, "route", route)
     result = orchestrator.process_request(response)
-    assert result.response == "ordinary yes"
+    assert result.developer_status == "rejected"
+    assert result.developer_error_code == "approval_not_recognized"
+    assert "nothing was executed" in result.response
+    route.assert_not_called()
     assert not (isolated_workspace.root / "demo.py").exists()
     assert orchestrator.process_request("approve").developer_error_code == "no_pending_action"
 
 
 @pytest.mark.parametrize(
     "approval",
-    ["approve", "yes, approve", "proceed", "execute it", "run it"],
+    ["approve", "APPROVE", "yes, approve", "proceed", "execute it", "run it"],
 )
 def test_exact_approval_phrases_are_supported(
     isolated_workspace, monkeypatch, approval

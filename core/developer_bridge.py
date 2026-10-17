@@ -68,6 +68,7 @@ DEVELOPER_EXECUTABLE = "executable"
 DEVELOPER_CONFIRMATION_REQUIRED = "confirmation_required"
 DEVELOPER_APPROVAL = "approval"
 DEVELOPER_CANCELLATION = "cancellation"
+DEVELOPER_APPROVAL_NOT_RECOGNIZED = "approval_not_recognized"
 DEVELOPER_UNSUPPORTED = "unsupported"
 MAX_DEVELOPER_REQUEST_LENGTH = 500
 MAX_PATH_LENGTH = 4096
@@ -164,6 +165,11 @@ _CANCELLATION_PATTERN = re.compile(
     r"^(?:cancel|never mind|don't run it|stop)$",
     re.I,
 )
+_INVALID_APPROVAL_RESPONSES_WITHOUT_PENDING = frozenset({
+    "appprove",
+    "aproove",
+    "approve all",
+})
 
 _CANONICAL_BOUNDED_SESSION_HANDLER = run_developer_session_request
 _CANONICAL_GREENFIELD_HANDLER = run_greenfield_project
@@ -431,6 +437,10 @@ def classify_developer_request(command: str) -> DeveloperRequest | None:
         return _confirmation_request("developer.run_command")
     if any(p in text for p in ("developer request", "developer task", "developer work")):
         return DeveloperRequest(DEVELOPER_UNSUPPORTED)
+    with _state_lock:
+        pending = _pending_action is not None
+    if pending or text in _INVALID_APPROVAL_RESPONSES_WITHOUT_PENDING:
+        return DeveloperRequest(DEVELOPER_APPROVAL_NOT_RECOGNIZED)
     return None
 
 
@@ -1004,6 +1014,26 @@ def _cancel_action() -> DeveloperBridgeResult:
         pending.safe_argument_summary if pending else ())
 
 
+def _reject_unrecognized_approval() -> DeveloperBridgeResult:
+    global _pending_action, _state_generation
+    with _state_lock:
+        pending, _pending_action = _pending_action, None
+        _state_generation += 1
+    return DeveloperBridgeResult(
+        "rejected",
+        pending.capability_id if pending else None,
+        "Approval was not recognized; nothing was executed. "
+        "The pending developer action was cancelled. Start the request again and "
+        "reply exactly 'approve', 'yes, approve', 'proceed', 'execute it', or 'run it'."
+        if pending
+        else "Approval was not recognized and no developer action is pending; nothing was executed.",
+        pending.safe_argument_summary if pending else (),
+        False,
+        False,
+        "approval_not_recognized",
+    )
+
+
 def _approve_action() -> DeveloperBridgeResult:
     global _pending_action, _verification_record, _state_generation
     with _state_lock:
@@ -1164,6 +1194,8 @@ def execute_developer_request(request: DeveloperRequest) -> DeveloperBridgeResul
         return _approve_action()
     if request.mode == DEVELOPER_CANCELLATION:
         return _cancel_action()
+    if request.mode == DEVELOPER_APPROVAL_NOT_RECOGNIZED:
+        return _reject_unrecognized_approval()
     if request.mode == DEVELOPER_CONFIRMATION_REQUIRED:
         return _propose_action(request)
     _clear_pending()
@@ -1182,3 +1214,28 @@ def execute_developer_request(request: DeveloperRequest) -> DeveloperBridgeResul
 def invalidate_pending_developer_action() -> None:
     """Cancel latent mutation authority after unrelated conversation."""
     _clear_pending()
+
+
+def enforce_developer_result_truthfulness(
+    result: DeveloperBridgeResult,
+) -> DeveloperBridgeResult:
+    """Require structured invocation evidence for every success lifecycle state."""
+
+    success_claimed = result.status in {"executed", "executed_success"}
+    evidence_valid = result.tool_invoked is True and result.tool_success is True
+    if success_claimed != evidence_valid:
+        return DeveloperBridgeResult(
+            "truthfulness_blocked",
+            result.capability_id,
+            "Developer execution could not be verified from structured lifecycle "
+            "evidence; no execution success is being reported.",
+            result.safe_argument_summary,
+            False,
+            False,
+            "missing_invocation_evidence",
+            result.verification_kind,
+            result.repair_count,
+            result.verification_count,
+            "truthfulness_blocked",
+        )
+    return result

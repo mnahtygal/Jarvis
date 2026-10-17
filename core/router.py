@@ -762,7 +762,14 @@ def route(command: str) -> str:
         set_actual_route("memory_write")
         return natural_memory_response
 
-    if "time" in text or "date" in text:
+    if text in {
+        "time",
+        "date",
+        "what time is it",
+        "what is the time",
+        "what is the date",
+        "what date is it",
+    }:
         set_actual_route("system")
         return get_time_response()
 

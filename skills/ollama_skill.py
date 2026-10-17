@@ -3,6 +3,7 @@
 import requests
 
 from core.context import build_prompt
+from skills.llama_cpp_skill import strip_thinking
 
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -35,6 +36,6 @@ def ask_ollama(user_text: str, max_tokens: int = 300) -> str:
     response.raise_for_status()
 
     data = response.json()
-    answer = data.get("response", "").strip()
+    answer = strip_thinking(data.get("response", ""))
 
     return answer

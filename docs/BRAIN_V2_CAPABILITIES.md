@@ -63,10 +63,15 @@ Brain may propose exactly one fully specified action for these capabilities:
 The proposal executes nothing. It is held in bounded process-local memory for at
 most five minutes and is replaced by a newer Developer proposal. Restarting the
 local Jarvis process clears it. An unrelated request, cancellation, validation
-failure, expiry, or execution clears it.
+failure, expiry, or execution clears it. While a proposal is pending, non-exact
+approval text is handled deterministically, cancels the proposal, and never falls
+through to conversational model generation.
 Approval phrases are fixed and deterministic (`approve`, `yes, approve`,
 `proceed`, `execute it`, or `run it`); generic `yes` is not approval. Approval is
 single-use and authorizes only the stored capability and arguments.
+An execution-success lifecycle state additionally requires structured evidence
+that the canonical tool or session was invoked and succeeded; conversational
+model prose is never execution evidence.
 
 At approval time the bridge rechecks both registry entries, the explicit Phase 2
 allowlist, confirmation/non-autonomous metadata, argument shape, workspace root,
@@ -170,6 +175,8 @@ registry, canonical handler, allowed parent inode, absent destination, exact fil
 and role lists, frozen `pytest -q <test files>` target, model configuration,
 hard limits, and manifest digest. Approval is expiring, single-use,
 non-replayable, and invalidated by unrelated requests under the existing policy.
+Invalid approval text returns a deterministic no-execution result, including for
+common approval typos after the pending action has already been cleared.
 
 Execution creates exactly one project directory with no recursive parent
 creation, writes each approved file through `developer.write_file`, and invokes

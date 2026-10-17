@@ -42,7 +42,10 @@ MAX_GREENFIELD_MODEL_CALLS = 2
 _PROJECT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _PYTHON_FILE_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*\.py$")
 _ABSOLUTE_TOKEN = re.compile(r"(?<![\w$~])/[A-Za-z0-9_./-]+")
-_PYTHON_TOKEN = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z][A-Za-z0-9_]*\.py)(?![A-Za-z0-9_.-])")
+_PYTHON_TOKEN = re.compile(
+    r"(?<![A-Za-z0-9_./-])([A-Za-z][A-Za-z0-9_]*\.py)"
+    r"(?=$|[\s,;:)\]]|\.(?=\s|$))"
+)
 _MANIFEST_SEAL = object()
 _BLOCKED_MODULES = frozenset({
     "asyncio",
@@ -296,11 +299,11 @@ def classify_greenfield_request(command: str) -> tuple[GreenfieldProjectRequest 
     ):
         return None, True
     absolute_paths = tuple(_ABSOLUTE_TOKEN.findall(cleaned))
-    file_paths = tuple(_PYTHON_TOKEN.findall(cleaned))
+    referenced_file_paths = tuple(_PYTHON_TOKEN.findall(cleaned))
+    file_paths = tuple(dict.fromkeys(referenced_file_paths))
     if (
         len(absolute_paths) != 1
         or not 2 <= len(file_paths) <= MAX_GREENFIELD_FILES
-        or len(file_paths) != len(set(file_paths))
     ):
         return None, True
     specs = tuple(

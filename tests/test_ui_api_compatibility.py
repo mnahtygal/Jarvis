@@ -3,6 +3,8 @@
 from unittest.mock import Mock
 
 import api
+from core import brain, developer_bridge
+from core.developer_agent.workspace import Workspace
 
 
 def test_text_keeps_ui_compatible_shape_and_routes_through_think(monkeypatch):
@@ -97,3 +99,26 @@ def test_text_backend_failure_returns_safe_ui_compatible_json(monkeypatch):
         "response": "Something went wrong while handling typed input.",
     }
     assert "private detail" not in response.get_data(as_text=True)
+
+
+def test_health_and_dashboard_reads_do_not_consume_pending_developer_action(
+    tmp_path, monkeypatch, request
+):
+    developer_bridge.reset_developer_approval_state()
+    request.addfinalizer(developer_bridge.reset_developer_approval_state)
+    workspace = Workspace(tmp_path)
+    monkeypatch.setattr(developer_bridge, "Workspace", lambda: workspace)
+    monkeypatch.setattr(api, "get_dashboard_status", lambda: {"brain": {"ready": True}})
+    monkeypatch.setattr(brain, "remember_user_message", lambda message: None)
+    monkeypatch.setattr(brain, "remember_assistant_message", lambda message: None)
+    client = api.app.test_client()
+
+    proposed = client.post("/text", json={"command": "Create demo.py with hello"})
+    health = client.get("/health")
+    dashboard = client.get("/api/status/dashboard")
+    approved = client.post("/text", json={"command": "approve"})
+
+    assert proposed.status_code == health.status_code == dashboard.status_code == 200
+    assert approved.status_code == 200
+    assert approved.get_json()["response"] == "File written successfully"
+    assert (tmp_path / "demo.py").read_text(encoding="utf-8") == "hello"
