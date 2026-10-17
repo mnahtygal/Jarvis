@@ -137,3 +137,52 @@ identity plumbing and is not implied here.
 Ambiguous developer requests use the `developer_unsupported` route, return an
 unsupported result, and execute neither a tool nor the LLM fallback. Multi-step
 developer planning and autonomous repair remain out of scope.
+
+## Greenfield project orchestration
+
+Brain exposes one additional high-level capability,
+`developer.greenfield_project`, for small Python/pytest projects. It is enabled,
+mutating, confirmation-required, and `executable=False` in both static
+registries. It has no planner mapping and no generic executor dispatch. The only
+execution path is the existing single-use, five-minute Brain approval
+continuation followed by the dedicated greenfield handler.
+
+Recognition is deterministic and requires a clearly stated Python project, one
+canonical absolute workspace directly beneath `/home/mnahtygal/projects`, an
+exact list of two to five flat `.py` filenames, at least one source and one test,
+and pytest verification. Vague requests remain conversational or unsupported.
+Paths containing traversal, expansion syntax, globs, symlink roots, existing
+destinations, locations inside Jarvis, `/tmp`, or any other parent are refused.
+
+Before confirmation, the existing local model may provide content only for the
+caller-selected filenames. Generation uses deterministic sampling, disabled
+thinking, a fixed JSON grammar, strict duplicate-field/schema validation, an
+8 KiB per-file limit, a 24 KiB total-content limit, and at most one correction
+retry. Generated Python must parse and may import only standard-library modules,
+pytest, or approved project modules; process, network, installer, dynamic-code,
+and destructive-call primitives are rejected. The model cannot supply commands,
+verification targets, directories, roles, limits, or extra files.
+The AST checks are defense-in-depth input screening, not an operating-system
+sandbox; execution retains the documented pytest trust boundary.
+
+Approval binds an immutable content-inclusive manifest. The bridge rechecks the
+registry, canonical handler, allowed parent inode, absent destination, exact file
+and role lists, frozen `pytest -q <test files>` target, model configuration,
+hard limits, and manifest digest. Approval is expiring, single-use,
+non-replayable, and invalidated by unrelated requests under the existing policy.
+
+Execution creates exactly one project directory with no recursive parent
+creation, writes each approved file through `developer.write_file`, and invokes
+the existing bounded-session engine. Its first action is verification, so green
+projects stop after one run without a repair-model call. Red projects retain the
+existing ceiling of two repairs, three total verification runs, and two proposal
+requests. All approved files are readable; only source-role files are writable
+during repair, and the pytest target never changes.
+
+Bootstrap failures retain already-created user-visible files and return an
+honest partial-failure summary. The workflow performs no package installation,
+Git initialization, stage, commit, push, branch operation, dynamic file
+discovery, nested session, background execution, or durable storage of source,
+tests, prompts, manifests, or repair payloads. Safe results contain only the
+project path, created filenames, counters, modified source paths, final status,
+and confirmation that Git was untouched.

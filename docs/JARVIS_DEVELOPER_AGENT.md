@@ -756,6 +756,50 @@ unchanged. No critique pass, judge model, reflection loop, extra runtime model c
 command capability, Git behavior, planner/router entry point, or autonomy expansion
 is added.
 
+## Greenfield project orchestration
+
+`developer.greenfield_project` coordinates existing controlled primitives for
+one brand-new small Python project. It is not part of the generic executor and
+cannot be selected by the planner. Brain deterministically freezes the canonical
+workspace, exact flat filenames, source/test roles, and pytest target before the
+local model is asked for strict JSON file content. The model cannot select paths,
+commands, dependencies, or additional files.
+
+The only permitted parent is `/home/mnahtygal/projects`. The parent must already
+exist, resolve to itself, and not be a symlink; the direct child project must not
+exist. Approval rechecks those properties and a content-inclusive immutable
+manifest before creating one directory. Directory creation does not accept
+`parents=True`, arbitrary absolute targets, traversal, expansion syntax, or
+overwrite. Each file is then created through the existing
+`developer.write_file` implementation with overwrite and parent creation both
+disabled.
+
+Hard bounds are five files total, three source files, two test files, 8 KiB per
+file, and 24 KiB total generated content. Initial bootstrap may create both
+source and test files. After bootstrap, tests remain readable but are excluded
+from `allowed_mutation_paths`; repair proposals targeting them are rejected.
+Generated Python is syntax-checked and limited to standard-library, pytest, and
+approved project-module imports, with process, network, installer, dynamic-code,
+and destructive-call primitives blocked before approval.
+This AST gate is defense-in-depth input screening, not an operating-system
+sandbox. Ordinary JSON and workspace file persistence remain available, and the
+existing pytest execution limitations below still apply.
+
+Verification and repair reuse the existing Phase 7 session unchanged. The frozen
+command is `pytest -q` followed by the exact test filenames. Verification runs
+first and stops immediately when green. If red, the existing limits remain two
+repairs, three verification runs total, and two proposal requests. No command
+change, test rewrite, extra file, nested session, package installer, network
+operation, or Git operation is permitted. Pytest may create ordinary
+`.pytest_cache` artifacts; those are verifier artifacts, not manifest files or
+repair scope.
+
+If directory or file creation fails partway through, the result reports the
+created filenames and leaves them visible. There is no automatic deletion or
+rollback. Generated source, tests, raw prompts, model output, manifests, and
+diagnostics remain process-local and are not written to Brain status or durable
+memory.
+
 ## Execution limitations
 
 Phase 2 can create or replace text only through the two explicit mutation tools.

@@ -128,6 +128,16 @@ _CAPABILITIES = (
         mutating=True,
         requires_confirmation=True,
     ),
+    Capability(
+        capability_id="developer.greenfield_project",
+        category="developer",
+        enabled=True,
+        executable=False,
+        description="Create one exact-scope Python project with bounded verification",
+        read_only=False,
+        mutating=True,
+        requires_confirmation=True,
+    ),
 )
 
 _CAPABILITY_BY_ID = {
@@ -150,6 +160,9 @@ PHASE2_DEVELOPER_APPROVAL_ALLOWLIST = frozenset({
 })
 PHASE3_DEVELOPER_SESSION_ALLOWLIST = frozenset({
     "developer.bounded_session",
+})
+PHASE5_DEVELOPER_GREENFIELD_ALLOWLIST = frozenset({
+    "developer.greenfield_project",
 })
 
 _PLAN_STEP_CAPABILITIES = {
@@ -235,6 +248,8 @@ def get_capabilities_response() -> str:
                 readiness = "brain-explicit-approval"
             elif capability.capability_id in PHASE3_DEVELOPER_SESSION_ALLOWLIST:
                 readiness = "brain-approved-bounded-session"
+            elif capability.capability_id in PHASE5_DEVELOPER_GREENFIELD_ALLOWLIST:
+                readiness = "brain-approved-greenfield-project"
             elif not capability.enabled:
                 readiness = "disabled"
             elif capability.executable:
@@ -245,6 +260,7 @@ def get_capabilities_response() -> str:
     lines.append(
         "Planning remains observe-only; Brain execution is limited to three "
         "read-only Developer capabilities, six single-action explicit-approval "
-        "continuations, and one approved bounded developer session."
+        "continuations, one approved bounded developer session, and one approved "
+        "greenfield-project workflow."
     )
     return "\n".join(lines)

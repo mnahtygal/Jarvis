@@ -17,6 +17,15 @@ from core.developer_agent.developer_session import (
     validate_developer_session_request,
 )
 from core.developer_agent.executor import execute_tool
+from core.developer_agent.greenfield_project import (
+    GreenfieldFileSpec,
+    GreenfieldGeneratedFile,
+    GreenfieldProjectManifest,
+    GreenfieldProjectRequest,
+    GreenfieldProjectResult,
+    prepare_greenfield_manifest,
+    run_greenfield_project,
+)
 from core.developer_agent.repair_loop import (
     RepairAttempt,
     RepairResult,
@@ -51,6 +60,11 @@ __all__ = (
     "MAX_SESSION_VERIFICATION_RUNS",
     "build_diagnostic_excerpt",
     "execute_tool",
+    "GreenfieldFileSpec",
+    "GreenfieldGeneratedFile",
+    "GreenfieldProjectManifest",
+    "GreenfieldProjectRequest",
+    "GreenfieldProjectResult",
     "get_tool",
     "list_tools",
     "RepairAttempt",
@@ -60,8 +74,10 @@ __all__ = (
     "MIN_REPAIR_PROPOSAL_CONFIDENCE",
     "proposal_to_predefined_repair",
     "propose_repair",
+    "prepare_greenfield_manifest",
     "resolve_workspace_path",
     "run_bounded_developer_session",
+    "run_greenfield_project",
     "run_developer_session_request",
     "validate_developer_session_request",
     "run_repair_loop",
