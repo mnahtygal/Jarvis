@@ -5,6 +5,8 @@ from __future__ import annotations
 from enum import Enum
 
 from core.developer_bridge import (
+    DEVELOPER_APPROVAL,
+    DEVELOPER_CANCELLATION,
     DEVELOPER_CONFIRMATION_REQUIRED,
     DEVELOPER_EXECUTABLE,
 )
@@ -35,9 +37,14 @@ def determine_execution_strategy(
         developer_request = classification.developer_request
         if developer_request and developer_request.mode == DEVELOPER_EXECUTABLE:
             return ExecutionStrategy.DEVELOPER_TOOL
+        if developer_request and developer_request.mode == DEVELOPER_APPROVAL:
+            return ExecutionStrategy.DEVELOPER_TOOL
         if (
             developer_request
-            and developer_request.mode == DEVELOPER_CONFIRMATION_REQUIRED
+            and developer_request.mode in {
+                DEVELOPER_CONFIRMATION_REQUIRED,
+                DEVELOPER_CANCELLATION,
+            }
         ):
             return ExecutionStrategy.DEVELOPER_CONFIRMATION
         return ExecutionStrategy.DEVELOPER_UNSUPPORTED

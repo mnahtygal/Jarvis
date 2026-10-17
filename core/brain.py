@@ -1,6 +1,7 @@
 # core/brain.py
 
 from core.orchestrator import process_request
+from core.developer_bridge import classify_developer_request
 from core.session import (
     remember_user_message,
     remember_assistant_message,
@@ -88,11 +89,16 @@ def think(command: str) -> str:
     if not cleaned_command:
         return "I didn't hear anything, Marty."
 
-    print(f"[BRAIN] Heard: {cleaned_command}")
+    is_developer_request = classify_developer_request(cleaned_command) is not None
+    if is_developer_request:
+        print("[BRAIN] Heard developer request")
+    else:
+        print(f"[BRAIN] Heard: {cleaned_command}")
 
-    topic = detect_topic(cleaned_command)
-    if topic:
-        set_last_topic(topic)
+    if not is_developer_request:
+        topic = detect_topic(cleaned_command)
+        if topic:
+            set_last_topic(topic)
 
     # Process the request before saving the current user message.
     # build_messages() already adds the current message explicitly,
@@ -100,7 +106,8 @@ def think(command: str) -> str:
     result = process_request(cleaned_command)
     response = result.response
 
-    remember_user_message(cleaned_command)
-    remember_assistant_message(response)
+    if not is_developer_request:
+        remember_user_message(cleaned_command)
+        remember_assistant_message(response)
 
     return response

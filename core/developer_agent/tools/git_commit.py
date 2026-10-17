@@ -20,7 +20,8 @@ TOOL_ID = "developer.git_commit"
 MAX_COMMIT_MESSAGE_BYTES = 200
 
 
-def _validated_message(message: object) -> str | None:
+def validate_commit_message(message: object) -> str | None:
+    """Return a normalized safe commit message without creating a commit."""
     if not isinstance(message, str) or "\x00" in message:
         return None
     normalized = message.strip()
@@ -48,7 +49,7 @@ def git_commit(
         return failure_result(TOOL_ID, "invalid_approval", "Approval must be a boolean")
     if not approved:
         return failure_result(TOOL_ID, "approval_required", "Explicit approval is required")
-    validated_message = _validated_message(message)
+    validated_message = validate_commit_message(message)
     if validated_message is None:
         return failure_result(TOOL_ID, "invalid_message", "Commit message is invalid")
     if not is_successful_verification(verification_evidence):

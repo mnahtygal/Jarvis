@@ -1,7 +1,7 @@
 """Brain v2 request orchestration.
 
-Phase 12 adds a bounded read-only Developer Agent bridge before the unchanged
-router used by all non-developer requests.
+Phase 12 adds a bounded Developer Agent bridge before the unchanged router used
+by all non-developer requests.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ from core.developer_bridge import (
     DEVELOPER_CONFIRMATION_REQUIRED,
     DeveloperBridgeResult,
     execute_developer_request,
+    invalidate_pending_developer_action,
 )
 from core.execution_strategy import (
     ExecutionStrategy,
@@ -96,8 +97,9 @@ class BrainResult:
 def process_request(command: str) -> BrainResult:
     """Process a command through the existing router.
 
-    Developer requests use the bounded Phase 1 bridge. The existing router still
-    executes every non-developer request exactly once.
+    Developer requests use the bounded bridge. The existing router still
+    executes every non-developer request exactly once. Any unrelated request
+    invalidates a pending mutation before normal routing.
     """
 
     if not isinstance(command, str):
@@ -106,6 +108,8 @@ def process_request(command: str) -> BrainResult:
     normalized_command = command.strip()
     started_at = time.perf_counter()
     classification = classify_request(normalized_command)
+    if classification.intent is not RequestIntent.DEVELOPER:
+        invalidate_pending_developer_action()
     execution_strategy = determine_execution_strategy(classification)
     memory_decision = decide_memory(normalized_command, classification)
     plan = analyze_plan(normalized_command)
@@ -126,7 +130,10 @@ def process_request(command: str) -> BrainResult:
             developer_result = execute_developer_request(developer_request)
             if developer_result.tool_invoked:
                 set_actual_route("developer_tool")
-            elif developer_result.status == DEVELOPER_CONFIRMATION_REQUIRED:
+            elif developer_result.status in {
+                DEVELOPER_CONFIRMATION_REQUIRED,
+                "cancelled",
+            }:
                 set_actual_route("developer_confirmation")
             else:
                 set_actual_route("developer_unsupported")
@@ -181,7 +188,11 @@ def process_request(command: str) -> BrainResult:
         if developer_result is not None
         else evaluate_response(response)
     )
-    if evaluation.success and evaluation.quality == "good":
+    if (
+        developer_result is None
+        and evaluation.success
+        and evaluation.quality == "good"
+    ):
         persistence_result = persist_project_note(normalized_command, memory_decision)
     else:
         persistence_result = MemoryPersistenceResult(

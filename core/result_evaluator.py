@@ -43,6 +43,24 @@ def evaluate_developer_result(result: object) -> EvaluationResult:
             "confirmation_required",
             "developer request stopped for confirmation",
         )
+    if status == "cancelled":
+        return EvaluationResult(
+            False,
+            "cancelled",
+            "pending developer action was cancelled",
+        )
+    if status == "expired":
+        return EvaluationResult(
+            False,
+            "expired",
+            "pending developer action expired",
+        )
+    if status in {"policy_blocked", "validation_failed", "rejected"}:
+        return EvaluationResult(
+            False,
+            "failed",
+            "developer tool validation or policy failure",
+        )
     if status == "unsupported":
         return EvaluationResult(
             False,

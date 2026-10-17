@@ -93,6 +93,13 @@ _DISPATCH: dict[str, Callable[[dict[str, object], Workspace], ToolResult]] = {
 }
 
 
+def is_tool_dispatchable(tool_id: str) -> bool:
+    """Return whether a fixed enabled registry entry has a canonical handler."""
+
+    definition = get_tool(tool_id)
+    return bool(definition and definition.enabled and tool_id in _DISPATCH)
+
+
 def execute_tool(
     tool_id: str,
     arguments: Mapping[str, object],

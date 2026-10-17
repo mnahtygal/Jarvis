@@ -140,6 +140,14 @@ PHASE1_DEVELOPER_EXECUTION_ALLOWLIST = frozenset({
     "developer.read_file",
     "developer.git_status",
 })
+PHASE2_DEVELOPER_APPROVAL_ALLOWLIST = frozenset({
+    "developer.write_file",
+    "developer.patch_file",
+    "developer.run_command",
+    "developer.gradle_test",
+    "developer.git_stage",
+    "developer.git_commit",
+})
 
 _PLAN_STEP_CAPABILITIES = {
     ("runtime", "check runtime health"): ("runtime.health",),
@@ -220,6 +228,8 @@ def get_capabilities_response() -> str:
         for capability in capabilities:
             if capability.capability_id in PHASE1_DEVELOPER_EXECUTION_ALLOWLIST:
                 readiness = "brain-read-only"
+            elif capability.capability_id in PHASE2_DEVELOPER_APPROVAL_ALLOWLIST:
+                readiness = "brain-explicit-approval"
             elif not capability.enabled:
                 readiness = "disabled"
             elif capability.executable:
@@ -228,7 +238,8 @@ def get_capabilities_response() -> str:
                 readiness = "manual-only"
             lines.append(f"- {capability.capability_id} [{readiness}]")
     lines.append(
-        "Planning remains observe-only; Brain execution is limited to the "
-        "three Phase 1 read-only Developer capabilities."
+        "Planning remains observe-only; Brain execution is limited to three "
+        "read-only Developer capabilities plus six single-action explicit-approval "
+        "continuations."
     )
     return "\n".join(lines)

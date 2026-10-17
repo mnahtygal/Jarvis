@@ -23,7 +23,8 @@ MAX_TOTAL_PATH_BYTES = 32 * 1024
 _PATHSPEC_CHARACTERS = frozenset("*?[")
 
 
-def _validate_paths(paths: object, workspace: Workspace) -> tuple[str, ...] | ToolResult:
+def validate_stage_paths(paths: object, workspace: Workspace) -> tuple[str, ...] | ToolResult:
+    """Validate an explicit stage path set without changing the index."""
     if not isinstance(paths, (list, tuple)) or not paths:
         return failure_result(TOOL_ID, "invalid_paths", "Paths must be a non-empty list")
     if len(paths) > MAX_STAGE_PATHS:
@@ -90,7 +91,7 @@ def git_stage(
         return failure_result(TOOL_ID, "approval_required", "Explicit approval is required")
 
     active_workspace = workspace or Workspace()
-    validated = _validate_paths(paths, active_workspace)
+    validated = validate_stage_paths(paths, active_workspace)
     if isinstance(validated, ToolResult):
         return validated
     repository_error = validate_repository(active_workspace)
@@ -107,7 +108,7 @@ def git_stage(
     if not set(before.paths).issubset(approved_paths):
         return failure_result(TOOL_ID, "staged_scope_mismatch", "Other files are already staged")
 
-    revalidated = _validate_paths(validated, active_workspace)
+    revalidated = validate_stage_paths(validated, active_workspace)
     if isinstance(revalidated, ToolResult) or revalidated != validated:
         return failure_result(TOOL_ID, "path_changed", "A stage path changed during validation")
     stage_error = stage_paths(active_workspace, validated)

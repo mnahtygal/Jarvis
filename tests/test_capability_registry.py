@@ -289,7 +289,9 @@ def test_capabilities_command_is_deterministic_and_safe(monkeypatch, command):
     assert "memory.write_explicit [manual-only]" in response
     assert "runtime.health [future-executable]" in response
     assert "developer.read_file [brain-read-only]" in response
-    assert "three Phase 1 read-only Developer capabilities" in response
+    assert "developer.write_file [brain-explicit-approval]" in response
+    assert "three read-only Developer capabilities" in response
+    assert "six single-action explicit-approval continuations" in response
     llm.assert_not_called()
 
 
