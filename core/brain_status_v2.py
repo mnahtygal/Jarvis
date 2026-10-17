@@ -8,7 +8,7 @@ from threading import Lock
 from typing import Iterable
 
 
-BRAIN_VERSION = "2.0-phase11"
+BRAIN_VERSION = "2.0-phase12"
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,11 @@ class BrainV2Status:
     intent: str | None
     execution_strategy: str | None
     actual_route: str | None
+    developer_status: str | None
+    developer_capability_id: str | None
+    developer_tool_invoked: bool
+    developer_tool_success: bool | None
+    developer_error_code: str | None
     context_sources: tuple[str, ...]
     evaluation_quality: str | None
     evaluation_success: bool | None
@@ -61,6 +66,11 @@ def _idle_status() -> BrainV2Status:
         intent=None,
         execution_strategy=None,
         actual_route=None,
+        developer_status=None,
+        developer_capability_id=None,
+        developer_tool_invoked=False,
+        developer_tool_success=None,
+        developer_error_code=None,
         context_sources=(),
         evaluation_quality=None,
         evaluation_success=None,
@@ -110,6 +120,11 @@ def publish_brain_v2_status(result) -> None:
                 else None
             ),
             actual_route=result.actual_route,
+            developer_status=result.developer_status,
+            developer_capability_id=result.developer_capability_id,
+            developer_tool_invoked=result.developer_tool_invoked,
+            developer_tool_success=result.developer_tool_success,
+            developer_error_code=result.developer_error_code,
             context_sources=_safe_sources(result.metadata.get("context_sources")),
             evaluation_quality=evaluation.quality if evaluation else None,
             evaluation_success=evaluation.success if evaluation else None,
@@ -171,6 +186,11 @@ def publish_brain_v2_failure(
             intent=intent,
             execution_strategy=execution_strategy,
             actual_route=actual_route,
+            developer_status=None,
+            developer_capability_id=None,
+            developer_tool_invoked=False,
+            developer_tool_success=None,
+            developer_error_code=None,
             context_sources=_safe_sources(context_sources),
             evaluation_quality="failed",
             evaluation_success=False,
@@ -219,6 +239,13 @@ def format_brain_v2_status(status: BrainV2Status | None = None) -> str:
         if snapshot.processing_ms is not None
         else "unknown"
     )
+    developer_lines: tuple[str, ...] = ()
+    if snapshot.developer_status is not None:
+        developer_lines = (
+            f"Developer status: {snapshot.developer_status}",
+            f"Developer capability: {snapshot.developer_capability_id or 'none'}",
+            f"Developer tool invoked: {'yes' if snapshot.developer_tool_invoked else 'no'}",
+        )
 
     return "\n".join(
         (
@@ -226,6 +253,7 @@ def format_brain_v2_status(status: BrainV2Status | None = None) -> str:
             f"Last intent: {snapshot.intent or 'unknown'}",
             f"Strategy: {snapshot.execution_strategy or 'unknown'}",
             f"Actual route: {snapshot.actual_route or 'unknown'}",
+            *developer_lines,
             f"Context: {context}",
             f"Evaluation: {evaluation}",
             f"Memory decision: {memory_type}",

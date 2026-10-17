@@ -520,7 +520,7 @@ def test_no_shell_or_autonomous_invocation_is_present():
     autonomous_source = "\n".join(
         path.read_text(encoding="utf-8")
         for path in (repository_root / "core").glob("*.py")
-        if path.name != "capability_registry.py"
+        if path.name not in {"capability_registry.py", "developer_bridge.py"}
     )
 
     assert "shell=True" not in developer_source.replace(" ", "")

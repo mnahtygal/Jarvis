@@ -58,6 +58,7 @@ def decide_memory(
         RequestIntent.SYSTEM_COMMAND,
         RequestIntent.CAMERA_OR_VISION,
         RequestIntent.HELP_OR_DOCS,
+        RequestIntent.DEVELOPER,
     }:
         return _none("question or command", 0.96)
 

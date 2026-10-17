@@ -1,6 +1,7 @@
 """Brain v2 request orchestration.
 
-Phase 11 resolves static capability readiness before the unchanged router.
+Phase 12 adds a bounded read-only Developer Agent bridge before the unchanged
+router used by all non-developer requests.
 """
 
 from __future__ import annotations
@@ -20,6 +21,11 @@ from core.brain_status_v2 import (
     publish_brain_v2_failure,
     publish_brain_v2_status,
 )
+from core.developer_bridge import (
+    DEVELOPER_CONFIRMATION_REQUIRED,
+    DeveloperBridgeResult,
+    execute_developer_request,
+)
 from core.execution_strategy import (
     ExecutionStrategy,
     determine_execution_strategy,
@@ -32,9 +38,18 @@ from core.memory_persistence import (
 from core.planner import PlanResult, analyze_plan
 from core.plan_validator import PlanValidationResult, validate_plan
 from core.request_classifier import ContextPolicy, RequestIntent, classify_request
-from core.result_evaluator import EvaluationResult, evaluate_response
+from core.result_evaluator import (
+    EvaluationResult,
+    evaluate_developer_result,
+    evaluate_response,
+)
 from core.router import route
-from core.route_trace import begin_route_trace, get_actual_route, reset_route_trace
+from core.route_trace import (
+    begin_route_trace,
+    get_actual_route,
+    reset_route_trace,
+    set_actual_route,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -67,6 +82,13 @@ class BrainResult:
     plan_execution_ready: bool = False
     unresolved_plan_steps: int = 0
     actual_route: str | None = None
+    developer_result: DeveloperBridgeResult | None = None
+    developer_status: str | None = None
+    developer_capability_id: str | None = None
+    developer_tool_invoked: bool = False
+    developer_tool_success: bool | None = None
+    developer_error_code: str | None = None
+    developer_argument_summary: tuple[str, ...] = ()
     used_llm: bool | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -74,8 +96,8 @@ class BrainResult:
 def process_request(command: str) -> BrainResult:
     """Process a command through the existing router.
 
-    Phase 11 resolves capabilities for diagnostic plans without executing them.
-    The existing router still executes the request exactly once.
+    Developer requests use the bounded Phase 1 bridge. The existing router still
+    executes every non-developer request exactly once.
     """
 
     if not isinstance(command, str):
@@ -94,9 +116,23 @@ def process_request(command: str) -> BrainResult:
     )
     context_token = set_active_request_context(request_context)
     trace_token = begin_route_trace()
+    developer_result: DeveloperBridgeResult | None = None
 
     try:
-        response = route(normalized_command)
+        if classification.intent is RequestIntent.DEVELOPER:
+            developer_request = classification.developer_request
+            if developer_request is None:
+                raise RuntimeError("developer classification is missing a request")
+            developer_result = execute_developer_request(developer_request)
+            if developer_result.tool_invoked:
+                set_actual_route("developer_tool")
+            elif developer_result.status == DEVELOPER_CONFIRMATION_REQUIRED:
+                set_actual_route("developer_confirmation")
+            else:
+                set_actual_route("developer_unsupported")
+            response = developer_result.response
+        else:
+            response = route(normalized_command)
         actual_route = get_actual_route()
     except Exception:
         elapsed_ms = (time.perf_counter() - started_at) * 1000
@@ -133,14 +169,18 @@ def process_request(command: str) -> BrainResult:
             unresolved_plan_steps=plan_validation.unresolved_step_count,
             processing_ms=elapsed_ms,
         )
-        logger.exception("Brain v2 request failed in legacy router")
+        logger.exception("Brain v2 request execution failed")
         raise
     finally:
         reset_route_trace(trace_token)
         reset_active_request_context(context_token)
 
     processing_ms = (time.perf_counter() - started_at) * 1000
-    evaluation = evaluate_response(response)
+    evaluation = (
+        evaluate_developer_result(developer_result)
+        if developer_result is not None
+        else evaluate_response(response)
+    )
     if evaluation.success and evaluation.quality == "good":
         persistence_result = persist_project_note(normalized_command, memory_decision)
     else:
@@ -163,7 +203,9 @@ def process_request(command: str) -> BrainResult:
     ]
     metadata = {
         "command_length": len(normalized_command),
-        "route_type": "legacy_router",
+        "route_type": (
+            "developer_bridge" if developer_result is not None else "legacy_router"
+        ),
         "intent": classification.intent.value,
         "context_policy": asdict(classification.context_policy),
         "context_sources": context_sources,
@@ -203,6 +245,24 @@ def process_request(command: str) -> BrainResult:
         "plan_execution_ready": plan_validation.execution_ready,
         "unresolved_plan_steps": plan_validation.unresolved_step_count,
         "actual_route": actual_route,
+        "developer": {
+            "status": developer_result.status if developer_result else None,
+            "capability_id": (
+                developer_result.capability_id if developer_result else None
+            ),
+            "tool_invoked": (
+                developer_result.tool_invoked if developer_result else False
+            ),
+            "tool_success": (
+                developer_result.tool_success if developer_result else None
+            ),
+            "error_code": (
+                developer_result.error_code if developer_result else None
+            ),
+            "safe_argument_summary": list(
+                developer_result.safe_argument_summary if developer_result else ()
+            ),
+        },
         "processing_ms": processing_ms,
     }
     logger.debug(
@@ -215,6 +275,9 @@ def process_request(command: str) -> BrainResult:
 
     result = BrainResult(
         response=response,
+        route_type=(
+            "developer_bridge" if developer_result is not None else "legacy_router"
+        ),
         intent=classification.intent,
         context_policy=classification.context_policy,
         execution_strategy=execution_strategy,
@@ -237,6 +300,23 @@ def process_request(command: str) -> BrainResult:
         plan_execution_ready=plan_validation.execution_ready,
         unresolved_plan_steps=plan_validation.unresolved_step_count,
         actual_route=actual_route,
+        developer_result=developer_result,
+        developer_status=developer_result.status if developer_result else None,
+        developer_capability_id=(
+            developer_result.capability_id if developer_result else None
+        ),
+        developer_tool_invoked=(
+            developer_result.tool_invoked if developer_result else False
+        ),
+        developer_tool_success=(
+            developer_result.tool_success if developer_result else None
+        ),
+        developer_error_code=(
+            developer_result.error_code if developer_result else None
+        ),
+        developer_argument_summary=(
+            developer_result.safe_argument_summary if developer_result else ()
+        ),
         metadata=metadata,
     )
     publish_brain_v2_status(result)
