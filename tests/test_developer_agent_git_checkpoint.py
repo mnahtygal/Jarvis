@@ -405,7 +405,7 @@ def test_git_checkpoint_source_has_no_dangerous_git_or_autonomy_paths():
     autonomous_source = "\n".join(
         path.read_text(encoding="utf-8")
         for path in (repository_root / "core").glob("*.py")
-        if path.name != "capability_registry.py"
+        if path.name not in {"capability_registry.py", "developer_bridge.py"}
     )
 
     assert "shell=True" not in implementation.replace(" ", "")

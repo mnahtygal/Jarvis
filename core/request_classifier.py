@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from core.developer_bridge import DeveloperRequest, classify_developer_request
 from core.router import normalize_text_for_routing
 
 
@@ -17,6 +18,7 @@ class RequestIntent(str, Enum):
     SYSTEM_COMMAND = "system_command"
     CAMERA_OR_VISION = "camera_or_vision"
     HELP_OR_DOCS = "help_or_docs"
+    DEVELOPER = "developer"
     UNKNOWN = "unknown"
 
 
@@ -33,6 +35,7 @@ class ContextPolicy:
 class RequestClassification:
     intent: RequestIntent
     context_policy: ContextPolicy
+    developer_request: DeveloperRequest | None = None
 
 
 def _policy_for(intent: RequestIntent) -> ContextPolicy:
@@ -45,6 +48,7 @@ def _policy_for(intent: RequestIntent) -> ContextPolicy:
         RequestIntent.SYSTEM_COMMAND: ContextPolicy(False, False, False, False, "system command"),
         RequestIntent.CAMERA_OR_VISION: ContextPolicy(False, False, False, False, "camera or vision command"),
         RequestIntent.HELP_OR_DOCS: ContextPolicy(False, False, False, False, "help or documentation request"),
+        RequestIntent.DEVELOPER: ContextPolicy(False, False, False, False, "developer request"),
         RequestIntent.UNKNOWN: ContextPolicy(
             False,
             True,
@@ -139,7 +143,11 @@ def classify_request(command: str) -> RequestClassification:
         raise TypeError("command must be a string")
 
     text = normalize_text_for_routing(command)
-    if _is_exact_memory_recall(text):
+    developer_request = classify_developer_request(command)
+    if developer_request is not None:
+        intent = RequestIntent.DEVELOPER
+        policy = _policy_for(intent)
+    elif _is_exact_memory_recall(text):
         intent = RequestIntent.MEMORY_RECALL
         policy = ContextPolicy(True, False, False, False, "memory recall request")
     elif _is_semantic_memory_recall(text):
@@ -173,4 +181,8 @@ def classify_request(command: str) -> RequestClassification:
         intent = RequestIntent.UNKNOWN
         policy = _policy_for(intent)
 
-    return RequestClassification(intent=intent, context_policy=policy)
+    return RequestClassification(
+        intent=intent,
+        context_policy=policy,
+        developer_request=developer_request,
+    )

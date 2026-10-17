@@ -29,3 +29,28 @@ def evaluate_response(response: object) -> EvaluationResult:
         return EvaluationResult(False, "degraded", "local model fallback failure")
 
     return EvaluationResult(True, "good", "non-empty response")
+
+
+def evaluate_developer_result(result: object) -> EvaluationResult:
+    """Evaluate the fixed Developer bridge lifecycle without inspecting output."""
+
+    status = getattr(result, "status", None)
+    if status == "executed" and getattr(result, "tool_success", None) is True:
+        return EvaluationResult(True, "good", "developer tool execution succeeded")
+    if status == "confirmation_required":
+        return EvaluationResult(
+            False,
+            "confirmation_required",
+            "developer request stopped for confirmation",
+        )
+    if status == "unsupported":
+        return EvaluationResult(
+            False,
+            "unsupported",
+            "developer request is ambiguous or unsupported",
+        )
+    return EvaluationResult(
+        False,
+        "failed",
+        "developer tool validation or policy failure",
+    )

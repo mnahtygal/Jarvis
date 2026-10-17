@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from enum import Enum
 
+from core.developer_bridge import (
+    DEVELOPER_CONFIRMATION_REQUIRED,
+    DEVELOPER_EXECUTABLE,
+)
 from core.request_classifier import RequestClassification, RequestIntent
 
 
@@ -14,6 +18,9 @@ class ExecutionStrategy(str, Enum):
     LLM = "llm"
     SYSTEM = "system"
     CAMERA_VISION = "camera_vision"
+    DEVELOPER_TOOL = "developer_tool"
+    DEVELOPER_CONFIRMATION = "developer_confirmation"
+    DEVELOPER_UNSUPPORTED = "developer_unsupported"
     UNKNOWN = "unknown"
 
 
@@ -23,6 +30,17 @@ def determine_execution_strategy(
     """Determine the expected route without side effects or external calls."""
 
     intent = classification.intent
+
+    if intent is RequestIntent.DEVELOPER:
+        developer_request = classification.developer_request
+        if developer_request and developer_request.mode == DEVELOPER_EXECUTABLE:
+            return ExecutionStrategy.DEVELOPER_TOOL
+        if (
+            developer_request
+            and developer_request.mode == DEVELOPER_CONFIRMATION_REQUIRED
+        ):
+            return ExecutionStrategy.DEVELOPER_CONFIRMATION
+        return ExecutionStrategy.DEVELOPER_UNSUPPORTED
 
     if intent is RequestIntent.MEMORY_WRITE:
         return ExecutionStrategy.MEMORY

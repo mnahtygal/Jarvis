@@ -288,7 +288,8 @@ def test_capabilities_command_is_deterministic_and_safe(monkeypatch, command):
     assert response.startswith("Jarvis Brain v2 capabilities:")
     assert "memory.write_explicit [manual-only]" in response
     assert "runtime.health [future-executable]" in response
-    assert "no capabilities are executed" in response
+    assert "developer.read_file [brain-read-only]" in response
+    assert "three Phase 1 read-only Developer capabilities" in response
     llm.assert_not_called()
 
 

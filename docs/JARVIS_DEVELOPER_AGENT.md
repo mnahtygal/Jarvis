@@ -14,8 +14,35 @@ developer session. Phase 8B adds one dedicated offline Android/Gradle unit-test
 verification capability without widening the generic command grammar. Phase 8C
 hardens repair-model structured output at generation time.
 
-Brain v2 advertises these capabilities, but does not invoke them from natural
-language or run an autonomous tool loop.
+Brain v2 Phase 12 has a narrow natural-language bridge for the three Phase 1
+read-only tools only. It does not run an autonomous tool loop.
+
+## Brain v2 Phase 1 natural-language bridge
+
+The following requests may execute after deterministic parsing and validation
+against both the Brain and canonical Developer Agent registries:
+
+- `developer.list_files`
+- `developer.read_file`
+- `developer.git_status`
+
+The existing Developer Agent executor remains authoritative for argument schemas,
+workspace containment, symlink handling, sensitive-file refusal, output bounds,
+and safe errors. Brain does not accept LLM-generated capability selections or
+argument dictionaries.
+
+Brain may recognize file writes, patches, command or pytest runs, Gradle tests,
+repairs, repair proposals, Git staging, Git commits, and bounded autonomous
+sessions, but it returns `confirmation_required` without executing them. There is
+no approval continuation in this phase. Ambiguous developer requests execute
+nothing, and multi-step or autonomous developer plans remain unsupported.
+
+Successful read-only calls use the `developer_tool` route. Recognized operations
+that stop for confirmation use `developer_confirmation`. Tool output is adapted
+to the existing string response used by the API and UI, while Brain retains only
+safe structured lifecycle metadata for status reporting.
+Ambiguous or rejected pre-dispatch developer requests use
+`developer_unsupported` and execute nothing.
 
 ## Architecture
 
@@ -134,9 +161,10 @@ cause a safe refusal.
 
 Runs only policy-approved argv vectors at the fixed workspace root. It is enabled
 for explicit executor calls but is marked mutating, `requires_confirmation=True`,
-and `executable=False`. Brain v2 advertises the same manual-only capability. No
-planner mapping, natural-language route, retry loop, or autonomous invocation is
-present.
+and `executable=False`. Brain v2 advertises the same manual-only capability.
+Natural language may recognize the operation, but stops with
+`confirmation_required`; there is no planner mapping, retry loop, approval
+continuation, or autonomous invocation.
 
 Allowed command forms are:
 
@@ -226,10 +254,11 @@ summary metadata: status, counts, per-cycle outcomes, and the final exit code. I
 does not retain command output, source contents, patch bodies, or raw exceptions.
 
 Brain v2 advertises `developer.repair_loop` as enabled, mutating,
-`requires_confirmation=True`, and `executable=False`. There is no planner mapping,
-natural-language route, interactive confirmation UI, or autonomous Brain entry
-point. Phase 4 remains a manual/internal API whose caller must explicitly approve
-the supplied sequence.
+`requires_confirmation=True`, and `executable=False`. Natural language may
+recognize the operation but stops with `confirmation_required`; there is no
+planner mapping, approval continuation, interactive confirmation UI, or
+autonomous Brain entry point. Phase 4 remains a manual/internal API whose caller
+must explicitly approve the supplied sequence.
 
 ## Phase 5 controlled Git checkpoint
 

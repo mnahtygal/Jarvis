@@ -135,6 +135,12 @@ _CAPABILITY_BY_ID = {
     for capability in _CAPABILITIES
 }
 
+PHASE1_DEVELOPER_EXECUTION_ALLOWLIST = frozenset({
+    "developer.list_files",
+    "developer.read_file",
+    "developer.git_status",
+})
+
 _PLAN_STEP_CAPABILITIES = {
     ("runtime", "check runtime health"): ("runtime.health",),
     ("runtime", "inspect runtime state"): ("runtime.health",),
@@ -212,12 +218,17 @@ def get_capabilities_response() -> str:
             continue
         lines.append(f"{label}:")
         for capability in capabilities:
-            if not capability.enabled:
+            if capability.capability_id in PHASE1_DEVELOPER_EXECUTION_ALLOWLIST:
+                readiness = "brain-read-only"
+            elif not capability.enabled:
                 readiness = "disabled"
             elif capability.executable:
                 readiness = "future-executable"
             else:
                 readiness = "manual-only"
             lines.append(f"- {capability.capability_id} [{readiness}]")
-    lines.append("Planning remains observe-only; no capabilities are executed.")
+    lines.append(
+        "Planning remains observe-only; Brain execution is limited to the "
+        "three Phase 1 read-only Developer capabilities."
+    )
     return "\n".join(lines)
