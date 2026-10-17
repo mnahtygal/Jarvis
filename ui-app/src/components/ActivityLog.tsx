@@ -1,10 +1,18 @@
-type LogKind = "vision" | "camera" | "user" | "jarvis" | "system";
+import { useEffect, useRef } from "react";
+
+export type ActivityLogEntry = {
+  id: number;
+  text: string;
+};
+
+type LogKind = "vision" | "camera" | "user" | "jarvis" | "error" | "system";
 
 function getLogKind(log: string): LogKind {
   if (log.startsWith("Vision (") || log.startsWith("Vision analysis")) return "vision";
   if (log.startsWith("Camera") || log.startsWith("Analyzed snapshot")) return "camera";
   if (log.startsWith("You:")) return "user";
   if (log.startsWith("Jarvis:")) return "jarvis";
+  if (log.startsWith("Error:") || log.includes(" failed")) return "error";
   return "system";
 }
 
@@ -41,7 +49,7 @@ function formatLog(log: string) {
 
   return {
     kind,
-    title: kind === "camera" ? "Camera" : kind === "vision" ? "Vision" : "System",
+    title: kind === "camera" ? "Camera" : kind === "vision" ? "Vision" : kind === "error" ? "Error" : "System",
     body: log,
   };
 }
@@ -51,10 +59,18 @@ function getAccent(kind: LogKind) {
   if (kind === "camera") return "rgba(74,222,128,0.95)";
   if (kind === "user") return "rgba(250,204,21,0.95)";
   if (kind === "jarvis") return "rgba(96,165,250,0.95)";
+  if (kind === "error") return "rgba(248,113,113,0.95)";
   return "rgba(255,255,255,0.45)";
 }
 
-export default function ActivityLog({ logs }: { logs: string[] }) {
+export default function ActivityLog({ logs }: { logs: ActivityLogEntry[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (element) element.scrollTop = element.scrollHeight;
+  }, [logs]);
+
   return (
     <div
       style={{
@@ -67,6 +83,7 @@ export default function ActivityLog({ logs }: { logs: string[] }) {
     >
       <h3 style={{ marginTop: 0, marginBottom: 16 }}>Activity Log</h3>
       <div
+        ref={scrollRef}
         style={{
           display: "flex",
           flexDirection: "column",
@@ -76,13 +93,13 @@ export default function ActivityLog({ logs }: { logs: string[] }) {
           paddingRight: 4,
         }}
       >
-        {logs.map((log, i) => {
+        {logs.map(({ id, text: log }) => {
           const formatted = formatLog(log);
           const accent = getAccent(formatted.kind);
 
           return (
             <div
-              key={`${log}-${i}`}
+              key={id}
               style={{
                 padding: 12,
                 borderRadius: 12,
@@ -120,6 +137,10 @@ export default function ActivityLog({ logs }: { logs: string[] }) {
               <div
                 style={{
                   whiteSpace: "pre-wrap",
+                  overflowWrap: "anywhere",
+                  fontFamily: formatted.kind === "jarvis" && formatted.body.includes("\n")
+                    ? "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+                    : undefined,
                   fontSize: formatted.kind === "vision" ? 14 : 13,
                   color: "rgba(255,255,255,0.9)",
                 }}

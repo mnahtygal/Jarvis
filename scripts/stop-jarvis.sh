@@ -27,10 +27,26 @@ fi
 echo "Stopping Jarvis UI..."
 if [[ -r "$UI_PID_FILE" ]]; then
   ui_pid=$(<"$UI_PID_FILE")
-  [[ "$ui_pid" =~ ^[0-9]+$ ]] && stop_pid_gracefully "$ui_pid" "Jarvis UI"
+  if pid_matches_ui "$ui_pid"; then
+    stop_pid_gracefully "$ui_pid" "Jarvis UI"
+  elif [[ -n "$ui_pid" ]]; then
+    echo "! Ignoring stale Jarvis UI PID file ($ui_pid)"
+  fi
 fi
-pkill -TERM -f "$JARVIS_HOME/ui-app/node_modules/.bin/vite" 2>/dev/null || true
+mapfile -t ui_processes < <(ui_pids)
+for ui_pid in "${ui_processes[@]}"; do
+  stop_pid_gracefully "$ui_pid" "Jarvis UI"
+done
 rm -f "$UI_PID_FILE"
+
+for attempt in {1..10}; do
+  port_is_listening 5173 || break
+  sleep 0.5
+done
+if port_is_listening 5173; then
+  echo "✗ Port 5173 is still in use after stopping the Jarvis UI" >&2
+  exit 1
+fi
 
 echo "Jarvis API and UI stopped."
 echo "Leaving llama servers alone."

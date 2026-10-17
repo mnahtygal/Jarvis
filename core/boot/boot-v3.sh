@@ -65,7 +65,7 @@ bash "$HOME/jarvis/scripts/start-jarvis.sh" || exit 1
 echo
 boot_msg "Running service checks..."
 wait_for_url "Jarvis API" "http://127.0.0.1:5000/health" 30 || exit 1
-wait_for_url "Jarvis UI" "http://localhost:5173" 30
+wait_for_url "Jarvis UI" "http://localhost:5173" 30 || exit 1
 
 echo
 line

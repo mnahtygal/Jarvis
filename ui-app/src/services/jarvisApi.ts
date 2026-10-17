@@ -1,6 +1,7 @@
 // Centralized HTTP client for the Jarvis frontend.
 
 import { appConfig } from "../config/appConfig";
+import { JarvisRequestError, normalizeCommand, postJarvisChat } from "./chatRequest";
 import type {
   GroundedSamAnalysisResponse,
   GroundedSamAnalysisResult,
@@ -46,8 +47,8 @@ export async function getCalibrationProfile() {
   return fetch(`${API_BASE}/api/calibration/profile`);
 }
 
-export async function checkHealth() {
-  return fetch(`${API_BASE}/health`);
+export async function checkHealth(signal?: AbortSignal) {
+  return fetch(`${API_BASE}/health`, { signal });
 }
 
 export async function checkLatestSnapshot() {
@@ -58,13 +59,13 @@ export async function checkLatestSnapshot() {
 }
 
 export async function sendTextCommand(command: string, useVoice = false) {
-  return fetch(`${API_BASE}/text`, {
-    method: "POST",
-    headers: JSON_HEADERS,
-    body: JSON.stringify({
-      command,
-      use_voice: useVoice,
-    }),
+  const normalized = normalizeCommand(command);
+  if (!normalized) {
+    throw new JarvisRequestError("Type a command first.", "empty_command");
+  }
+  return postJarvisChat(`${API_BASE}/text`, {
+    command: normalized,
+    use_voice: useVoice,
   });
 }
 
@@ -73,12 +74,8 @@ export async function listen() {
 }
 
 export async function askJarvis(useVoice: boolean) {
-  return fetch(`${API_BASE}/ask`, {
-    method: "POST",
-    headers: JSON_HEADERS,
-    body: JSON.stringify({
-      use_voice: useVoice,
-    }),
+  return postJarvisChat(`${API_BASE}/ask`, {
+    use_voice: useVoice,
   });
 }
 

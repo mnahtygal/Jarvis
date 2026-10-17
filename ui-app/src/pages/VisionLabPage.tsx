@@ -8,7 +8,7 @@ import type {
   MeasurementStatus,
   ScanMatDiagnostics,
 } from "../types/dashboard";
-import ActivityLog from "../components/ActivityLog";
+import ActivityLog, { type ActivityLogEntry } from "../components/ActivityLog";
 import ControlButton from "../components/ControlButton";
 import GroundedSamPanel from "../components/GroundedSamPanel";
 import { useGroundedSam } from "../hooks/useGroundedSam";
@@ -60,7 +60,7 @@ type VisionLabPageProps = {
   measureLatestObject: () => void;
   rectifiedImageAvailable: boolean;
   promptPreview: string;
-  logs: string[];
+  logs: ActivityLogEntry[];
 };
 
 export default function VisionLabPage({
