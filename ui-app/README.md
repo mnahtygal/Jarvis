@@ -1,73 +1,78 @@
-# React + TypeScript + Vite
+# Jarvis UI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Jarvis uses a local React 19, TypeScript, and Vite interface backed by the Flask
+API. The UI keeps conversation history only in browser memory; refreshing the
+page, closing the browser, or restarting the UI clears it.
 
-Currently, two official plugins are available:
+## Start and stop
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+From the repository root, use the existing launcher:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+./scripts/jarvis start
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+This starts or validates the text model and any installed vision model, waits for
+the Flask API, starts Vite, and waits for the UI readiness check. If the optional
+vision model is absent, startup continues in a clearly reported text-only mode.
+The full workstation boot sequence remains available as `./scripts/jarvis startup`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- UI: `http://localhost:5173`
+- Flask API: `http://127.0.0.1:5000`
+- Text model: `http://127.0.0.1:8080`
+- Vision model: `http://127.0.0.1:8081`
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Flask remains bound to loopback. The UI does not proxy or expose Developer Agent
+routes to the local network; remote-device API access requires a separately
+reviewed authenticated deployment path.
+
+Stop the API and UI with:
+
+```bash
+./scripts/jarvis stop
 ```
+
+The stop command deliberately leaves the model servers running.
+
+## Readiness and troubleshooting
+
+Run the existing non-mutating health command:
+
+```bash
+./scripts/jarvis status
+```
+
+Direct checks are also available:
+
+```bash
+curl --fail http://127.0.0.1:5000/health
+curl --fail http://127.0.0.1:5000/api/status/dashboard
+curl --fail http://127.0.0.1:5173
+```
+
+Logs and PID files use the existing locations:
+
+- API log: `/tmp/jarvis-api.log`
+- UI log: `/tmp/jarvis_ui.log`
+- model logs: `/tmp/Qwen3.log` and `/tmp/GemmaVision.log`
+- API/UI PID files: `/tmp/jarvis-api.pid` and `/tmp/jarvis-ui.pid`
+
+If startup refuses port 5000 or 5173, another process owns the expected port.
+Inspect it instead of starting a second Jarvis process. A model-unavailable status
+means the UI and API are reachable but model-backed conversation may be limited.
+After changing Python or frontend source, run `./scripts/jarvis stop` followed by
+`./scripts/jarvis start`; the launcher intentionally preserves already-running
+healthy services instead of hot-reloading them.
+
+## Development checks
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+No frontend persistence, approval state, or security policy is implemented here.
+Text such as `approve` and `cancel` is sent through `/text` like any other message;
+the backend remains the sole authority for pending approvals and Developer Agent
+execution.

@@ -11,6 +11,7 @@ import {
   Network,
 } from "lucide-react";
 import { appConfig } from "./config/appConfig";
+import type { ActivityLogEntry } from "./components/ActivityLog";
 import StatusCard from "./components/StatusCard";
 import { useApiHealth } from "./hooks/useApiHealth";
 import { useCalibration } from "./hooks/useCalibration";
@@ -31,8 +32,12 @@ import {
   sendTextCommand,
   switchActiveCamera,
 } from "./services/jarvisApi";
+import {
+  createRequestGate,
+  runSerializedRequest,
+  safeRequestError,
+} from "./services/chatRequest";
 import type {
-  AskResponse,
   CameraRolesStatus,
   ScanMatDiagnostics,
 } from "./types/dashboard";
@@ -221,10 +226,12 @@ export default function JarvisUI() {
   const [scanMatVersion, setScanMatVersion] = useState(0);
   const [cameraRoles, setCameraRoles] = useState<CameraRolesStatus | null>(null);
   const [switchingCameraRole, setSwitchingCameraRole] = useState(false);
+  const [chatRequestGate] = useState(createRequestGate);
   const microphoneLogRef = useRef("");
-  const [logs, setLogs] = useState<string[]>([
-    "Jarvis UI online",
-    "Ready for voice or typed commands",
+  const nextLogIdRef = useRef(3);
+  const [logs, setLogs] = useState<ActivityLogEntry[]>([
+    { id: 1, text: "Jarvis UI online" },
+    { id: 2, text: "Ready for voice or typed commands" },
   ]);
 
   const [time, setTime] = useState(
@@ -249,14 +256,18 @@ export default function JarvisUI() {
     return () => clearInterval(timer);
   }, []);
 
-  const prependLogs = useCallback((entries: string[]) => {
-    setLogs((prev) => [...entries, ...prev].slice(0, 80));
+  const appendLogs = useCallback((entries: string[]) => {
+    const additions = entries.map((text) => ({
+      id: nextLogIdRef.current++,
+      text,
+    }));
+    setLogs((previous) => [...previous, ...additions].slice(-80));
   }, []);
 
-  const { dashboard, dashboardStatus, refreshDashboard } = useDashboardStatus(prependLogs);
+  const { dashboard, dashboardStatus, refreshDashboard } = useDashboardStatus(appendLogs);
   const { apiOnline, apiStatus, checkApi: checkApiHealth } = useApiHealth(
     refreshDashboard,
-    prependLogs
+    appendLogs
   );
   const normalizedScanMat = normalizeScanMatResponse(scanMatResult);
   const {
@@ -271,7 +282,7 @@ export default function JarvisUI() {
     getLatestScanCorners: () => normalizeScanMatResponse(scanMatResult)?.corners || null,
     getLatestScanImageSize: () => normalizeScanMatResponse(scanMatResult)?.imageSize,
     refreshDashboard,
-    prependLogs,
+    prependLogs: appendLogs,
     isScanMatBusy: () => scanningMat,
   });
   const {
@@ -283,10 +294,8 @@ export default function JarvisUI() {
     getLatestRectifiedImagePath: () => normalizeScanMatResponse(scanMatResult)?.rectifiedImagePath || null,
     canMeasureLatestObject: () => Boolean(dashboard?.calibration?.ready),
     refreshDashboard,
-    prependLogs,
+    prependLogs: appendLogs,
   });
-  const apiDisplayStatus = apiOnline ? apiStatus : apiStatus;
-
   const busy = listening || processing || capturing || analyzing || scanningMat || calibrating || measuring || switchingCameraRole;
 
   useEffect(() => {
@@ -302,8 +311,8 @@ export default function JarvisUI() {
 
     if (!logEntry || microphoneLogRef.current === logEntry) return;
     microphoneLogRef.current = logEntry;
-    prependLogs([logEntry]);
-  }, [dashboard?.devices?.microphone, prependLogs]);
+    appendLogs([logEntry]);
+  }, [dashboard?.devices?.microphone, appendLogs]);
 
   const quickCommands = [
     "brain status",
@@ -341,22 +350,20 @@ export default function JarvisUI() {
 
   const runQuickCommand = async (quickCommand: string) => {
     if (busy) return;
-
-    setProcessing(true);
-    prependLogs([`You: ${quickCommand}`]);
-
-    try {
-      const res = await sendTextCommand(quickCommand, false);
-
-      const data: AskResponse = await res.json();
-      prependLogs([`Jarvis: ${data.response || "(no response)"}`]);
-      refreshDashboard(false);
-    } catch (error) {
-      console.error(error);
-      prependLogs([`Failed to run quick command: ${quickCommand}`]);
-    } finally {
-      setProcessing(false);
-    }
+    await runSerializedRequest(chatRequestGate, async () => {
+      setProcessing(true);
+      appendLogs([`You: ${quickCommand}`]);
+      try {
+        const data = await sendTextCommand(quickCommand, false);
+        appendLogs([`Jarvis: ${data.response || "(no response)"}`]);
+        refreshDashboard(false);
+      } catch (error) {
+        console.error(error);
+        appendLogs([`Error: ${safeRequestError(error)}`]);
+      } finally {
+        setProcessing(false);
+      }
+    });
   };
 
   const checkApi = useCallback(async () => {
@@ -376,37 +383,33 @@ export default function JarvisUI() {
 
   const runVoiceAsk = async () => {
     if (busy) return;
-
-    setListening(true);
-    prependLogs(["Listening requested from UI"]);
-
-    try {
-      const res = await askJarvis(voiceEnabled);
-
-      const data: AskResponse = await res.json();
-
-      setListening(false);
-      setProcessing(true);
-
-      prependLogs([
-        `You: ${data.heard || "(nothing heard)"}`,
-        `Jarvis: ${data.response || "(no response)"}`,
-      ]);
-      refreshDashboard(false);
-    } catch (error) {
-      console.error(error);
-      setListening(false);
-      prependLogs(["Jarvis API call failed"]);
-    } finally {
-      setProcessing(false);
-    }
+    await runSerializedRequest(chatRequestGate, async () => {
+      setListening(true);
+      appendLogs(["Listening requested from UI"]);
+      try {
+        const data = await askJarvis(voiceEnabled);
+        setListening(false);
+        setProcessing(true);
+        appendLogs([
+          `You: ${data.heard || "(nothing heard)"}`,
+          `Jarvis: ${data.response || "(no response)"}`,
+        ]);
+        refreshDashboard(false);
+      } catch (error) {
+        console.error(error);
+        appendLogs([`Error: ${safeRequestError(error)}`]);
+      } finally {
+        setListening(false);
+        setProcessing(false);
+      }
+    });
   };
 
   const captureCameraSnapshot = async () => {
     if (busy) return;
 
     setCapturing(true);
-    prependLogs(["Camera snapshot requested"]);
+    appendLogs(["Camera snapshot requested"]);
 
     try {
       const res = await captureSnapshot();
@@ -417,7 +420,7 @@ export default function JarvisUI() {
         throw new Error(data.error || `HTTP ${res.status}`);
       }
 
-      prependLogs([
+      appendLogs([
         `Camera snapshot saved: ${data.relative_path || "runtime/camera"}`,
         `Camera: ${data.device || "/dev/video0"} · ${data.size_bytes ?? 0} bytes · ${data.elapsed_seconds ?? "?"}s`,
       ]);
@@ -427,7 +430,7 @@ export default function JarvisUI() {
     } catch (error) {
       console.error(error);
       const message = error instanceof Error ? error.message : "Unknown camera error";
-      prependLogs([`Camera snapshot failed: ${message}`]);
+      appendLogs([`Camera snapshot failed: ${message}`]);
     } finally {
       setCapturing(false);
     }
@@ -437,7 +440,7 @@ export default function JarvisUI() {
     if (busy || switchingCameraRole) return;
 
     setSwitchingCameraRole(true);
-    prependLogs([`Camera switch requested: ${role}`]);
+    appendLogs([`Camera switch requested: ${role}`]);
 
     try {
       const res = await switchActiveCamera(role);
@@ -449,14 +452,14 @@ export default function JarvisUI() {
 
       setCameraRoles(data);
       const active = data.active_camera;
-      prependLogs([
+      appendLogs([
         `Camera switched to ${data.active_role || role}: ${active?.display_name || "camera"}`,
       ]);
       refreshDashboard(false);
     } catch (error) {
       console.error(error);
       const message = error instanceof Error ? error.message : "Camera unavailable";
-      prependLogs([`Camera switch failed: ${message}`]);
+      appendLogs([`Camera switch failed: ${message}`]);
     } finally {
       setSwitchingCameraRole(false);
     }
@@ -467,7 +470,7 @@ export default function JarvisUI() {
 
     const selectedMode = scanModes.find((item) => item.id === mode);
     setAnalyzing(true);
-    prependLogs([`Vision analysis requested: ${selectedMode?.label || "General Scan"}`]);
+    appendLogs([`Vision analysis requested: ${selectedMode?.label || "General Scan"}`]);
 
     try {
       const res = await analyzeSnapshot(getScanPrompt(mode));
@@ -478,14 +481,14 @@ export default function JarvisUI() {
         throw new Error(data.error || `HTTP ${res.status}`);
       }
 
-      prependLogs([
+      appendLogs([
         `Vision (${selectedMode?.label || "General Scan"} / ${data.model || "local model"}): ${data.description || "No description returned."}`,
         `Analyzed snapshot: ${data.image_name || "latest"}`,
       ]);
     } catch (error) {
       console.error(error);
       const message = error instanceof Error ? error.message : "Unknown vision error";
-      prependLogs([`Vision analysis failed: ${message}`]);
+      appendLogs([`Vision analysis failed: ${message}`]);
     } finally {
       setAnalyzing(false);
     }
@@ -495,7 +498,7 @@ export default function JarvisUI() {
     if (busy || !cameraDetected) return;
 
     setScanningMat(true);
-    prependLogs(["Scan Mat requested"]);
+    appendLogs(["Scan Mat requested"]);
 
     try {
       const res = await captureScanMat();
@@ -513,7 +516,7 @@ export default function JarvisUI() {
         setSnapshotVersion(Date.now());
       }
 
-      prependLogs([
+      appendLogs([
         normalizeScanMatResponse(data)?.matDetected
           ? "Scan Mat: mat detected; artifacts ready"
           : `Scan Mat: ${normalizeScanMatResponse(data)?.warning || "mat was not detected"}`,
@@ -522,7 +525,7 @@ export default function JarvisUI() {
     } catch (error) {
       console.error(error);
       const message = error instanceof Error ? error.message : "Unknown scan-mat error";
-      prependLogs([`Scan Mat failed: ${message}`]);
+      appendLogs([`Scan Mat failed: ${message}`]);
     } finally {
       setScanningMat(false);
     }
@@ -531,23 +534,21 @@ export default function JarvisUI() {
   const sendTypedCommand = async () => {
     const trimmed = command.trim();
     if (!trimmed || busy) return;
-
-    setProcessing(true);
-    prependLogs([`You: ${trimmed}`]);
-
-    try {
-      const res = await sendTextCommand(trimmed, false);
-
-      const data: AskResponse = await res.json();
-      prependLogs([`Jarvis: ${data.response || "(no response)"}`]);
-      setCommand("");
-      refreshDashboard(false);
-    } catch (error) {
-      console.error(error);
-      prependLogs(["Failed to send typed command"]);
-    } finally {
-      setProcessing(false);
-    }
+    await runSerializedRequest(chatRequestGate, async () => {
+      setProcessing(true);
+      appendLogs([`You: ${trimmed}`]);
+      try {
+        const data = await sendTextCommand(trimmed, false);
+        appendLogs([`Jarvis: ${data.response || "(no response)"}`]);
+        setCommand("");
+        refreshDashboard(false);
+      } catch (error) {
+        console.error(error);
+        appendLogs([`Error: ${safeRequestError(error)}`]);
+      } finally {
+        setProcessing(false);
+      }
+    });
   };
 
   const brainReady = dashboard?.brain?.ready ?? false;
@@ -557,6 +558,20 @@ export default function JarvisUI() {
   const semanticOnline = dashboard?.memory?.semantic_memory?.online ?? false;
   const devicesReady = dashboard?.devices?.ready ?? false;
   const cameraDetected = dashboard?.devices?.camera?.detected ?? false;
+  const readinessLabel = busy
+    ? "Working"
+    : !apiOnline
+      ? "Backend unavailable"
+      : !modelOnline
+        ? "Model unavailable / limited"
+        : !brainReady
+          ? "Brain limited"
+          : "Ready";
+  const readinessColor = busy
+    ? "#facc15"
+    : apiOnline && modelOnline && brainReady
+      ? "#22c55e"
+      : "#f97316";
   const martybenchScore = dashboard?.martybench?.score;
   const selectedScanMode = scanModes.find((item) => item.id === scanMode) || scanModes[0];
   const latestScanCorners = normalizedScanMat?.corners || null;
@@ -672,9 +687,9 @@ export default function JarvisUI() {
       </div>
 
       <div
+        className="scan-artifact-grid"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
           gap: 12,
         }}
       >
@@ -710,9 +725,9 @@ export default function JarvisUI() {
 
   const topCards = (
     <div
+      className="top-status-grid"
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
         gap: 14,
         marginBottom: 20,
       }}
@@ -913,12 +928,12 @@ export default function JarvisUI() {
 
   return (
     <div
+      className="jarvis-shell"
       style={{
         minHeight: "100vh",
         background:
           "radial-gradient(circle at top, rgba(34,211,238,0.14), transparent 25%), #020617",
         color: "white",
-        padding: 20,
         fontFamily: "Arial, Helvetica, sans-serif",
       }}
     >
@@ -943,7 +958,22 @@ export default function JarvisUI() {
               <Clock3 size={16} />
               {time}
             </div>
-            <div>API: {apiDisplayStatus}</div>
+            <div
+              title={apiStatus}
+              aria-live="polite"
+              style={{ display: "flex", alignItems: "center", gap: 7 }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 999,
+                  background: readinessColor,
+                }}
+              />
+              {readinessLabel}
+            </div>
             <div>Dashboard: {dashboardStatus}</div>
             <div>Voice: {voiceEnabled ? "On" : "Off"}</div>
           </div>

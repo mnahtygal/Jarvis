@@ -12,7 +12,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import type { DashboardStatus } from "../types/dashboard";
-import ActivityLog from "../components/ActivityLog";
+import ActivityLog, { type ActivityLogEntry } from "../components/ActivityLog";
 import ControlButton from "../components/ControlButton";
 import GlowRing from "../components/GlowRing";
 
@@ -38,7 +38,7 @@ type HomePageProps = {
   command: string;
   voiceEnabled: boolean;
   dashboard: DashboardStatus | null;
-  logs: string[];
+  logs: ActivityLogEntry[];
 };
 
 export default function HomePage({
@@ -66,13 +66,7 @@ export default function HomePage({
   logs,
 }: HomePageProps) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1.25fr 1fr",
-        gap: 20,
-      }}
-    >
+    <div className="home-grid">
       <div
         style={{
           background: "rgba(255,255,255,0.05)",
@@ -156,14 +150,25 @@ export default function HomePage({
 
         <div style={{ marginTop: 24 }}>
           <div style={{ marginBottom: 10, opacity: 0.85 }}>Typed command</div>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div className="command-row">
             <input
               value={command}
               onChange={(e) => setCommand(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendTypedCommand()}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter"
+                  && !event.repeat
+                  && !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault();
+                  sendTypedCommand();
+                }
+              }}
+              disabled={busy}
               placeholder="Type command... try: what model are you using"
               style={{
                 flex: 1,
+                minWidth: 0,
                 padding: 12,
                 borderRadius: 12,
                 border: "1px solid rgba(255,255,255,0.12)",
@@ -174,7 +179,7 @@ export default function HomePage({
             />
             <button
               onClick={sendTypedCommand}
-              disabled={busy}
+              disabled={busy || !command.trim()}
               style={{
                 padding: "12px 16px",
                 borderRadius: 12,
@@ -182,7 +187,7 @@ export default function HomePage({
                 background: "white",
                 color: "#020617",
                 fontWeight: 700,
-                cursor: busy ? "not-allowed" : "pointer",
+                cursor: busy || !command.trim() ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
