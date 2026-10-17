@@ -184,6 +184,17 @@ _REPAIR_PROPOSAL_GBNF = "\n".join((
     r'ws ::= [ \t\n\r]*',
 ))
 
+_GREENFIELD_PROJECT_GBNF = "\n".join((
+    r'root ::= "{" ws "\"files\"" ws ":" ws "[" ws file '
+    r'("," ws file){1,4} "]" ws "}" ws',
+    r'file ::= "{" ws "\"path\"" ws ":" ws string "," ws '
+    r'"\"content\"" ws ":" ws string "}" ws',
+    r'string ::= "\"" char* "\"" ws',
+    r'char ::= [^"\\\x7F\x00-\x1F] | "\\" '
+    r'(["\\/bfnrt] | "u" [0-9a-fA-F]{4})',
+    r'ws ::= [ \t\n\r]*',
+))
+
 
 def get_llama_cpp_repair_response(prompt: str, system_prompt: str) -> str:
     """Request one fixed-schema Developer Agent repair proposal."""
@@ -204,6 +215,46 @@ def get_llama_cpp_repair_response(prompt: str, system_prompt: str) -> str:
         "cache_prompt": False,
         "chat_template_kwargs": {"enable_thinking": False},
         "grammar": _REPAIR_PROPOSAL_GBNF,
+    }
+
+    try:
+        response = requests.post(
+            LLAMA_CPP_URL,
+            json=payload,
+            timeout=240,
+        )
+        response.raise_for_status()
+        data = response.json()
+        choice = data.get("choices", [{}])[0]
+        message = choice.get("message", {})
+        answer = message.get("content", "")
+        if not answer:
+            answer = message.get("reasoning_content", "")
+        answer = strip_thinking(answer)
+        return answer if answer else ""
+    except Exception:
+        return ""
+
+
+def get_llama_cpp_greenfield_response(prompt: str, system_prompt: str) -> str:
+    """Request one fixed-schema greenfield file-content response."""
+
+    payload = {
+        "model": get_active_model_id(),
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.0,
+        "top_p": 0.1,
+        "top_k": 1,
+        "repeat_penalty": 1.0,
+        "seed": 0,
+        "max_tokens": 7000,
+        "stream": False,
+        "cache_prompt": False,
+        "chat_template_kwargs": {"enable_thinking": False},
+        "grammar": _GREENFIELD_PROJECT_GBNF,
     }
 
     try:

@@ -47,6 +47,7 @@ EXPECTED_CAPABILITY_IDS = (
     "developer.git_commit",
     "developer.propose_repair",
     "developer.bounded_session",
+    "developer.greenfield_project",
 )
 
 
@@ -91,6 +92,7 @@ def test_registry_lookup_and_category_filter_are_safe():
     git_commit = get_capability("developer.git_commit")
     propose_repair = get_capability("developer.propose_repair")
     bounded_session = get_capability("developer.bounded_session")
+    greenfield_project = get_capability("developer.greenfield_project")
     assert (
         write_file.enabled
         is patch_file.enabled
@@ -101,6 +103,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is git_commit.enabled
         is propose_repair.enabled
         is bounded_session.enabled
+        is greenfield_project.enabled
         is True
     )
     assert (
@@ -113,6 +116,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is git_commit.executable
         is propose_repair.executable
         is bounded_session.executable
+        is greenfield_project.executable
         is False
     )
     assert (
@@ -127,6 +131,7 @@ def test_registry_lookup_and_category_filter_are_safe():
     assert gradle_test.read_only is True
     assert propose_repair.read_only is True
     assert bounded_session.read_only is False
+    assert greenfield_project.read_only is False
     assert (
         write_file.mutating
         is patch_file.mutating
@@ -135,6 +140,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is git_stage.mutating
         is git_commit.mutating
         is bounded_session.mutating
+        is greenfield_project.mutating
         is True
     )
     assert gradle_test.mutating is False
@@ -148,6 +154,7 @@ def test_registry_lookup_and_category_filter_are_safe():
         is git_stage.requires_confirmation
         is git_commit.requires_confirmation
         is bounded_session.requires_confirmation
+        is greenfield_project.requires_confirmation
         is True
     )
     assert propose_repair.requires_confirmation is False
@@ -294,6 +301,8 @@ def test_capabilities_command_is_deterministic_and_safe(monkeypatch, command):
     assert "six single-action explicit-approval continuations" in response
     assert "developer.bounded_session [brain-approved-bounded-session]" in response
     assert "one approved bounded developer session" in response
+    assert "developer.greenfield_project [brain-approved-greenfield-project]" in response
+    assert "one approved greenfield-project workflow" in response
     llm.assert_not_called()
 
 

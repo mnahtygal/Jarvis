@@ -195,6 +195,7 @@ def test_registry_ids_are_unique_and_metadata_matches_phase_boundaries():
         "developer.git_stage",
         "developer.git_commit",
         "developer.bounded_session",
+        "developer.greenfield_project",
     )
     assert len(tool_ids) == len(set(tool_ids))
     assert all(tool.enabled for tool in tools)

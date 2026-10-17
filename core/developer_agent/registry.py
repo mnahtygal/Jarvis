@@ -57,6 +57,10 @@ _TOOLS = (
         "developer.bounded_session", "Run one fixed-scope bounded repair session",
         False, True, True, True, False,
     ),
+    ToolDefinition(
+        "developer.greenfield_project", "Create one exact-scope Python project",
+        False, True, True, True, False,
+    ),
 )
 
 _TOOLS_BY_ID = {tool.tool_id: tool for tool in _TOOLS}

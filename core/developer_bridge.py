@@ -17,6 +17,7 @@ from core.capability_registry import (
     PHASE1_DEVELOPER_EXECUTION_ALLOWLIST,
     PHASE2_DEVELOPER_APPROVAL_ALLOWLIST,
     PHASE3_DEVELOPER_SESSION_ALLOWLIST,
+    PHASE5_DEVELOPER_GREENFIELD_ALLOWLIST,
     get_capability,
 )
 from core.developer_agent.command_policy import CommandPolicyError, validate_command
@@ -37,6 +38,15 @@ from core.developer_agent.git_safety import (
     validate_no_external_clean_filters,
     validate_repository,
 )
+from core.developer_agent.greenfield_project import (
+    GreenfieldProjectError,
+    GreenfieldProjectManifest,
+    GreenfieldProjectResult,
+    classify_greenfield_request,
+    prepare_greenfield_manifest,
+    run_greenfield_project,
+    validate_greenfield_manifest,
+)
 from core.developer_agent.mutation import (
     MAX_FILE_BYTES, MAX_PATCH_PAYLOAD_BYTES, MutationError, encode_text,
     prepare_mutation_target, read_existing_text,
@@ -53,6 +63,7 @@ from core.developer_agent.workspace import Workspace
 PHASE1_EXECUTION_ALLOWLIST = PHASE1_DEVELOPER_EXECUTION_ALLOWLIST
 PHASE2_APPROVAL_ALLOWLIST = PHASE2_DEVELOPER_APPROVAL_ALLOWLIST
 PHASE3_SESSION_ALLOWLIST = PHASE3_DEVELOPER_SESSION_ALLOWLIST
+PHASE5_GREENFIELD_ALLOWLIST = PHASE5_DEVELOPER_GREENFIELD_ALLOWLIST
 DEVELOPER_EXECUTABLE = "executable"
 DEVELOPER_CONFIRMATION_REQUIRED = "confirmation_required"
 DEVELOPER_APPROVAL = "approval"
@@ -155,6 +166,7 @@ _CANCELLATION_PATTERN = re.compile(
 )
 
 _CANONICAL_BOUNDED_SESSION_HANDLER = run_developer_session_request
+_CANONICAL_GREENFIELD_HANDLER = run_greenfield_project
 
 
 def _safe_path(value: str, *, require_file_signal: bool) -> str | None:
@@ -305,6 +317,25 @@ def classify_developer_request(command: str) -> DeveloperRequest | None:
         return DeveloperRequest(DEVELOPER_APPROVAL)
     if _CANCELLATION_PATTERN.fullmatch(cleaned):
         return DeveloperRequest(DEVELOPER_CANCELLATION)
+    greenfield, greenfield_intent = classify_greenfield_request(cleaned)
+    if greenfield_intent:
+        if greenfield is None:
+            return DeveloperRequest(
+                DEVELOPER_UNSUPPORTED,
+                "developer.greenfield_project",
+            )
+        files = tuple(item.path for item in greenfield.files)
+        return _confirmation_request(
+            "developer.greenfield_project",
+            arguments={"request": greenfield},
+            summary=(
+                f"workspace={greenfield.workspace}",
+                f"files={','.join(files)}",
+                f"file_count={len(files)}",
+                "verification=pytest",
+                f"writable_after_creation={sum(item.role == 'source' for item in greenfield.files)}",
+            ),
+        )
     if len(cleaned) > MAX_DEVELOPER_REQUEST_LENGTH or "\x00" in cleaned or "\n" in cleaned:
         return DeveloperRequest(DEVELOPER_UNSUPPORTED) if _DEVELOPER_PREFIX_PATTERN.match(cleaned) else None
     text = " ".join(cleaned.casefold().split())
@@ -482,6 +513,27 @@ def _validate_session_capability(capability_id: str) -> str | None:
     return None
 
 
+def _validate_greenfield_capability(capability_id: str) -> str | None:
+    if capability_id not in PHASE5_GREENFIELD_ALLOWLIST:
+        return "capability_not_allowed"
+    brain, tool = get_capability(capability_id), get_tool(capability_id)
+    if brain is None or tool is None:
+        return "capability_not_registered"
+    if brain.capability_id != capability_id or tool.tool_id != capability_id:
+        return "capability_metadata_mismatch"
+    if not brain.enabled or not tool.enabled:
+        return "capability_disabled"
+    if brain.executable or tool.executable or is_tool_dispatchable(capability_id):
+        return "capability_metadata_mismatch"
+    if not brain.requires_confirmation or not tool.requires_confirmation:
+        return "confirmation_metadata_mismatch"
+    if brain.read_only or tool.read_only or not brain.mutating or not tool.mutating:
+        return "capability_metadata_mismatch"
+    if run_greenfield_project is not _CANONICAL_GREENFIELD_HANDLER:
+        return "capability_not_dispatchable"
+    return None
+
+
 def _workspace_fingerprint(workspace: Workspace) -> str:
     fingerprint, error = repository_state_fingerprint(workspace)
     if error or fingerprint is None:
@@ -592,6 +644,10 @@ def _validate_session_arguments(
 
 def _validate_pending_arguments(capability_id: str, arguments: Mapping[str, object], workspace: Workspace) -> tuple[tuple[object, ...] | None, str | None]:
     try:
+        if capability_id == "developer.greenfield_project":
+            if set(arguments) != {"manifest"}:
+                return None, "invalid_arguments"
+            return validate_greenfield_manifest(arguments["manifest"]), None
         if capability_id == "developer.bounded_session":
             return _validate_session_arguments(arguments, workspace)
         if capability_id == "developer.write_file":
@@ -743,6 +799,45 @@ def _adapt_session_result(
     )
 
 
+def _adapt_greenfield_result(
+    result: GreenfieldProjectResult,
+    summary: tuple[str, ...],
+) -> DeveloperBridgeResult:
+    if type(result) is not GreenfieldProjectResult:
+        return _failure(
+            "executed_failed",
+            "developer.greenfield_project",
+            "invalid_greenfield_result",
+            summary,
+            "Approved greenfield project",
+        )
+    created = ", ".join(result.created_files) if result.created_files else "none"
+    changed = ", ".join(result.changed_paths) if result.changed_paths else "none"
+    outcome = "passed" if result.success else "did not pass"
+    response = (
+        f"Greenfield project {outcome}. Project: {result.workspace}. "
+        f"Files created: {created}. Verification runs: {result.verification_runs}. "
+        f"Repairs applied: {result.repairs_applied}. Repair-modified paths: {changed}. "
+        f"Final stop reason: {result.stopped_reason}. Git initialized, staged, committed, "
+        "or pushed: no."
+    )
+    if not result.success and result.directory_created:
+        response += " The created directory and any project files were retained for inspection; no rollback was attempted."
+    return DeveloperBridgeResult(
+        "executed_success" if result.success else result.status,
+        "developer.greenfield_project",
+        response,
+        summary,
+        True,
+        result.success,
+        result.error_code,
+        "pytest",
+        result.repairs_applied,
+        result.verification_runs,
+        result.status,
+    )
+
+
 def _clear_pending() -> int:
     global _pending_action, _state_generation
     with _state_lock:
@@ -775,19 +870,79 @@ def _propose_action(request: DeveloperRequest) -> DeveloperBridgeResult:
     if (
         capability_id not in PHASE2_APPROVAL_ALLOWLIST
         and capability_id not in PHASE3_SESSION_ALLOWLIST
+        and capability_id not in PHASE5_GREENFIELD_ALLOWLIST
     ) or not request.arguments:
         return DeveloperBridgeResult(DEVELOPER_CONFIRMATION_REQUIRED, request.capability_id,
             f"Developer request recognized for {capability_id}. The action is not fully specified or is not approval-executable, so nothing was executed and no approval is pending.", request.safe_argument_summary)
     if _payload_size(request.arguments) > MAX_PENDING_PAYLOAD_BYTES:
         return _failure("validation_failed", capability_id, "pending_payload_too_large", request.safe_argument_summary)
     error = (
-        _validate_session_capability(capability_id)
-        if capability_id in PHASE3_SESSION_ALLOWLIST
-        else _validate_approval_capability(capability_id)
+        _validate_greenfield_capability(capability_id)
+        if capability_id in PHASE5_GREENFIELD_ALLOWLIST
+        else (
+            _validate_session_capability(capability_id)
+            if capability_id in PHASE3_SESSION_ALLOWLIST
+            else _validate_approval_capability(capability_id)
+        )
     )
     signature = _registry_signature(capability_id)
     if error or signature is None:
         return _failure("policy_blocked", capability_id, error or "capability_not_registered", request.safe_argument_summary)
+    if capability_id in PHASE5_GREENFIELD_ALLOWLIST:
+        if set(request.arguments) != {"request"}:
+            return _failure(
+                "validation_failed",
+                capability_id,
+                "invalid_arguments",
+                request.safe_argument_summary,
+            )
+        try:
+            manifest = prepare_greenfield_manifest(request.arguments["request"])
+            arguments = {"manifest": manifest}
+            if _payload_size(arguments) > MAX_PENDING_PAYLOAD_BYTES:
+                raise GreenfieldProjectError("pending_payload_too_large")
+            seal = validate_greenfield_manifest(manifest)
+        except GreenfieldProjectError as exc:
+            return _failure(
+                "validation_failed",
+                capability_id,
+                exc.code,
+                request.safe_argument_summary,
+            )
+        except Exception:
+            return _failure(
+                "validation_failed",
+                capability_id,
+                "greenfield_preparation_failed",
+                request.safe_argument_summary,
+            )
+        pending = PendingDeveloperAction(
+            capability_id,
+            arguments,
+            request.safe_argument_summary,
+            time.monotonic(),
+            Path(manifest.workspace).parent,
+            signature,
+            seal,
+        )
+        with _state_lock:
+            if _state_generation != generation:
+                return _failure(
+                    "rejected",
+                    capability_id,
+                    "request_superseded",
+                    request.safe_argument_summary,
+                )
+            _pending_action = pending
+        summary = ", ".join(request.safe_argument_summary)
+        return DeveloperBridgeResult(
+            DEVELOPER_CONFIRMATION_REQUIRED,
+            capability_id,
+            f"Confirmation required for {capability_id} ({summary}). Reply exactly "
+            "'approve' to create and verify this one exact project, or 'cancel'. "
+            "Nothing was created or executed.",
+            request.safe_argument_summary,
+        )
     try:
         workspace = Workspace()
     except Exception:
@@ -860,13 +1015,83 @@ def _approve_action() -> DeveloperBridgeResult:
     if time.monotonic() - pending.created_at > PENDING_ACTION_TTL_SECONDS:
         return _failure("expired", pending.capability_id, "pending_action_expired", pending.safe_argument_summary, "Pending developer action")
     error = (
-        _validate_session_capability(pending.capability_id)
-        if pending.capability_id in PHASE3_SESSION_ALLOWLIST
-        else _validate_approval_capability(pending.capability_id)
+        _validate_greenfield_capability(pending.capability_id)
+        if pending.capability_id in PHASE5_GREENFIELD_ALLOWLIST
+        else (
+            _validate_session_capability(pending.capability_id)
+            if pending.capability_id in PHASE3_SESSION_ALLOWLIST
+            else _validate_approval_capability(pending.capability_id)
+        )
     )
     signature = _registry_signature(pending.capability_id)
     if error or signature != pending.registry_signature:
         return _failure("policy_blocked", pending.capability_id, error or "capability_metadata_changed", pending.safe_argument_summary, "Approved developer action")
+    if pending.capability_id in PHASE5_GREENFIELD_ALLOWLIST:
+        if set(pending.arguments) != {"manifest"}:
+            return _failure(
+                "validation_failed",
+                pending.capability_id,
+                "invalid_arguments",
+                pending.safe_argument_summary,
+                "Approved greenfield project",
+            )
+        manifest = pending.arguments["manifest"]
+        try:
+            seal = validate_greenfield_manifest(manifest)
+        except GreenfieldProjectError as exc:
+            return _failure(
+                "validation_failed",
+                pending.capability_id,
+                exc.code,
+                pending.safe_argument_summary,
+                "Approved greenfield project",
+            )
+        except Exception:
+            return _failure(
+                "validation_failed",
+                pending.capability_id,
+                "greenfield_revalidation_failed",
+                pending.safe_argument_summary,
+                "Approved greenfield project",
+            )
+        if (
+            seal != pending.validation_seal
+            or Path(manifest.workspace).parent != pending.workspace_root
+        ):
+            return _failure(
+                "validation_failed",
+                pending.capability_id,
+                "validation_state_changed",
+                pending.safe_argument_summary,
+                "Approved greenfield project",
+            )
+        try:
+            result = run_greenfield_project(manifest)
+        except GreenfieldProjectError as exc:
+            return _failure(
+                "validation_failed",
+                pending.capability_id,
+                exc.code,
+                pending.safe_argument_summary,
+                "Approved greenfield project",
+            )
+        except Exception:
+            result = GreenfieldProjectResult(
+                False,
+                "unexpected_greenfield_failure",
+                manifest.workspace,
+                False,
+                (),
+                0,
+                0,
+                (),
+                "unexpected_greenfield_failure",
+                "unexpected_greenfield_failure",
+            )
+        with _state_lock:
+            if _state_generation == approval_generation:
+                _verification_record = None
+        return _adapt_greenfield_result(result, pending.safe_argument_summary)
     try:
         workspace = Workspace()
     except Exception:
