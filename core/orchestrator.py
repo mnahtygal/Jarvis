@@ -273,6 +273,18 @@ def process_request(command: str) -> BrainResult:
             "safe_argument_summary": list(
                 developer_result.safe_argument_summary if developer_result else ()
             ),
+            "verification_kind": (
+                developer_result.verification_kind if developer_result else None
+            ),
+            "repair_count": (
+                developer_result.repair_count if developer_result else None
+            ),
+            "verification_count": (
+                developer_result.verification_count if developer_result else None
+            ),
+            "final_state": (
+                developer_result.final_state if developer_result else None
+            ),
         },
         "processing_ms": processing_ms,
     }

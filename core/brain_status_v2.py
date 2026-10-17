@@ -24,6 +24,10 @@ class BrainV2Status:
     developer_tool_invoked: bool
     developer_tool_success: bool | None
     developer_error_code: str | None
+    developer_verification_kind: str | None
+    developer_repair_count: int | None
+    developer_verification_count: int | None
+    developer_final_state: str | None
     context_sources: tuple[str, ...]
     evaluation_quality: str | None
     evaluation_success: bool | None
@@ -71,6 +75,10 @@ def _idle_status() -> BrainV2Status:
         developer_tool_invoked=False,
         developer_tool_success=None,
         developer_error_code=None,
+        developer_verification_kind=None,
+        developer_repair_count=None,
+        developer_verification_count=None,
+        developer_final_state=None,
         context_sources=(),
         evaluation_quality=None,
         evaluation_success=None,
@@ -125,6 +133,26 @@ def publish_brain_v2_status(result) -> None:
             developer_tool_invoked=result.developer_tool_invoked,
             developer_tool_success=result.developer_tool_success,
             developer_error_code=result.developer_error_code,
+            developer_verification_kind=(
+                result.developer_result.verification_kind
+                if result.developer_result
+                else None
+            ),
+            developer_repair_count=(
+                result.developer_result.repair_count
+                if result.developer_result
+                else None
+            ),
+            developer_verification_count=(
+                result.developer_result.verification_count
+                if result.developer_result
+                else None
+            ),
+            developer_final_state=(
+                result.developer_result.final_state
+                if result.developer_result
+                else None
+            ),
             context_sources=_safe_sources(result.metadata.get("context_sources")),
             evaluation_quality=evaluation.quality if evaluation else None,
             evaluation_success=evaluation.success if evaluation else None,
@@ -191,6 +219,10 @@ def publish_brain_v2_failure(
             developer_tool_invoked=False,
             developer_tool_success=None,
             developer_error_code=None,
+            developer_verification_kind=None,
+            developer_repair_count=None,
+            developer_verification_count=None,
+            developer_final_state=None,
             context_sources=_safe_sources(context_sources),
             evaluation_quality="failed",
             evaluation_success=False,
@@ -246,6 +278,13 @@ def format_brain_v2_status(status: BrainV2Status | None = None) -> str:
             f"Developer capability: {snapshot.developer_capability_id or 'none'}",
             f"Developer tool invoked: {'yes' if snapshot.developer_tool_invoked else 'no'}",
         )
+        if snapshot.developer_verification_kind is not None:
+            developer_lines += (
+                f"Developer verification: {snapshot.developer_verification_kind}",
+                f"Developer repairs: {snapshot.developer_repair_count}",
+                f"Developer verification runs: {snapshot.developer_verification_count}",
+                f"Developer final state: {snapshot.developer_final_state or 'unknown'}",
+            )
 
     return "\n".join(
         (

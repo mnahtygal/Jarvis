@@ -35,7 +35,7 @@ def evaluate_developer_result(result: object) -> EvaluationResult:
     """Evaluate the fixed Developer bridge lifecycle without inspecting output."""
 
     status = getattr(result, "status", None)
-    if status == "executed" and getattr(result, "tool_success", None) is True:
+    if status in {"executed", "executed_success"} and getattr(result, "tool_success", None) is True:
         return EvaluationResult(True, "good", "developer tool execution succeeded")
     if status == "confirmation_required":
         return EvaluationResult(
@@ -55,7 +55,15 @@ def evaluate_developer_result(result: object) -> EvaluationResult:
             "expired",
             "pending developer action expired",
         )
-    if status in {"policy_blocked", "validation_failed", "rejected"}:
+    if status in {
+        "policy_blocked",
+        "validation_failed",
+        "rejected",
+        "executed_failed",
+        "repair_limit",
+        "verification_limit",
+        "proposal_failed",
+    }:
         return EvaluationResult(
             False,
             "failed",

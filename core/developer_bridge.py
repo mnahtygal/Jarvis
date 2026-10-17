@@ -7,7 +7,7 @@ import json
 import re
 import shlex
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePath
 from threading import Lock
 from types import MappingProxyType
@@ -16,9 +16,20 @@ from typing import Mapping
 from core.capability_registry import (
     PHASE1_DEVELOPER_EXECUTION_ALLOWLIST,
     PHASE2_DEVELOPER_APPROVAL_ALLOWLIST,
+    PHASE3_DEVELOPER_SESSION_ALLOWLIST,
     get_capability,
 )
 from core.developer_agent.command_policy import CommandPolicyError, validate_command
+from core.developer_agent.developer_session import (
+    MAX_SESSION_PROPOSAL_REQUESTS,
+    MAX_SESSION_REPAIRS,
+    MAX_SESSION_VERIFICATION_RUNS,
+    DeveloperSessionRequest,
+    DeveloperSessionResult,
+    VerificationSpec,
+    run_developer_session_request,
+    validate_developer_session_request,
+)
 from core.developer_agent.executor import execute_tool, is_tool_dispatchable
 from core.developer_agent.git_safety import (
     inspect_staged,
@@ -41,6 +52,7 @@ from core.developer_agent.workspace import Workspace
 
 PHASE1_EXECUTION_ALLOWLIST = PHASE1_DEVELOPER_EXECUTION_ALLOWLIST
 PHASE2_APPROVAL_ALLOWLIST = PHASE2_DEVELOPER_APPROVAL_ALLOWLIST
+PHASE3_SESSION_ALLOWLIST = PHASE3_DEVELOPER_SESSION_ALLOWLIST
 DEVELOPER_EXECUTABLE = "executable"
 DEVELOPER_CONFIRMATION_REQUIRED = "confirmation_required"
 DEVELOPER_APPROVAL = "approval"
@@ -73,6 +85,10 @@ class DeveloperBridgeResult:
     tool_invoked: bool = False
     tool_success: bool | None = None
     error_code: str | None = None
+    verification_kind: str | None = None
+    repair_count: int | None = None
+    verification_count: int | None = None
+    final_state: str | None = None
 
 
 @dataclass(frozen=True)
@@ -111,6 +127,21 @@ _RUN_COMMAND_PATTERN = re.compile(r"^run\s+command\s*:\s*(.+)$", re.I)
 _GRADLE_PATTERN = re.compile(r"^run\s+(?:the\s+)?gradle\s+tests?\s+(?:in|for)\s+([^\s]+)$", re.I)
 _STAGE_FILES_PATTERN = re.compile(r"^(?:git\s+)?(?:stage|add)\s+(?:files?\s+)?(.+)$", re.I)
 _COMMIT_MESSAGE_PATTERN = re.compile(r"^(?:git\s+)?commit\s+(?:with\s+message\s+|message\s+)(.+)$", re.I)
+_PYTHON_SESSION_UNTIL_PATTERN = re.compile(
+    r"^(?:fix|repair)\s+([A-Za-z0-9_./-]+\.py)\s+until\s+"
+    r"([A-Za-z0-9_./-]+\.py)\s+passes[?.!]*$",
+    re.I,
+)
+_PYTHON_SESSION_ONLY_PATTERN = re.compile(
+    r"^fix\s+this\s+bug\s+using\s+only\s+([A-Za-z0-9_./-]+\.py)\s+"
+    r"and\s+([A-Za-z0-9_./-]+\.py)[?.!]*$",
+    re.I,
+)
+_GRADLE_SESSION_PATTERN = re.compile(
+    r"^fix\s+([A-Za-z0-9_./-]+)\s+using\s+([A-Za-z0-9_./-]+)\s+until\s+"
+    r"gradle\s+tests?\s+pass(?:es)?\s+in\s+([A-Za-z0-9_./-]+)[?.!]*$",
+    re.I,
+)
 _DEVELOPER_PREFIX_PATTERN = re.compile(r"^(?:read|show|open|list|write|create|patch|edit|modify|run|repair|fix|stage|add|commit|developer)\b", re.I)
 _STAGE_PATTERN = re.compile(r"^(?:git\s+)?(?:stage|add)(?:\s+the)?\s+(?:change|changes|file|files)[?.!]*$", re.I)
 _COMMIT_PATTERN = re.compile(r"^(?:git\s+)?commit(?:\s+the)?(?:\s+verified)?\s+(?:change|changes)[?.!]*$", re.I)
@@ -122,6 +153,8 @@ _CANCELLATION_PATTERN = re.compile(
     r"^(?:cancel|never mind|don't run it|stop)$",
     re.I,
 )
+
+_CANONICAL_BOUNDED_SESSION_HANDLER = run_developer_session_request
 
 
 def _safe_path(value: str, *, require_file_signal: bool) -> str | None:
@@ -169,6 +202,100 @@ def _json_string(value: str) -> str | None:
     return parsed if isinstance(parsed, str) else None
 
 
+def _is_test_path(path: str) -> bool:
+    candidate = PurePath(path)
+    name = candidate.name.casefold()
+    return (
+        "tests" in {part.casefold() for part in candidate.parts[:-1]}
+        or "test" in {part.casefold() for part in candidate.parts[:-1]}
+        or name.startswith("test_")
+        or name.endswith("_test.py")
+        or name.endswith(("test.kt", "tests.kt", "test.java", "tests.java"))
+    )
+
+
+def _python_session_request(first: str, second: str) -> DeveloperRequest:
+    paths = tuple(
+        _safe_path(value, require_file_signal=True)
+        for value in (first, second)
+    )
+    if any(path is None or PurePath(path).suffix.casefold() != ".py" for path in paths):
+        return DeveloperRequest(DEVELOPER_UNSUPPORTED, "developer.bounded_session")
+    source, test = paths
+    if _is_test_path(source) or not _is_test_path(test):
+        return DeveloperRequest(DEVELOPER_UNSUPPORTED, "developer.bounded_session")
+    request = DeveloperSessionRequest(
+        verification_argv=None,
+        candidate_files=(source, test),
+        allowed_mutation_paths=(source,),
+        approved=False,
+        max_repairs=MAX_SESSION_REPAIRS,
+        max_verification_runs=MAX_SESSION_VERIFICATION_RUNS,
+        max_proposal_requests=MAX_SESSION_PROPOSAL_REQUESTS,
+        verification_spec=VerificationSpec(
+            "run_command",
+            argv=("pytest", "-q", test),
+        ),
+    )
+    return _confirmation_request(
+        "developer.bounded_session",
+        arguments={"request": request},
+        summary=(
+            "verification_kind=pytest",
+            "candidate_count=2",
+            "writable_count=1",
+            f"max_repairs={MAX_SESSION_REPAIRS}",
+            f"max_verification_runs={MAX_SESSION_VERIFICATION_RUNS}",
+            f"max_proposal_requests={MAX_SESSION_PROPOSAL_REQUESTS}",
+        ),
+    )
+
+
+def _gradle_session_request(
+    source_value: str,
+    test_value: str,
+    project_value: str,
+) -> DeveloperRequest:
+    source = _safe_path(source_value, require_file_signal=True)
+    test = _safe_path(test_value, require_file_signal=True)
+    project = _safe_path(project_value, require_file_signal=False)
+    if (
+        source is None
+        or test is None
+        or project is None
+        or PurePath(source).suffix.casefold() not in {".java", ".kt"}
+        or PurePath(test).suffix.casefold() not in {".java", ".kt"}
+        or _is_test_path(source)
+        or not _is_test_path(test)
+    ):
+        return DeveloperRequest(DEVELOPER_UNSUPPORTED, "developer.bounded_session")
+    request = DeveloperSessionRequest(
+        verification_argv=None,
+        candidate_files=(source, test),
+        allowed_mutation_paths=(source,),
+        approved=False,
+        max_repairs=MAX_SESSION_REPAIRS,
+        max_verification_runs=MAX_SESSION_VERIFICATION_RUNS,
+        max_proposal_requests=MAX_SESSION_PROPOSAL_REQUESTS,
+        verification_spec=VerificationSpec(
+            "gradle_test",
+            project_path=project,
+        ),
+    )
+    return _confirmation_request(
+        "developer.bounded_session",
+        arguments={"request": request},
+        summary=(
+            "verification_kind=gradle_test",
+            "candidate_count=2",
+            "writable_count=1",
+            f"max_repairs={MAX_SESSION_REPAIRS}",
+            f"max_verification_runs={MAX_SESSION_VERIFICATION_RUNS}",
+            f"max_proposal_requests={MAX_SESSION_PROPOSAL_REQUESTS}",
+        ),
+    )
+
+
 def classify_developer_request(command: str) -> DeveloperRequest | None:
     """Recognize fixed developer request families without a model."""
     if not isinstance(command, str) or not command.strip():
@@ -182,6 +309,23 @@ def classify_developer_request(command: str) -> DeveloperRequest | None:
         return DeveloperRequest(DEVELOPER_UNSUPPORTED) if _DEVELOPER_PREFIX_PATTERN.match(cleaned) else None
     text = " ".join(cleaned.casefold().split())
     words = set(re.findall(r"[a-z0-9_]+", text))
+    match = _PYTHON_SESSION_UNTIL_PATTERN.fullmatch(cleaned)
+    if match:
+        return _python_session_request(match.group(1), match.group(2))
+    match = _PYTHON_SESSION_ONLY_PATTERN.fullmatch(cleaned)
+    if match:
+        first, second = match.group(1), match.group(2)
+        if _is_test_path(first) == _is_test_path(second):
+            return DeveloperRequest(DEVELOPER_UNSUPPORTED, "developer.bounded_session")
+        source, test = (second, first) if _is_test_path(first) else (first, second)
+        return _python_session_request(source, test)
+    match = _GRADLE_SESSION_PATTERN.fullmatch(cleaned)
+    if match:
+        return _gradle_session_request(
+            match.group(1),
+            match.group(2),
+            match.group(3),
+        )
     if _GIT_STATUS_PATTERN.fullmatch(cleaned):
         return DeveloperRequest(DEVELOPER_EXECUTABLE, "developer.git_status")
     match = _LIST_FILES_PATTERN.fullmatch(cleaned)
@@ -234,7 +378,11 @@ def classify_developer_request(command: str) -> DeveloperRequest | None:
                 if paths else DeveloperRequest(DEVELOPER_UNSUPPORTED, "developer.git_stage"))
     if "gradle" in words and words.intersection({"test", "tests", "run", "build"}):
         return _confirmation_request("developer.gradle_test")
-    if any(p in text for p in ("bounded session", "autonomous developer session")):
+    if any(p in text for p in (
+        "bounded session",
+        "bounded repair session",
+        "autonomous developer session",
+    )):
         return _confirmation_request("developer.bounded_session")
     if "propose" in words and "repair" in words:
         return _confirmation_request("developer.propose_repair")
@@ -313,6 +461,27 @@ def _validate_approval_capability(capability_id: str) -> str | None:
     return None
 
 
+def _validate_session_capability(capability_id: str) -> str | None:
+    if capability_id not in PHASE3_SESSION_ALLOWLIST:
+        return "capability_not_allowed"
+    brain, tool = get_capability(capability_id), get_tool(capability_id)
+    if brain is None or tool is None:
+        return "capability_not_registered"
+    if brain.capability_id != capability_id or tool.tool_id != capability_id:
+        return "capability_metadata_mismatch"
+    if not brain.enabled or not tool.enabled:
+        return "capability_disabled"
+    if brain.executable or tool.executable:
+        return "capability_metadata_mismatch"
+    if not brain.requires_confirmation or not tool.requires_confirmation:
+        return "confirmation_metadata_mismatch"
+    if brain.read_only or tool.read_only or not brain.mutating or not tool.mutating:
+        return "capability_metadata_mismatch"
+    if run_developer_session_request is not _CANONICAL_BOUNDED_SESSION_HANDLER:
+        return "capability_not_dispatchable"
+    return None
+
+
 def _workspace_fingerprint(workspace: Workspace) -> str:
     fingerprint, error = repository_state_fingerprint(workspace)
     if error or fingerprint is None:
@@ -332,8 +501,99 @@ def _digest_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
+def _validate_session_arguments(
+    arguments: Mapping[str, object],
+    workspace: Workspace,
+) -> tuple[tuple[object, ...] | None, str | None]:
+    if set(arguments) != {"request"}:
+        return None, "invalid_arguments"
+    request = arguments["request"]
+    if type(request) is not DeveloperSessionRequest or request.approved is not False:
+        return None, "invalid_request"
+    if (
+        request.max_repairs != MAX_SESSION_REPAIRS
+        or request.max_verification_runs != MAX_SESSION_VERIFICATION_RUNS
+        or request.max_proposal_requests != MAX_SESSION_PROPOSAL_REQUESTS
+    ):
+        return None, "invalid_session_limits"
+    validation_error = validate_developer_session_request(
+        request,
+        workspace=workspace,
+    )
+    if validation_error:
+        return None, validation_error
+    spec = request.verification_spec
+    if (
+        request.verification_argv is not None
+        or type(spec) is not VerificationSpec
+    ):
+        return None, "unsupported_verification"
+    test_paths = tuple(
+        path for path in request.candidate_files if _is_test_path(path)
+    )
+    if (
+        len(request.candidate_files) != 2
+        or len(request.allowed_mutation_paths) != 1
+        or len(test_paths) != 1
+        or request.allowed_mutation_paths != tuple(
+            path for path in request.candidate_files if path not in test_paths
+        )
+    ):
+        return None, "invalid_mutation_scope"
+    if any(_is_test_path(path) for path in request.allowed_mutation_paths):
+        return None, "test_mutation_not_allowed"
+    source_path = request.allowed_mutation_paths[0]
+    test_path = test_paths[0]
+    if request.candidate_files != (source_path, test_path):
+        return None, "invalid_mutation_scope"
+    if spec.kind == "run_command":
+        expected_argv = ("pytest", "-q", test_path)
+        if (
+            PurePath(source_path).suffix.casefold() != ".py"
+            or PurePath(test_path).suffix.casefold() != ".py"
+            or spec.project_path is not None
+            or spec.argv != expected_argv
+        ):
+            return None, "unsupported_verification"
+        approved_command = validate_command(spec.argv, workspace)
+        if approved_command.family != "pytest":
+            return None, "unsupported_verification"
+    elif spec.kind == "gradle_test":
+        if (
+            PurePath(source_path).suffix.casefold() not in {".java", ".kt"}
+            or PurePath(test_path).suffix.casefold() not in {".java", ".kt"}
+            or spec.argv
+            or spec.project_path is None
+        ):
+            return None, "unsupported_verification"
+        validate_gradle_project(spec.project_path, workspace=workspace)
+    else:
+        return None, "unsupported_verification"
+
+    files: list[tuple[object, ...]] = []
+    for path in request.candidate_files:
+        target = prepare_mutation_target(workspace, path, require_exists=True)
+        _, data, snapshot = read_existing_text(workspace, target)
+        files.append((target.relative_path, snapshot, _digest_bytes(data)))
+    return (
+        (
+            "bounded_session",
+            spec,
+            request.candidate_files,
+            request.allowed_mutation_paths,
+            request.max_repairs,
+            request.max_verification_runs,
+            request.max_proposal_requests,
+            tuple(files),
+        ),
+        None,
+    )
+
+
 def _validate_pending_arguments(capability_id: str, arguments: Mapping[str, object], workspace: Workspace) -> tuple[tuple[object, ...] | None, str | None]:
     try:
+        if capability_id == "developer.bounded_session":
+            return _validate_session_arguments(arguments, workspace)
         if capability_id == "developer.write_file":
             if set(arguments) != {"path", "content"}:
                 return None, "invalid_arguments"
@@ -422,6 +682,67 @@ def _adapt_tool_result(result: ToolResult) -> str:
     return f"Developer tool request was refused safely ({code}): {result.output}"
 
 
+def _adapt_session_result(
+    result: DeveloperSessionResult,
+    summary: tuple[str, ...],
+    verification_kind: str,
+) -> DeveloperBridgeResult:
+    if type(result) is not DeveloperSessionResult:
+        return _failure(
+            "executed_failed",
+            "developer.bounded_session",
+            "invalid_session_result",
+            summary,
+            "Approved developer session",
+        )
+    paths = ", ".join(result.changed_paths) if result.changed_paths else "none"
+    outcome = "passed" if result.success else "did not pass"
+    response = (
+        f"Bounded developer session {outcome}. Verification runs: "
+        f"{result.verification_runs}. Repairs applied: {result.repairs_applied}. "
+        f"Modified paths: {paths}. Final stop reason: {result.stopped_reason}. "
+        "Git stage, commit, and push performed: no."
+    )
+    if result.success:
+        status = "executed_success"
+    elif result.status in {"repair_limit", "verification_limit"}:
+        status = result.status
+    elif result.status in {
+        "model_failure",
+        "invalid_model_output",
+        "invalid_proposal",
+        "invalid_proposal_result",
+        "proposal_request_limit",
+        "proposal_conversion_failed",
+        "stale_or_invalid_proposal",
+        "low_confidence",
+        "below_confidence_threshold",
+        "no_fix",
+        "path_not_a_candidate",
+        "protected_candidate_path",
+        "unsafe_candidate_symlink",
+        "invalid_patch_payload",
+        "invalid_write_payload",
+        "patch_match_not_unique",
+    }:
+        status = "proposal_failed"
+    else:
+        status = "executed_failed"
+    return DeveloperBridgeResult(
+        status,
+        "developer.bounded_session",
+        response,
+        summary,
+        True,
+        result.success,
+        None if result.success else result.stopped_reason,
+        "pytest" if verification_kind == "run_command" else verification_kind,
+        result.repairs_applied,
+        result.verification_runs,
+        result.status,
+    )
+
+
 def _clear_pending() -> int:
     global _pending_action, _state_generation
     with _state_lock:
@@ -451,16 +772,32 @@ def _propose_action(request: DeveloperRequest) -> DeveloperBridgeResult:
     global _pending_action
     generation = _clear_pending()
     capability_id = request.capability_id or "developer.unknown"
-    if capability_id not in PHASE2_APPROVAL_ALLOWLIST or not request.arguments:
+    if (
+        capability_id not in PHASE2_APPROVAL_ALLOWLIST
+        and capability_id not in PHASE3_SESSION_ALLOWLIST
+    ) or not request.arguments:
         return DeveloperBridgeResult(DEVELOPER_CONFIRMATION_REQUIRED, request.capability_id,
-            f"Developer request recognized for {capability_id}. The action is not fully specified or is not approval-executable in Phase 2, so nothing was executed and no approval is pending.", request.safe_argument_summary)
+            f"Developer request recognized for {capability_id}. The action is not fully specified or is not approval-executable, so nothing was executed and no approval is pending.", request.safe_argument_summary)
     if _payload_size(request.arguments) > MAX_PENDING_PAYLOAD_BYTES:
         return _failure("validation_failed", capability_id, "pending_payload_too_large", request.safe_argument_summary)
-    error = _validate_approval_capability(capability_id)
+    error = (
+        _validate_session_capability(capability_id)
+        if capability_id in PHASE3_SESSION_ALLOWLIST
+        else _validate_approval_capability(capability_id)
+    )
     signature = _registry_signature(capability_id)
     if error or signature is None:
         return _failure("policy_blocked", capability_id, error or "capability_not_registered", request.safe_argument_summary)
-    workspace, arguments = Workspace(), dict(request.arguments)
+    try:
+        workspace = Workspace()
+    except Exception:
+        return _failure(
+            "validation_failed",
+            capability_id,
+            "workspace_unavailable",
+            request.safe_argument_summary,
+        )
+    arguments = dict(request.arguments)
     if capability_id == "developer.git_commit":
         with _state_lock:
             verification = _verification_record
@@ -479,7 +816,25 @@ def _propose_action(request: DeveloperRequest) -> DeveloperBridgeResult:
         if _state_generation != generation:
             return _failure("rejected", capability_id, "request_superseded", request.safe_argument_summary)
         _pending_action = pending
-    summary = ", ".join(request.safe_argument_summary) or "validated arguments"
+    if capability_id == "developer.bounded_session":
+        session_request = request.arguments["request"]
+        source = session_request.allowed_mutation_paths[0]
+        test = tuple(
+            path
+            for path in session_request.candidate_files
+            if path not in session_request.allowed_mutation_paths
+        )[0]
+        verification_kind = session_request.verification_spec.kind
+        verification_label = (
+            "pytest" if verification_kind == "run_command" else verification_kind
+        )
+        summary = (
+            f"source={source}, test={test}, verification={verification_label}, "
+            f"repairs<={MAX_SESSION_REPAIRS}, verifications<="
+            f"{MAX_SESSION_VERIFICATION_RUNS}"
+        )
+    else:
+        summary = ", ".join(request.safe_argument_summary) or "validated arguments"
     return DeveloperBridgeResult(DEVELOPER_CONFIRMATION_REQUIRED, capability_id,
         f"Confirmation required for {capability_id} ({summary}). Reply exactly 'approve' to attempt this one action, or 'cancel'. Nothing was executed.", request.safe_argument_summary)
 
@@ -504,17 +859,56 @@ def _approve_action() -> DeveloperBridgeResult:
         return _failure("rejected", None, "no_pending_action", ())
     if time.monotonic() - pending.created_at > PENDING_ACTION_TTL_SECONDS:
         return _failure("expired", pending.capability_id, "pending_action_expired", pending.safe_argument_summary, "Pending developer action")
-    error = _validate_approval_capability(pending.capability_id)
+    error = (
+        _validate_session_capability(pending.capability_id)
+        if pending.capability_id in PHASE3_SESSION_ALLOWLIST
+        else _validate_approval_capability(pending.capability_id)
+    )
     signature = _registry_signature(pending.capability_id)
     if error or signature != pending.registry_signature:
         return _failure("policy_blocked", pending.capability_id, error or "capability_metadata_changed", pending.safe_argument_summary, "Approved developer action")
-    workspace = Workspace()
+    try:
+        workspace = Workspace()
+    except Exception:
+        return _failure(
+            "validation_failed",
+            pending.capability_id,
+            "workspace_unavailable",
+            pending.safe_argument_summary,
+            "Approved developer action",
+        )
     if workspace.root != pending.workspace_root:
         return _failure("validation_failed", pending.capability_id, "workspace_changed", pending.safe_argument_summary, "Approved developer action")
     seal, error = _validate_pending_arguments(pending.capability_id, pending.arguments, workspace)
     if error or seal != pending.validation_seal:
         return _failure("validation_failed", pending.capability_id, error or "validation_state_changed", pending.safe_argument_summary, "Approved developer action")
     arguments = dict(pending.arguments)
+    if pending.capability_id == "developer.bounded_session":
+        request = arguments["request"]
+        try:
+            result = run_developer_session_request(
+                replace(request, approved=True),
+                workspace=workspace,
+            )
+        except Exception:
+            result = DeveloperSessionResult(
+                False,
+                "unexpected_session_failure",
+                0,
+                0,
+                0,
+                (),
+                (),
+                "unexpected_session_failure",
+            )
+        with _state_lock:
+            if _state_generation == approval_generation:
+                _verification_record = None
+        return _adapt_session_result(
+            result,
+            pending.safe_argument_summary,
+            request.verification_spec.kind,
+        )
     if pending.capability_id in {"developer.gradle_test", "developer.git_stage", "developer.git_commit"}:
         arguments["approved"] = True
     result = execute_tool(pending.capability_id, arguments, workspace=workspace)
@@ -550,7 +944,7 @@ def execute_developer_request(request: DeveloperRequest) -> DeveloperBridgeResul
     _clear_pending()
     if request.mode != DEVELOPER_EXECUTABLE or not request.capability_id:
         return DeveloperBridgeResult(DEVELOPER_UNSUPPORTED, request.capability_id,
-            "That developer request is ambiguous or unsupported in Phase 2. Nothing was executed.", request.safe_argument_summary,
+            "That developer request is ambiguous or unsupported. Nothing was executed.", request.safe_argument_summary,
             error_code="unsupported_developer_request")
     error = _validate_executable_capability(request.capability_id)
     if error:

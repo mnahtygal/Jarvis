@@ -8,11 +8,12 @@ skills, or networks.
 
 `enabled` means the capability exists in this build. For most capabilities,
 `executable` still describes readiness for a future controlled planner runtime.
-Phase 12 adds two narrow exceptions: Brain may execute the three allowlisted
+Phase 12 adds three narrow exceptions: Brain may execute the three allowlisted
 read-only Developer Agent capabilities directly, and may continue six fully
-specified Developer operations after a separate explicit approval. Explicit
-memory writes, camera capture, image measurement, and all other Developer Agent
-operations remain manual-only or confirmation-stopped.
+specified Developer operations or one frozen bounded developer session after a
+separate explicit approval. Explicit memory writes, camera capture, image
+measurement, and all other Developer Agent operations remain manual-only or
+confirmation-stopped.
 
 The planner still produces diagnostic steps. The validator first checks plan
 structure, then resolves exact fixed action/category pairs to registry IDs. A
@@ -60,8 +61,9 @@ Brain may propose exactly one fully specified action for these capabilities:
 - `developer.git_commit`
 
 The proposal executes nothing. It is held in bounded process-local memory for at
-most five minutes and is replaced by a newer Developer proposal. An unrelated
-request, cancellation, validation failure, expiry, or execution clears it.
+most five minutes and is replaced by a newer Developer proposal. Restarting the
+local Jarvis process clears it. An unrelated request, cancellation, validation
+failure, expiry, or execution clears it.
 Approval phrases are fixed and deterministic (`approve`, `yes, approve`,
 `proceed`, `execute it`, or `run it`); generic `yes` is not approval. Approval is
 single-use and authorizes only the stored capability and arguments.
@@ -86,11 +88,43 @@ with a message. Existing canonical Developer Agent policy remains authoritative.
 Approval does not enable a shell, arbitrary commands, alternate Gradle tasks,
 stage-all, push, amend, or history rewriting.
 
-`developer.repair_loop`, `developer.propose_repair`, and
-`developer.bounded_session` remain non-executable from Brain. They may be
-recognized and confirmation-stopped, but a later approval cannot dispatch them.
-There is no multi-action queue, approval-all, autonomous tool selection, or
-repair/session loop.
+`developer.repair_loop` and `developer.propose_repair` remain non-executable from
+Brain. They may be recognized and confirmation-stopped, but a later approval
+cannot dispatch them directly. There is no multi-action queue, approval-all, or
+arbitrary autonomous tool selection.
+
+## Phase 3 approved bounded developer session
+
+Phase 3 adds exactly one separate approval-enabled high-level capability:
+`developer.bounded_session`. It remains `executable=False` in both registries and
+has no generic executor dispatch. Brain can reach only the canonical Phase 7
+session function through the one-item Phase 3 allowlist after an exact, single-use
+approval and complete revalidation.
+
+Natural-language scope construction is deterministic. The Python form identifies
+one existing source file and one existing test file, freezes pytest verification
+for that test, makes both files readable candidates, and makes only the source
+writable. A second exact form supports the existing fixed offline Gradle
+verification with one source, one test, and one explicit project root. Ambiguous,
+missing, traversing, protected, unsupported, or dynamically expanding scope is
+refused. The LLM never selects the workspace, candidates, writable paths,
+verification command, or limits.
+
+The proposal stores immutable scope plus snapshots and content digests for every
+candidate. Approval rechecks the workspace, both registries, canonical handler,
+verification policy, fixed limits, paths, snapshots, and digests before invoking
+the existing session. Tests are read-only in every Phase 3 natural-language
+scope. The session always verifies first, stops immediately if green, and retains
+the existing limits of two repairs, three verification runs, and two proposal
+requests. Phase 6 remains authoritative for structured proposals, confidence,
+exact patches, protected paths, and stale-state checks.
+
+The session performs no stage, commit, push, branch, reset, restore, clean, or
+checkout operation. Failed repairs are not rolled back automatically. Results
+expose only verification kind, counters, safe modified paths, final stop code, and
+the fact that no Git action was performed. Prompts, diagnostics, source, patches,
+command output, and raw model responses remain ephemeral and absent from Brain
+status and durable memory. There is no recursive session or background work.
 
 Pending state, Developer prompts, and approval/cancellation text are not written
 to durable conversation history, project memory, semantic memory, or exact
