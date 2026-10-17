@@ -2,6 +2,8 @@
 
 import os
 import re
+import time
+from dataclasses import dataclass
 
 import requests
 
@@ -48,6 +50,31 @@ def strip_thinking(text: str) -> str:
     if trailing is not None:
         answer = answer[:trailing.start()].rstrip()
     return answer
+
+
+def unwrap_structured_thinking(text: str) -> str:
+    """Remove only a complete leading reasoning envelope before structured JSON."""
+
+    if not isinstance(text, str) or not text:
+        return ""
+    answer = text.lstrip()
+    tag_pattern = re.compile(r"<(/?)think\s*>", flags=re.IGNORECASE)
+    opening = tag_pattern.match(answer)
+    if opening is None or opening.group(1):
+        return text
+    depth = 0
+    position = 0
+    while True:
+        tag = tag_pattern.search(answer, position)
+        if tag is None:
+            return text
+        depth += -1 if tag.group(1) else 1
+        if depth == 0:
+            remainder = answer[tag.end():].lstrip()
+            return remainder if remainder.startswith("{") else text
+        if depth < 0:
+            return text
+        position = tag.end()
 
 
 def get_llama_cpp_response(prompt: str) -> str:
@@ -209,16 +236,34 @@ _REPAIR_PROPOSAL_GBNF = "\n".join((
     r'ws ::= [ \t\n\r]*',
 ))
 
-_GREENFIELD_PROJECT_GBNF = "\n".join((
-    r'root ::= "{" ws "\"files\"" ws ":" ws "[" ws file '
-    r'("," ws file){1,4} "]" ws "}" ws',
-    r'file ::= "{" ws "\"path\"" ws ":" ws string "," ws '
-    r'"\"content\"" ws ":" ws string "}" ws',
-    r'string ::= "\"" char* "\"" ws',
-    r'char ::= [^"\\\x7F\x00-\x1F] | "\\" '
-    r'(["\\/bfnrt] | "u" [0-9a-fA-F]{4})',
-    r'ws ::= [ \t\n\r]*',
-))
+def _greenfield_project_gbnf(approved_paths: tuple[str, ...]) -> str:
+    """Return compact GBNF bound to the already-approved file order."""
+
+    file_rules = tuple(
+        f'file{index} ::= "{{" "\\"path\\"" ":" '
+        f'"\\"{path}\\"" "," "\\"content\\"" ":" string "}}"'
+        for index, path in enumerate(approved_paths)
+    )
+    sequence = ' "," '.join(
+        f"file{index}" for index in range(len(approved_paths))
+    )
+    return "\n".join((
+        f'root ::= "{{" "\\"files\\"" ":" "[" {sequence} "]" "}}"',
+        *file_rules,
+        r'string ::= "\"" char* "\""',
+        r'char ::= [^"\\\x7F\x00-\x1F] | "\\" '
+        r'(["\\/bfnrt] | "u" [0-9a-fA-F]{4})',
+    ))
+
+
+@dataclass(frozen=True)
+class LlamaCppStructuredResponse:
+    content: str
+    finish_reason: str | None
+    http_status: int | None
+    endpoint_status: str
+    elapsed_ms: float
+    output_bytes: int | None = None
 
 
 def get_llama_cpp_repair_response(prompt: str, system_prompt: str) -> str:
@@ -260,7 +305,12 @@ def get_llama_cpp_repair_response(prompt: str, system_prompt: str) -> str:
         return ""
 
 
-def get_llama_cpp_greenfield_response(prompt: str, system_prompt: str) -> str:
+def get_llama_cpp_greenfield_response(
+    prompt: str,
+    system_prompt: str,
+    *,
+    approved_paths: tuple[str, ...],
+) -> LlamaCppStructuredResponse:
     """Request one fixed-schema greenfield file-content response."""
 
     payload = {
@@ -278,9 +328,11 @@ def get_llama_cpp_greenfield_response(prompt: str, system_prompt: str) -> str:
         "stream": False,
         "cache_prompt": False,
         "chat_template_kwargs": {"enable_thinking": False},
-        "grammar": _GREENFIELD_PROJECT_GBNF,
+        "grammar": _greenfield_project_gbnf(approved_paths),
     }
 
+    started = time.perf_counter()
+    response = None
     try:
         response = requests.post(
             LLAMA_CPP_URL,
@@ -294,9 +346,37 @@ def get_llama_cpp_greenfield_response(prompt: str, system_prompt: str) -> str:
         answer = message.get("content", "")
         if not answer:
             answer = message.get("reasoning_content", "")
-        return answer if answer else ""
+        answer = answer if isinstance(answer, str) else ""
+        output_bytes = len(answer.encode("utf-8"))
+        answer = unwrap_structured_thinking(answer)
+        return LlamaCppStructuredResponse(
+            answer,
+            choice.get("finish_reason"),
+            getattr(response, "status_code", 200),
+            "ok",
+            (time.perf_counter() - started) * 1000,
+            output_bytes,
+        )
+    except requests.HTTPError:
+        status = getattr(response, "status_code", None)
+        endpoint_status = "http_error"
+    except (TypeError, ValueError, AttributeError, KeyError, IndexError):
+        status = getattr(response, "status_code", None)
+        endpoint_status = "invalid_response"
+    except requests.RequestException:
+        status = None
+        endpoint_status = "transport_error"
     except Exception:
-        return ""
+        status = getattr(response, "status_code", None)
+        endpoint_status = "transport_error"
+    return LlamaCppStructuredResponse(
+        "",
+        None,
+        status,
+        endpoint_status,
+        (time.perf_counter() - started) * 1000,
+        0,
+    )
 
 
 def ask_llama_cpp(prompt: str) -> str:

@@ -166,9 +166,15 @@ content is generated and no file is created until exact approval.
 
 After approval, the existing local model may provide content only for the
 caller-selected filenames. Generation uses deterministic sampling, disabled
-thinking, a fixed JSON grammar, strict duplicate-field/schema validation, an
+thinking, a compact JSON grammar bound to the exact approved filename order,
+strict duplicate-field/schema validation, an
 8 KiB per-file limit, a 24 KiB total-content limit, and at most one correction
-retry. Generated Python must parse and may import only standard-library modules,
+retry. A complete leading model reasoning envelope is removed only when it
+precedes the JSON object; identical text inside generated file content is
+preserved. Truncation, transport, JSON, schema, scope, size, Python, and AST
+failures retain bounded reason codes. Logs contain only attempt, reason, byte and
+file counts, endpoint/status, finish reason, and elapsed time.
+Generated Python must parse and may import only standard-library modules,
 pytest, or approved project modules; process, network, installer, dynamic-code,
 and destructive-call primitives are rejected. The model cannot supply commands,
 verification targets, directories, roles, limits, or extra files.
@@ -180,7 +186,8 @@ registry, canonical handler, allowed parent inode, absent destination, exact fil
 and role lists, frozen `pytest -q <test files>` target, hard limits, and proposal
 digest before generation. It then creates and validates an immutable,
 content-inclusive manifest and rechecks model configuration, scope, limits,
-parent inode, and manifest digest before filesystem mutation. Approval is expiring, single-use,
+parent inode, and manifest digest before filesystem mutation. Approval is
+expiring, single-use,
 non-replayable, and invalidated by unrelated requests under the existing policy.
 Invalid approval text returns a deterministic no-execution result, including for
 common approval typos after the pending action has already been cleared.
