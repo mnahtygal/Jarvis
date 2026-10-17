@@ -556,7 +556,7 @@ def test_session_approval_cancel_expiry_interruption_and_replacement(
     monkeypatch.setattr(orchestrator, "route", lambda command: "ordinary answer")
 
     orchestrator.process_request(_request())
-    assert orchestrator.process_request("yes").developer_result is None
+    assert orchestrator.process_request("yes").developer_error_code == "approval_not_recognized"
     assert orchestrator.process_request("approve").developer_error_code == "no_pending_action"
 
     orchestrator.process_request(_request())
@@ -564,7 +564,7 @@ def test_session_approval_cancel_expiry_interruption_and_replacement(
     assert orchestrator.process_request("approve").developer_error_code == "no_pending_action"
 
     orchestrator.process_request(_request())
-    assert orchestrator.process_request("What time is it?").response == "ordinary answer"
+    assert orchestrator.process_request("What time is it?").developer_error_code == "approval_not_recognized"
     assert orchestrator.process_request("approve").developer_error_code == "no_pending_action"
 
     other = isolated_workspace.root / "other.py"

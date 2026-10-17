@@ -23,6 +23,7 @@ from core.route_trace import (
     ("jarvis docs", "get_docs_response", (), "help_docs"),
     ("hello", "get_chat_response", ("hello",), "chat"),
     ("what is PostgreSQL", "get_llm_response", ("what is PostgreSQL",), "llm_fallback"),
+    ("explain runtime behavior", "get_llm_response", ("explain runtime behavior",), "llm_fallback"),
     ("xyzzy", "get_llm_response", ("xyzzy",), "llm_fallback"),
     ("what time is it", "get_time_response", (), "system"),
     ("I work at GM", "remember", ("my workplace", "GM"), "memory_write"),

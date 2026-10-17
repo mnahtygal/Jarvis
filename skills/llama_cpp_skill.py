@@ -18,8 +18,36 @@ def strip_thinking(text: str) -> str:
     if not text:
         return ""
 
-    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
-    return text.strip()
+    answer = text.strip()
+    marker_pattern = re.compile(r"</?think\b", flags=re.IGNORECASE)
+    tag_pattern = re.compile(r"<(/?)think\s*>", flags=re.IGNORECASE)
+    while answer:
+        marker = marker_pattern.match(answer)
+        if marker is None:
+            break
+        opening = tag_pattern.match(answer)
+        if opening is None or opening.group(1):
+            return ""
+        depth = 0
+        position = 0
+        while True:
+            marker = marker_pattern.search(answer, position)
+            if marker is None:
+                return ""
+            tag = tag_pattern.match(answer, marker.start())
+            if tag is None:
+                return ""
+            depth += -1 if tag.group(1) else 1
+            if depth == 0:
+                answer = answer[tag.end():].strip()
+                break
+            if depth < 0:
+                return ""
+            position = tag.end()
+    trailing = marker_pattern.search(answer)
+    if trailing is not None:
+        answer = answer[:trailing.start()].rstrip()
+    return answer
 
 
 def get_llama_cpp_response(prompt: str) -> str:
@@ -45,9 +73,6 @@ def get_llama_cpp_response(prompt: str) -> str:
         message = choice.get("message", {})
 
         answer = message.get("content", "")
-
-        if not answer:
-            answer = message.get("reasoning_content", "")
 
         answer = strip_thinking(answer)
 
@@ -230,7 +255,6 @@ def get_llama_cpp_repair_response(prompt: str, system_prompt: str) -> str:
         answer = message.get("content", "")
         if not answer:
             answer = message.get("reasoning_content", "")
-        answer = strip_thinking(answer)
         return answer if answer else ""
     except Exception:
         return ""
@@ -270,7 +294,6 @@ def get_llama_cpp_greenfield_response(prompt: str, system_prompt: str) -> str:
         answer = message.get("content", "")
         if not answer:
             answer = message.get("reasoning_content", "")
-        answer = strip_thinking(answer)
         return answer if answer else ""
     except Exception:
         return ""

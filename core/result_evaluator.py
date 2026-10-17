@@ -63,6 +63,7 @@ def evaluate_developer_result(result: object) -> EvaluationResult:
         "repair_limit",
         "verification_limit",
         "proposal_failed",
+        "truthfulness_blocked",
     }:
         return EvaluationResult(
             False,

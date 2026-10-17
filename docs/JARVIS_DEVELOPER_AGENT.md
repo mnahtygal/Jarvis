@@ -44,7 +44,8 @@ argument, file, command, Gradle, and Git checks are rerun. Approval is single-us
 argument-bound, expires after five minutes, and cannot approve multiple actions.
 
 Cancellation clears the proposal. A newer Developer request replaces it, while a
-materially unrelated conversation invalidates it before normal routing. Changed
+materially unrelated request deterministically invalidates it without entering
+the conversational model route. Changed
 patch sources, Git state, workspace identity, or registry metadata fail closed.
 Successful verification evidence is output-free and bound to the current
 workspace status before it can support a later commit. Commit never auto-stages.
@@ -65,6 +66,9 @@ including approval and cancellation text, bypass durable conversation history,
 project memory, semantic memory, and exact/personal memory. Raw Developer prompts
 are not printed to the console. Brain status contains safe lifecycle fields only.
 Restarting the local Jarvis process clears every pending approval.
+Only structured Developer results with both `tool_invoked=true` and
+`tool_success=true` may report an execution-success lifecycle state. Chat-model
+text cannot prove that a file, command, test, project, or Git operation ran.
 The current local API has no session identifier, so
 the pending slot belongs to the one local process/user conversation. `/text` and
 `/ask` continue to return ordinary strings; no UI changes are required.

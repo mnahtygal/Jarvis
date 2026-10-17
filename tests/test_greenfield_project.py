@@ -94,6 +94,27 @@ def _command(root: Path, name: str = "demo") -> str:
     )
 
 
+def _benchmark_command(root: Path, name: str = "benchmark-shape") -> str:
+    return f"""Build a Python project at
+{root / name}
+with exactly inventory.py, app.py, and test_inventory.py.
+Use pytest -q test_inventory.py.
+Use the greenfield project workflow.
+Ask for approval before creating anything."""
+
+
+def _benchmark_generation():
+    return _generation((
+        ("inventory.py", "def count_items(items):\n    return len(items)\n"),
+        ("app.py", "from inventory import count_items\n"),
+        (
+            "test_inventory.py",
+            "from inventory import count_items\n\n"
+            "def test_count_items():\n    assert count_items(['a', 'b']) == 2\n",
+        ),
+    ))
+
+
 def _install_generation(monkeypatch, *responses):
     model = _Responses(*responses)
     real_prepare = prepare_greenfield_manifest
@@ -620,3 +641,117 @@ Use pytest verification."""
     )
     assert request.verification.argv == ("pytest", "-q", "test_inventory.py")
     assert not (projects_root / "future-challenge").exists()
+
+
+def test_live_benchmark_prompt_repeated_test_reference_routes_to_confirmation(
+    projects_root, monkeypatch
+):
+    _install_generation(monkeypatch, _benchmark_generation())
+    target = projects_root / "benchmark-shape"
+
+    result = orchestrator.process_request(_benchmark_command(projects_root))
+
+    assert result.developer_status == "confirmation_required"
+    assert result.developer_capability_id == "developer.greenfield_project"
+    assert result.actual_route == "developer_confirmation"
+    assert result.used_llm is False
+    assert "time is" not in result.response.casefold()
+    assert not target.exists()
+
+
+def test_live_benchmark_exact_approval_invokes_canonical_greenfield_once(
+    projects_root, monkeypatch
+):
+    _install_generation(monkeypatch, _benchmark_generation())
+    target = projects_root / "approved-shape"
+    real_runner = developer_bridge.run_greenfield_project
+    calls = []
+
+    def counted_runner(manifest):
+        calls.append(manifest.workspace)
+        return real_runner(manifest)
+
+    monkeypatch.setattr(developer_bridge, "run_greenfield_project", counted_runner)
+    monkeypatch.setattr(
+        developer_bridge,
+        "_CANONICAL_GREENFIELD_HANDLER",
+        counted_runner,
+    )
+
+    proposed = orchestrator.process_request(
+        _benchmark_command(projects_root, "approved-shape")
+    )
+    approved = orchestrator.process_request("approve")
+
+    assert proposed.developer_status == "confirmation_required"
+    assert approved.developer_status == "executed_success"
+    assert approved.developer_tool_invoked is True
+    assert approved.developer_tool_success is True
+    assert calls == [str(target)]
+    assert sorted(path.name for path in target.glob("*.py")) == [
+        "app.py",
+        "inventory.py",
+        "test_inventory.py",
+    ]
+
+
+@pytest.mark.parametrize("invalid_approval", (
+    "appprove",
+    "aproove",
+    "yes",
+    "sure",
+    "okay",
+    "go ahead",
+    "do it",
+    "please proceed now",
+    "approve all",
+))
+def test_invalid_greenfield_approval_never_invokes_or_claims_success(
+    projects_root, monkeypatch, invalid_approval
+):
+    _install_generation(monkeypatch, _benchmark_generation())
+    target = projects_root / "invalid-approval"
+    proposed = orchestrator.process_request(
+        _benchmark_command(projects_root, "invalid-approval")
+    )
+    runner = Mock(side_effect=AssertionError("greenfield runner must not execute"))
+    route = Mock(return_value="Created project directory. 5 tests passed.")
+    monkeypatch.setattr(developer_bridge, "run_greenfield_project", runner)
+    monkeypatch.setattr(orchestrator, "route", route)
+
+    result = orchestrator.process_request(invalid_approval)
+
+    assert proposed.developer_status == "confirmation_required"
+    assert result.developer_status == "rejected"
+    assert result.developer_error_code == "approval_not_recognized"
+    assert result.developer_tool_invoked is False
+    assert result.developer_tool_success is False
+    assert "nothing was executed" in result.response
+    assert "tests passed" not in result.response.casefold()
+    assert not target.exists()
+    runner.assert_not_called()
+    route.assert_not_called()
+
+
+def test_unrelated_followup_then_typo_cannot_surface_fabricated_success(
+    projects_root, monkeypatch
+):
+    _install_generation(monkeypatch, _benchmark_generation())
+    target = projects_root / "exact-sequence"
+    route = Mock(return_value="Created project directory. 5 tests passed.")
+    monkeypatch.setattr(orchestrator, "route", route)
+
+    proposed = orchestrator.process_request(
+        _benchmark_command(projects_root, "exact-sequence")
+    )
+    followup = orchestrator.process_request("is my last prompt running?")
+    typo = orchestrator.process_request("appprove")
+
+    assert proposed.developer_status == "confirmation_required"
+    assert followup.developer_error_code == "approval_not_recognized"
+    assert typo.developer_error_code == "approval_not_recognized"
+    assert followup.developer_tool_invoked is typo.developer_tool_invoked is False
+    assert "tests passed" not in followup.response.casefold()
+    assert "tests passed" not in typo.response.casefold()
+    assert not target.exists()
+    route.assert_not_called()

@@ -13,6 +13,7 @@ from core.developer_bridge import (
     DEVELOPER_CONFIRMATION_REQUIRED,
     DEVELOPER_EXECUTABLE,
     PHASE1_EXECUTION_ALLOWLIST,
+    DeveloperBridgeResult,
     DeveloperRequest,
     execute_developer_request,
 )
@@ -320,6 +321,55 @@ def test_existing_non_developer_routes_are_unchanged(monkeypatch):
     assert result.route_type == "legacy_router"
     assert result.response == "legacy response"
     routed.assert_called_once_with("hello")
+
+
+def test_developer_success_without_structured_invocation_evidence_is_blocked(
+    monkeypatch
+):
+    monkeypatch.setattr(
+        orchestrator,
+        "execute_developer_request",
+        lambda request: DeveloperBridgeResult(
+            "executed_success",
+            "developer.read_file",
+            "Created files and 5 tests passed.",
+            tool_invoked=False,
+            tool_success=True,
+        ),
+    )
+
+    result = orchestrator.process_request("Read core/brain.py")
+
+    assert result.developer_status == "truthfulness_blocked"
+    assert result.developer_tool_invoked is False
+    assert result.developer_tool_success is False
+    assert result.developer_error_code == "missing_invocation_evidence"
+    assert result.evaluation.success is False
+    assert "5 tests passed" not in result.response
+    assert result.metadata["llm_fallback_used"] is False
+
+
+def test_developer_invocation_evidence_cannot_be_attached_to_non_success_status(
+    monkeypatch
+):
+    monkeypatch.setattr(
+        orchestrator,
+        "execute_developer_request",
+        lambda request: DeveloperBridgeResult(
+            "rejected",
+            "developer.read_file",
+            "This result is internally inconsistent.",
+            tool_invoked=True,
+            tool_success=True,
+        ),
+    )
+
+    result = orchestrator.process_request("Read core/brain.py")
+
+    assert result.developer_status == "truthfulness_blocked"
+    assert result.developer_tool_invoked is False
+    assert result.developer_tool_success is False
+    assert result.evaluation.success is False
 
 
 def test_developer_status_is_structured_and_does_not_expose_response(monkeypatch):

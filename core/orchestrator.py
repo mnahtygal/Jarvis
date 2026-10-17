@@ -24,6 +24,7 @@ from core.brain_status_v2 import (
 from core.developer_bridge import (
     DEVELOPER_CONFIRMATION_REQUIRED,
     DeveloperBridgeResult,
+    enforce_developer_result_truthfulness,
     execute_developer_request,
     invalidate_pending_developer_action,
 )
@@ -128,6 +129,9 @@ def process_request(command: str) -> BrainResult:
             if developer_request is None:
                 raise RuntimeError("developer classification is missing a request")
             developer_result = execute_developer_request(developer_request)
+            developer_result = enforce_developer_result_truthfulness(
+                developer_result
+            )
             if developer_result.tool_invoked:
                 set_actual_route("developer_tool")
             elif developer_result.status in {
@@ -256,6 +260,12 @@ def process_request(command: str) -> BrainResult:
         "plan_execution_ready": plan_validation.execution_ready,
         "unresolved_plan_steps": plan_validation.unresolved_step_count,
         "actual_route": actual_route,
+        "approval_matched": bool(
+            developer_result
+            and classification.developer_request
+            and classification.developer_request.mode == "approval"
+        ),
+        "llm_fallback_used": actual_route == "llm_fallback",
         "developer": {
             "status": developer_result.status if developer_result else None,
             "capability_id": (
@@ -289,9 +299,16 @@ def process_request(command: str) -> BrainResult:
         "processing_ms": processing_ms,
     }
     logger.debug(
-        "Brain v2 request completed intent=%s strategy=%s quality=%s processing_ms=%.2f",
+        "Brain v2 request completed intent=%s strategy=%s route=%s "
+        "developer_status=%s approval_matched=%s invoked=%s llm_fallback=%s "
+        "quality=%s processing_ms=%.2f",
         metadata["intent"],
         metadata["execution_strategy"],
+        actual_route,
+        developer_result.status if developer_result else None,
+        metadata["approval_matched"],
+        developer_result.tool_invoked if developer_result else False,
+        metadata["llm_fallback_used"],
         metadata["evaluation"]["quality"],
         processing_ms,
     )
@@ -340,6 +357,7 @@ def process_request(command: str) -> BrainResult:
         developer_argument_summary=(
             developer_result.safe_argument_summary if developer_result else ()
         ),
+        used_llm=actual_route == "llm_fallback",
         metadata=metadata,
     )
     publish_brain_v2_status(result)
