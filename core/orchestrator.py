@@ -108,7 +108,9 @@ def process_request(command: str) -> BrainResult:
 
     normalized_command = command.strip()
     started_at = time.perf_counter()
+    classifier_started = time.perf_counter()
     classification = classify_request(normalized_command)
+    classifier_ms = (time.perf_counter() - classifier_started) * 1000
     if classification.intent is not RequestIntent.DEVELOPER:
         invalidate_pending_developer_action()
     execution_strategy = determine_execution_strategy(classification)
@@ -122,13 +124,20 @@ def process_request(command: str) -> BrainResult:
     context_token = set_active_request_context(request_context)
     trace_token = begin_route_trace()
     developer_result: DeveloperBridgeResult | None = None
+    confirmation_ms = 0.0
 
     try:
         if classification.intent is RequestIntent.DEVELOPER:
             developer_request = classification.developer_request
             if developer_request is None:
                 raise RuntimeError("developer classification is missing a request")
+            developer_started = time.perf_counter()
             developer_result = execute_developer_request(developer_request)
+            developer_elapsed_ms = (
+                time.perf_counter() - developer_started
+            ) * 1000
+            if developer_result.status == DEVELOPER_CONFIRMATION_REQUIRED:
+                confirmation_ms = developer_elapsed_ms
             developer_result = enforce_developer_result_truthfulness(
                 developer_result
             )
@@ -260,6 +269,15 @@ def process_request(command: str) -> BrainResult:
         "plan_execution_ready": plan_validation.execution_ready,
         "unresolved_plan_steps": plan_validation.unresolved_step_count,
         "actual_route": actual_route,
+        "classifier_ms": classifier_ms,
+        "developer_recognition_ms": classification.developer_recognition_ms,
+        "confirmation_ms": confirmation_ms,
+        "llm_called": bool(
+            actual_route == "llm_fallback"
+            or (developer_result and developer_result.model_invoked)
+        ),
+        "final_route": actual_route,
+        "final_status": developer_result.status if developer_result else None,
         "approval_matched": bool(
             developer_result
             and classification.developer_request
@@ -300,7 +318,9 @@ def process_request(command: str) -> BrainResult:
     }
     logger.debug(
         "Brain v2 request completed intent=%s strategy=%s route=%s "
-        "developer_status=%s approval_matched=%s invoked=%s llm_fallback=%s "
+        "developer_status=%s approval_matched=%s invoked=%s llm_called=%s "
+        "classifier_ms=%.2f developer_recognition_ms=%.2f confirmation_ms=%.2f "
+        "llm_fallback=%s "
         "quality=%s processing_ms=%.2f",
         metadata["intent"],
         metadata["execution_strategy"],
@@ -308,6 +328,10 @@ def process_request(command: str) -> BrainResult:
         developer_result.status if developer_result else None,
         metadata["approval_matched"],
         developer_result.tool_invoked if developer_result else False,
+        metadata["llm_called"],
+        classifier_ms,
+        classification.developer_recognition_ms,
+        confirmation_ms,
         metadata["llm_fallback_used"],
         metadata["evaluation"]["quality"],
         processing_ms,
