@@ -31,6 +31,7 @@ from core.developer_agent.registry import get_tool
 from core.developer_agent.repair_proposal import propose_repair as real_propose_repair
 from core.developer_agent.tool_models import failure_result
 from core.developer_agent.developer_session import VerificationSpec
+from skills.llama_cpp_skill import LlamaCppStructuredResponse
 
 
 @pytest.fixture(autouse=True)
@@ -124,6 +125,56 @@ def _benchmark_generation():
             "test_inventory.py",
             "from inventory import count_items\n\n"
             "def test_count_items():\n    assert count_items(['a', 'b']) == 2\n",
+        ),
+    ))
+
+
+def _inventory_request(root: Path, name: str = "inventory") -> GreenfieldProjectRequest:
+    return GreenfieldProjectRequest(
+        workspace=str(root / name),
+        files=(
+            GreenfieldFileSpec("inventory.py", "source"),
+            GreenfieldFileSpec("app.py", "source"),
+            GreenfieldFileSpec("test_inventory.py", "test"),
+        ),
+        verification=VerificationSpec(
+            "run_command",
+            argv=("pytest", "-q", "test_inventory.py"),
+        ),
+        requirements=(
+            "Inventory needs name, category, quantity, location, JSON save/load, "
+            "add, list, search, update quantity, remove, and reject negative quantities."
+        ),
+    )
+
+
+def _inventory_persistence_generation():
+    return _generation((
+        (
+            "inventory.py",
+            "import json\nfrom pathlib import Path\n\n"
+            "def save(path, items):\n"
+            "    Path(path).write_text(json.dumps(items), encoding='utf-8')\n\n"
+            "def load(path):\n"
+            "    return json.loads(Path(path).read_text(encoding='utf-8'))\n\n"
+            "def remove(items, item):\n"
+            "    items.remove(item)\n",
+        ),
+        (
+            "app.py",
+            "from inventory import load, save\n\n"
+            "def main(path, items):\n"
+            "    save(path, items)\n"
+            "    return load(path)\n",
+        ),
+        (
+            "test_inventory.py",
+            "from inventory import load, save\n\n"
+            "def test_round_trip(tmp_path):\n"
+            "    path = tmp_path / 'inventory.json'\n"
+            "    items = [{'name': 'bolt', 'quantity': 2}]\n"
+            "    save(path, items)\n"
+            "    assert load(path) == items\n",
         ),
     ))
 
@@ -556,6 +607,144 @@ def test_generated_scope_attacks_are_rejected(projects_root, output):
     assert not (projects_root / "demo").exists()
 
 
+@pytest.mark.parametrize(("output", "reason"), (
+    ('{"files":[', "json_parse_failed"),
+    ('{"files":[],"files":[]}', "duplicate_json_field"),
+    ('{"files":[],"extra":true}', "schema_mismatch"),
+    (
+        _generation((
+            ("inventory.py", "VALUE = 1\n"),
+            ("test_inventory.py", "VALUE = 1\n"),
+        )),
+        "missing_file",
+    ),
+    (
+        _generation((
+            ("inventory.py", "VALUE = 1\n"),
+            ("wrong.py", "VALUE = 1\n"),
+            ("test_inventory.py", "VALUE = 1\n"),
+        )),
+        "unexpected_file",
+    ),
+    (
+        _generation((
+            ("inventory.py", "VALUE = 1\n"),
+            ("inventory.py", "VALUE = 2\n"),
+            ("test_inventory.py", "VALUE = 1\n"),
+        )),
+        "duplicate_file",
+    ),
+    (
+        '{"files":['
+        '{"path":"inventory.py","content":1},'
+        '{"path":"app.py","content":"VALUE = 1\\n"},'
+        '{"path":"test_inventory.py","content":"VALUE = 1\\n"}'
+        ']}',
+        "content_not_string",
+    ),
+    (
+        _generation((
+            ("inventory.py", "def broken(:\n"),
+            ("app.py", "VALUE = 1\n"),
+            ("test_inventory.py", "VALUE = 1\n"),
+        )),
+        "python_parse_failed",
+    ),
+    (
+        _generation((
+            ("inventory.py", "import subprocess\n"),
+            ("app.py", "VALUE = 1\n"),
+            ("test_inventory.py", "VALUE = 1\n"),
+        )),
+        "ast_policy_import_rejected",
+    ),
+))
+def test_inventory_generation_rejection_reason_taxonomy(
+    projects_root, output, reason
+):
+    request = _inventory_request(projects_root)
+
+    with pytest.raises(GreenfieldProjectError, match=f"^{reason}$"):
+        greenfield_project._parse_generation(output, request.files)
+
+
+def test_inventory_json_persistence_generation_is_accepted(projects_root):
+    request = _inventory_request(projects_root, "json-persistence")
+
+    manifest = prepare_greenfield_manifest(
+        request,
+        model_call=_Responses(_inventory_persistence_generation()),
+    )
+
+    assert tuple(item.path for item in manifest.files) == (
+        "inventory.py",
+        "app.py",
+        "test_inventory.py",
+    )
+    assert not (projects_root / "json-persistence").exists()
+
+
+def test_truncated_model_output_is_reported_and_never_written(projects_root):
+    truncated = LlamaCppStructuredResponse(
+        '{"files":[',
+        "length",
+        200,
+        "ok",
+        100.0,
+    )
+    request = _inventory_request(projects_root, "truncated")
+
+    with pytest.raises(GreenfieldProjectError, match="^model_output_truncated$"):
+        prepare_greenfield_manifest(
+            request,
+            model_call=_Responses(truncated, truncated),
+        )
+
+    assert not (projects_root / "truncated").exists()
+
+
+def test_generation_transport_failure_has_bounded_reason(projects_root):
+    failed = LlamaCppStructuredResponse(
+        "",
+        None,
+        None,
+        "transport_error",
+        50.0,
+    )
+
+    with pytest.raises(GreenfieldProjectError, match="^generation_transport_error$"):
+        prepare_greenfield_manifest(
+            _inventory_request(projects_root, "transport-failure"),
+            model_call=_Responses(failed, failed),
+        )
+
+    assert not (projects_root / "transport-failure").exists()
+
+
+def test_model_output_absolute_bound_remains_fail_closed(projects_root):
+    request = _inventory_request(projects_root)
+    oversized = "x" * (greenfield_project.MAX_GREENFIELD_MODEL_OUTPUT_BYTES + 1)
+
+    with pytest.raises(GreenfieldProjectError, match="^model_output_too_large$"):
+        greenfield_project._parse_generation(oversized, request.files)
+
+
+def test_second_attempt_receives_safe_reason_specific_correction(projects_root):
+    request = _inventory_request(projects_root, "corrected")
+    model = _Responses('{"files":[', _inventory_persistence_generation())
+
+    manifest = prepare_greenfield_manifest(request, model_call=model)
+
+    assert len(model.calls) == 2
+    assert "(json_parse_failed)" in model.calls[1][1]
+    assert tuple(item.path for item in manifest.files) == (
+        "inventory.py",
+        "app.py",
+        "test_inventory.py",
+    )
+    assert not (projects_root / "corrected").exists()
+
+
 def test_generated_file_and_total_size_limits_are_enforced(projects_root):
     oversized_file = _generation((
         ("mathlib.py", "x = '" + ("a" * (8 * 1024)) + "'\n"),
@@ -619,6 +808,8 @@ def test_request_file_count_limit_is_enforced(projects_root):
     "eval('1 + 1')\n",
     "getattr(object(), '__class__')\n",
     "import pathlib\nrunner = pathlib.os.system\n",
+    "import pathlib\npathlib.os.remove('inventory.json')\n",
+    "import posix\nposix.remove('inventory.json')\n",
     "object().__class__\n",
 ))
 def test_generated_executable_content_rejects_process_network_and_dynamic_access(

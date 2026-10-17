@@ -771,6 +771,15 @@ calling a model. Only after exact approval is the local model asked for strict
 JSON file content. The model cannot select paths, commands, dependencies, or
 additional files.
 
+Generation uses a compact per-request grammar that fixes the exact approved
+filename count and order and does not permit unbounded formatting whitespace.
+The transport preserves finish status and timing so token exhaustion is reported
+as truncation rather than a generic parser failure. A complete leading Qwen
+reasoning envelope is removed only before the JSON root; reasoning-like text
+inside file content is preserved. One retry receives only the bounded rejection
+code and fixed safe correction guidance. Safe logs contain no prompt, source,
+raw output, file content, or manifest.
+
 The only permitted parent is `/home/mnahtygal/projects`. The parent must already
 exist, resolve to itself, and not be a symlink; the direct child project must not
 exist. Approval rechecks those properties and the sealed proposal, then builds
@@ -788,6 +797,9 @@ from `allowed_mutation_paths`; repair proposals targeting them are rejected.
 Generated Python is syntax-checked and limited to standard-library, pytest, and
 approved project-module imports, with process, network, installer, dynamic-code,
 and destructive-call primitives blocked before filesystem mutation.
+Ordinary collection removal remains allowed for project behavior, while
+`os.remove`, `pathlib.os.remove`, `unlink`, directory removal, and the existing
+deletion APIs remain blocked.
 This AST gate is defense-in-depth input screening, not an operating-system
 sandbox. Ordinary JSON and workspace file persistence remain available, and the
 existing pytest execution limitations below still apply.

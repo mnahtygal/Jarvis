@@ -76,4 +76,33 @@ def test_structured_greenfield_output_preserves_literal_think_text(monkeypatch):
         lambda *args, **kwargs: _Response(content=output),
     )
 
-    assert llama_module.get_llama_cpp_greenfield_response("prompt", "system") == output
+    result = llama_module.get_llama_cpp_greenfield_response(
+        "prompt",
+        "system",
+        approved_paths=("app.py",),
+    )
+
+    assert result.content == output
+    assert result.endpoint_status == "ok"
+
+
+def test_structured_greenfield_removes_only_complete_leading_reasoning_envelope(
+    monkeypatch,
+):
+    output = '{"files":[{"path":"app.py","content":"VALUE = \'<think>\'"}]}'
+    wrapped = f"<think>private reasoning</think>\n{output}"
+    monkeypatch.setattr(llama_module, "get_active_model_id", lambda: "test-model")
+    monkeypatch.setattr(
+        llama_module.requests,
+        "post",
+        lambda *args, **kwargs: _Response(content=wrapped),
+    )
+
+    result = llama_module.get_llama_cpp_greenfield_response(
+        "prompt",
+        "system",
+        approved_paths=("app.py",),
+    )
+
+    assert result.content == output
+    assert result.output_bytes == len(wrapped.encode("utf-8"))
