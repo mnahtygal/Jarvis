@@ -40,12 +40,12 @@ from core.developer_agent.git_safety import (
 )
 from core.developer_agent.greenfield_project import (
     GreenfieldProjectError,
-    GreenfieldProjectManifest,
     GreenfieldProjectResult,
     classify_greenfield_request,
     prepare_greenfield_manifest,
+    prepare_greenfield_proposal,
     run_greenfield_project,
-    validate_greenfield_manifest,
+    validate_greenfield_proposal,
 )
 from core.developer_agent.mutation import (
     MAX_FILE_BYTES, MAX_PATCH_PAYLOAD_BYTES, MutationError, encode_text,
@@ -101,6 +101,7 @@ class DeveloperBridgeResult:
     repair_count: int | None = None
     verification_count: int | None = None
     final_state: str | None = None
+    model_invoked: bool = False
 
 
 @dataclass(frozen=True)
@@ -655,9 +656,9 @@ def _validate_session_arguments(
 def _validate_pending_arguments(capability_id: str, arguments: Mapping[str, object], workspace: Workspace) -> tuple[tuple[object, ...] | None, str | None]:
     try:
         if capability_id == "developer.greenfield_project":
-            if set(arguments) != {"manifest"}:
+            if set(arguments) != {"proposal"}:
                 return None, "invalid_arguments"
-            return validate_greenfield_manifest(arguments["manifest"]), None
+            return validate_greenfield_proposal(arguments["proposal"]), None
         if capability_id == "developer.bounded_session":
             return _validate_session_arguments(arguments, workspace)
         if capability_id == "developer.write_file":
@@ -820,6 +821,7 @@ def _adapt_greenfield_result(
             "invalid_greenfield_result",
             summary,
             "Approved greenfield project",
+            model_invoked=True,
         )
     created = ", ".join(result.created_files) if result.created_files else "none"
     changed = ", ".join(result.changed_paths) if result.changed_paths else "none"
@@ -845,6 +847,7 @@ def _adapt_greenfield_result(
         result.repairs_applied,
         result.verification_runs,
         result.status,
+        True,
     )
 
 
@@ -869,8 +872,23 @@ def _payload_size(arguments: Mapping[str, object]) -> int:
     return sum(len(str(key).encode()) + len(str(value).encode()) for key, value in arguments.items())
 
 
-def _failure(status: str, capability_id: str | None, code: str, summary: tuple[str, ...], prefix: str = "Developer request") -> DeveloperBridgeResult:
-    return DeveloperBridgeResult(status, capability_id, f"{prefix} was refused safely ({code}); nothing was executed.", summary, error_code=code)
+def _failure(
+    status: str,
+    capability_id: str | None,
+    code: str,
+    summary: tuple[str, ...],
+    prefix: str = "Developer request",
+    *,
+    model_invoked: bool = False,
+) -> DeveloperBridgeResult:
+    return DeveloperBridgeResult(
+        status,
+        capability_id,
+        f"{prefix} was refused safely ({code}); nothing was executed.",
+        summary,
+        error_code=code,
+        model_invoked=model_invoked,
+    )
 
 
 def _propose_action(request: DeveloperRequest) -> DeveloperBridgeResult:
@@ -907,11 +925,11 @@ def _propose_action(request: DeveloperRequest) -> DeveloperBridgeResult:
                 request.safe_argument_summary,
             )
         try:
-            manifest = prepare_greenfield_manifest(request.arguments["request"])
-            arguments = {"manifest": manifest}
+            proposal = prepare_greenfield_proposal(request.arguments["request"])
+            arguments = {"proposal": proposal}
             if _payload_size(arguments) > MAX_PENDING_PAYLOAD_BYTES:
                 raise GreenfieldProjectError("pending_payload_too_large")
-            seal = validate_greenfield_manifest(manifest)
+            seal = validate_greenfield_proposal(proposal)
         except GreenfieldProjectError as exc:
             return _failure(
                 "validation_failed",
@@ -931,7 +949,7 @@ def _propose_action(request: DeveloperRequest) -> DeveloperBridgeResult:
             arguments,
             request.safe_argument_summary,
             time.monotonic(),
-            Path(manifest.workspace).parent,
+            Path(proposal.request.workspace).parent,
             signature,
             seal,
         )
@@ -1057,7 +1075,7 @@ def _approve_action() -> DeveloperBridgeResult:
     if error or signature != pending.registry_signature:
         return _failure("policy_blocked", pending.capability_id, error or "capability_metadata_changed", pending.safe_argument_summary, "Approved developer action")
     if pending.capability_id in PHASE5_GREENFIELD_ALLOWLIST:
-        if set(pending.arguments) != {"manifest"}:
+        if set(pending.arguments) != {"proposal"}:
             return _failure(
                 "validation_failed",
                 pending.capability_id,
@@ -1065,9 +1083,9 @@ def _approve_action() -> DeveloperBridgeResult:
                 pending.safe_argument_summary,
                 "Approved greenfield project",
             )
-        manifest = pending.arguments["manifest"]
+        proposal = pending.arguments["proposal"]
         try:
-            seal = validate_greenfield_manifest(manifest)
+            seal = validate_greenfield_proposal(proposal)
         except GreenfieldProjectError as exc:
             return _failure(
                 "validation_failed",
@@ -1086,7 +1104,7 @@ def _approve_action() -> DeveloperBridgeResult:
             )
         if (
             seal != pending.validation_seal
-            or Path(manifest.workspace).parent != pending.workspace_root
+            or Path(proposal.request.workspace).parent != pending.workspace_root
         ):
             return _failure(
                 "validation_failed",
@@ -1096,6 +1114,20 @@ def _approve_action() -> DeveloperBridgeResult:
                 "Approved greenfield project",
             )
         try:
+            manifest = prepare_greenfield_manifest(proposal.request)
+            if (
+                manifest.workspace != proposal.request.workspace
+                or tuple(
+                    (item.path, item.role)
+                    for item in manifest.files
+                ) != tuple(
+                    (item.path, item.role)
+                    for item in proposal.request.files
+                )
+                or manifest.verification != proposal.request.verification
+                or manifest.parent_snapshot != proposal.parent_snapshot
+            ):
+                raise GreenfieldProjectError("generated_manifest_scope_changed")
             result = run_greenfield_project(manifest)
         except GreenfieldProjectError as exc:
             return _failure(
@@ -1104,6 +1136,7 @@ def _approve_action() -> DeveloperBridgeResult:
                 exc.code,
                 pending.safe_argument_summary,
                 "Approved greenfield project",
+                model_invoked=True,
             )
         except Exception:
             result = GreenfieldProjectResult(
@@ -1237,5 +1270,6 @@ def enforce_developer_result_truthfulness(
             result.repair_count,
             result.verification_count,
             "truthfulness_blocked",
+            result.model_invoked,
         )
     return result

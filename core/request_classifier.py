@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+import time
 
 from core.developer_bridge import DeveloperRequest, classify_developer_request
 from core.router import normalize_text_for_routing
@@ -36,6 +37,7 @@ class RequestClassification:
     intent: RequestIntent
     context_policy: ContextPolicy
     developer_request: DeveloperRequest | None = None
+    developer_recognition_ms: float = field(default=0.0, compare=False)
 
 
 def _policy_for(intent: RequestIntent) -> ContextPolicy:
@@ -143,7 +145,11 @@ def classify_request(command: str) -> RequestClassification:
         raise TypeError("command must be a string")
 
     text = normalize_text_for_routing(command)
+    recognition_started = time.perf_counter()
     developer_request = classify_developer_request(command)
+    developer_recognition_ms = (
+        time.perf_counter() - recognition_started
+    ) * 1000
     if developer_request is not None:
         intent = RequestIntent.DEVELOPER
         policy = _policy_for(intent)
@@ -185,4 +191,5 @@ def classify_request(command: str) -> RequestClassification:
         intent=intent,
         context_policy=policy,
         developer_request=developer_request,
+        developer_recognition_ms=developer_recognition_ms,
     )

@@ -159,7 +159,12 @@ and pytest verification. Vague requests remain conversational or unsupported.
 Paths containing traversal, expansion syntax, globs, symlink roots, existing
 destinations, locations inside Jarvis, `/tmp`, or any other parent are refused.
 
-Before confirmation, the existing local model may provide content only for the
+Before confirmation, recognition and proposal sealing are deterministic and
+model-free. The pending action binds the exact workspace, filenames, roles,
+requirements, pytest target, parent inode, and hard limits. No source or test
+content is generated and no file is created until exact approval.
+
+After approval, the existing local model may provide content only for the
 caller-selected filenames. Generation uses deterministic sampling, disabled
 thinking, a fixed JSON grammar, strict duplicate-field/schema validation, an
 8 KiB per-file limit, a 24 KiB total-content limit, and at most one correction
@@ -170,10 +175,12 @@ verification targets, directories, roles, limits, or extra files.
 The AST checks are defense-in-depth input screening, not an operating-system
 sandbox; execution retains the documented pytest trust boundary.
 
-Approval binds an immutable content-inclusive manifest. The bridge rechecks the
+Approval binds the sealed deterministic proposal. The bridge rechecks the
 registry, canonical handler, allowed parent inode, absent destination, exact file
-and role lists, frozen `pytest -q <test files>` target, model configuration,
-hard limits, and manifest digest. Approval is expiring, single-use,
+and role lists, frozen `pytest -q <test files>` target, hard limits, and proposal
+digest before generation. It then creates and validates an immutable,
+content-inclusive manifest and rechecks model configuration, scope, limits,
+parent inode, and manifest digest before filesystem mutation. Approval is expiring, single-use,
 non-replayable, and invalidated by unrelated requests under the existing policy.
 Invalid approval text returns a deterministic no-execution result, including for
 common approval typos after the pending action has already been cleared.

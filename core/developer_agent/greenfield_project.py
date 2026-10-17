@@ -131,6 +131,15 @@ class GreenfieldProjectRequest:
 
 
 @dataclass(frozen=True)
+class GreenfieldProjectProposal:
+    request: GreenfieldProjectRequest
+    parent_snapshot: tuple[int, int]
+    limits: tuple[int, ...]
+    digest: str
+    _seal: object | None = field(default=None, repr=False, compare=False)
+
+
+@dataclass(frozen=True)
 class GreenfieldGeneratedFile:
     path: str
     role: str
@@ -275,6 +284,90 @@ def validate_greenfield_request(request: object) -> GreenfieldProjectRequest:
     ):
         raise GreenfieldProjectError("invalid_requirements")
     return request
+
+
+def _proposal_limits() -> tuple[int, ...]:
+    return (
+        MAX_GREENFIELD_FILES,
+        MAX_GREENFIELD_SOURCE_FILES,
+        MAX_GREENFIELD_TEST_FILES,
+        MAX_GREENFIELD_FILE_BYTES,
+        MAX_GREENFIELD_TOTAL_BYTES,
+        MAX_SESSION_REPAIRS,
+        MAX_SESSION_VERIFICATION_RUNS,
+        MAX_SESSION_PROPOSAL_REQUESTS,
+    )
+
+
+def _proposal_digest(proposal: GreenfieldProjectProposal) -> str:
+    request = proposal.request
+    payload = {
+        "workspace": request.workspace,
+        "files": [
+            {"path": item.path, "role": item.role}
+            for item in request.files
+        ],
+        "verification": {
+            "kind": request.verification.kind,
+            "argv": list(request.verification.argv),
+            "project_path": request.verification.project_path,
+        },
+        "requirements": request.requirements,
+        "parent_snapshot": list(proposal.parent_snapshot),
+        "limits": list(proposal.limits),
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def prepare_greenfield_proposal(request: object) -> GreenfieldProjectProposal:
+    """Seal exact greenfield scope without contacting a model or creating files."""
+
+    prepared = validate_greenfield_request(request)
+    _, parent = _workspace_path(prepared.workspace, require_absent=True)
+    parent_stat = parent.stat()
+    proposal = GreenfieldProjectProposal(
+        request=prepared,
+        parent_snapshot=(parent_stat.st_dev, parent_stat.st_ino),
+        limits=_proposal_limits(),
+        digest="",
+        _seal=_MANIFEST_SEAL,
+    )
+    object.__setattr__(proposal, "digest", _proposal_digest(proposal))
+    validate_greenfield_proposal(proposal)
+    return proposal
+
+
+def validate_greenfield_proposal(proposal: object) -> tuple[object, ...]:
+    """Revalidate a pending deterministic proposal before approved generation."""
+
+    if (
+        type(proposal) is not GreenfieldProjectProposal
+        or proposal._seal is not _MANIFEST_SEAL
+    ):
+        raise GreenfieldProjectError("invalid_greenfield_proposal")
+    request = validate_greenfield_request(proposal.request)
+    workspace, parent = _workspace_path(request.workspace, require_absent=True)
+    parent_stat = parent.stat()
+    snapshot = (parent_stat.st_dev, parent_stat.st_ino)
+    if snapshot != proposal.parent_snapshot:
+        raise GreenfieldProjectError("projects_root_changed")
+    if proposal.limits != _proposal_limits():
+        raise GreenfieldProjectError("greenfield_limits_changed")
+    if proposal.digest != _proposal_digest(proposal):
+        raise GreenfieldProjectError("greenfield_proposal_changed")
+    return (
+        "greenfield_project_proposal",
+        workspace,
+        proposal.digest,
+        snapshot,
+        proposal.limits,
+    )
 
 
 def classify_greenfield_request(command: str) -> tuple[GreenfieldProjectRequest | None, bool]:

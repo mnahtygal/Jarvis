@@ -3,11 +3,13 @@
 from dataclasses import replace
 import json
 from pathlib import Path
+import time
 from unittest.mock import Mock
 
+import api
 import pytest
 
-from core import developer_bridge, orchestrator
+from core import brain, context, developer_bridge, orchestrator
 from core.capability_registry import (
     PHASE5_DEVELOPER_GREENFIELD_ALLOWLIST,
     get_capability,
@@ -20,8 +22,10 @@ from core.developer_agent.greenfield_project import (
     GreenfieldProjectRequest,
     classify_greenfield_request,
     prepare_greenfield_manifest,
+    prepare_greenfield_proposal,
     run_greenfield_project,
     validate_greenfield_manifest,
+    validate_greenfield_proposal,
 )
 from core.developer_agent.registry import get_tool
 from core.developer_agent.repair_proposal import propose_repair as real_propose_repair
@@ -101,6 +105,15 @@ with exactly inventory.py, app.py, and test_inventory.py.
 Use pytest -q test_inventory.py.
 Use the greenfield project workflow.
 Ask for approval before creating anything."""
+
+
+EXACT_LIVE_BENCHMARK_PROMPT = """Build a Python project at /home/mnahtygal/projects/jarvis-python-challenge with exactly inventory.py, app.py, and test_inventory.py.
+
+Use pytest -q test_inventory.py.
+
+Inventory needs name, category, quantity, location, JSON save/load, add, list, search, update quantity, remove, and reject negative quantities.
+
+Use your greenfield project workflow. Ask for approval before creating anything."""
 
 
 def _benchmark_generation():
@@ -212,7 +225,7 @@ def test_green_project_requires_approval_and_stops_without_repair(
     assert proposed.developer_status == "confirmation_required"
     assert proposed.developer_capability_id == "developer.greenfield_project"
     assert not target.exists()
-    assert len(generator.calls) == 1
+    assert len(generator.calls) == 0
 
     approved = orchestrator.process_request("approve")
 
@@ -225,6 +238,7 @@ def test_green_project_requires_approval_and_stops_without_repair(
         "test_mathlib.py",
     ]
     assert not (target / ".git").exists()
+    assert len(generator.calls) == 1
     unexpected_repair.assert_not_called()
     assert orchestrator.process_request("approve").developer_error_code == "no_pending_action"
 
@@ -398,7 +412,9 @@ def test_destination_created_after_confirmation_fails_closed(projects_root, monk
     assert list(target.iterdir()) == []
 
 
-def test_generation_config_change_after_confirmation_fails_closed(projects_root, monkeypatch):
+def test_generation_config_change_during_approved_preparation_fails_closed(
+    projects_root, monkeypatch
+):
     _install_generation(
         monkeypatch,
         _generation((
@@ -408,10 +424,14 @@ def test_generation_config_change_after_confirmation_fails_closed(projects_root,
     )
     target = projects_root / "config-change"
     assert orchestrator.process_request(_command(projects_root, "config-change")).developer_status == "confirmation_required"
+    signatures = iter((
+        ("http://127.0.0.1:8080/v1/chat/completions", "first-model"),
+        ("http://127.0.0.1:8080/v1/chat/completions", "different-model"),
+    ))
     monkeypatch.setattr(
         greenfield_project,
         "generation_config_signature",
-        lambda: ("http://127.0.0.1:8080/v1/chat/completions", "different-model"),
+        lambda: next(signatures),
     )
 
     result = orchestrator.process_request("approve")
@@ -455,13 +475,23 @@ def test_pending_workspace_tampering_fails_seal_revalidation(projects_root, monk
     )
     assert orchestrator.process_request(_command(projects_root, "sealed")).developer_status == "confirmation_required"
     pending = developer_bridge._pending_action
-    manifest = pending.arguments["manifest"]
-    tampered = replace(manifest, workspace=str(projects_root / "different"))
-    object.__setattr__(tampered, "_seal", manifest._seal)
-    object.__setattr__(tampered, "digest", greenfield_project._manifest_digest(tampered))
+    proposal = pending.arguments["proposal"]
+    tampered = replace(
+        proposal,
+        request=replace(
+            proposal.request,
+            workspace=str(projects_root / "different"),
+        ),
+    )
+    object.__setattr__(tampered, "_seal", proposal._seal)
+    object.__setattr__(
+        tampered,
+        "digest",
+        greenfield_project._proposal_digest(tampered),
+    )
     developer_bridge._pending_action = replace(
         pending,
-        arguments={"manifest": tampered},
+        arguments={"proposal": tampered},
     )
 
     result = orchestrator.process_request("approve")
@@ -470,6 +500,17 @@ def test_pending_workspace_tampering_fails_seal_revalidation(projects_root, monk
     assert result.developer_error_code == "validation_state_changed"
     assert not (projects_root / "sealed").exists()
     assert not (projects_root / "different").exists()
+
+
+def test_greenfield_proposal_is_deterministic_and_model_free(projects_root):
+    request = _request(projects_root, "proposal-only")
+
+    proposal = prepare_greenfield_proposal(request)
+    seal = validate_greenfield_proposal(proposal)
+
+    assert proposal.request == request
+    assert seal[0] == "greenfield_project_proposal"
+    assert not (projects_root / "proposal-only").exists()
 
 
 @pytest.mark.parametrize("workspace", (
@@ -659,6 +700,82 @@ def test_live_benchmark_prompt_repeated_test_reference_routes_to_confirmation(
     assert not target.exists()
 
 
+def test_exact_live_benchmark_api_confirmation_is_fast_model_free_and_isolated(
+    monkeypatch,
+):
+    target = Path("/home/mnahtygal/projects/jarvis-python-challenge")
+    assert target.parent.is_dir()
+    assert not target.exists()
+    conversational_route = Mock(
+        side_effect=AssertionError("conversational model route must not run")
+    )
+    generation = Mock(
+        side_effect=AssertionError("greenfield generation must wait for approval")
+    )
+    generation_model = Mock(
+        side_effect=AssertionError("greenfield model must wait for approval")
+    )
+    repair = Mock(side_effect=AssertionError("repair model must not run"))
+    executor = Mock(side_effect=AssertionError("greenfield executor must not run"))
+    recent_history = Mock(return_value=[
+        {"role": "user", "content": "start developer mode"},
+        {"role": "assistant", "content": "Created project. 5 tests passed."},
+        {"role": "user", "content": "Generate Yahtzee code."},
+    ])
+    captured = []
+    real_process_request = orchestrator.process_request
+
+    def capture_result(command):
+        result = real_process_request(command)
+        captured.append(result)
+        return result
+
+    monkeypatch.setattr(orchestrator, "route", conversational_route)
+    monkeypatch.setattr(developer_bridge, "prepare_greenfield_manifest", generation)
+    monkeypatch.setattr(
+        greenfield_project,
+        "get_llama_cpp_greenfield_response",
+        generation_model,
+    )
+    monkeypatch.setattr(developer_session, "propose_repair", repair)
+    monkeypatch.setattr(developer_bridge, "run_greenfield_project", executor)
+    monkeypatch.setattr(developer_bridge, "_CANONICAL_GREENFIELD_HANDLER", executor)
+    monkeypatch.setattr(context, "get_recent_history", recent_history)
+    monkeypatch.setattr(brain, "process_request", capture_result)
+
+    started = time.perf_counter()
+    response = api.app.test_client().post(
+        "/text",
+        json={"command": EXACT_LIVE_BENCHMARK_PROMPT},
+    )
+    elapsed = time.perf_counter() - started
+
+    assert response.status_code == 200
+    assert len(captured) == 1
+    result = captured[0]
+    assert result.developer_capability_id == "developer.greenfield_project"
+    assert result.developer_status == "confirmation_required"
+    assert result.actual_route == "developer_confirmation"
+    assert result.metadata["llm_called"] is False
+    assert result.metadata["llm_fallback_used"] is False
+    assert result.metadata["final_route"] == "developer_confirmation"
+    assert result.metadata["final_status"] == "confirmation_required"
+    assert result.metadata["classifier_ms"] >= 0
+    assert result.metadata["developer_recognition_ms"] >= 0
+    assert result.metadata["confirmation_ms"] >= 0
+    assert developer_bridge._pending_action is not None
+    assert developer_bridge._pending_action.arguments.keys() == {"proposal"}
+    assert "Confirmation required" in response.get_json()["response"]
+    assert elapsed < 1.0
+    assert not target.exists()
+    conversational_route.assert_not_called()
+    generation.assert_not_called()
+    generation_model.assert_not_called()
+    repair.assert_not_called()
+    executor.assert_not_called()
+    recent_history.assert_not_called()
+
+
 def test_live_benchmark_exact_approval_invokes_canonical_greenfield_once(
     projects_root, monkeypatch
 ):
@@ -687,6 +804,7 @@ def test_live_benchmark_exact_approval_invokes_canonical_greenfield_once(
     assert approved.developer_status == "executed_success"
     assert approved.developer_tool_invoked is True
     assert approved.developer_tool_success is True
+    assert approved.metadata["llm_called"] is True
     assert calls == [str(target)]
     assert sorted(path.name for path in target.glob("*.py")) == [
         "app.py",
