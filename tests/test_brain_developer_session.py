@@ -101,10 +101,188 @@ def _request():
     return "Fix calculator.py until test_calculator.py passes"
 
 
+_EXACT_REPAIR_BENCHMARK_REQUEST = """Run a bounded developer session on /home/mnahtygal/projects/jarvis-repair-challenge.
+
+Source file:
+stock.py
+
+Test file:
+test_stock.py
+
+Verification:
+pytest -q test_stock.py
+
+Only stock.py may be modified.
+test_stock.py must remain read-only.
+
+Ask for approval before making any change.
+Do not use Git."""
+
+
 def test_phase3_allowlist_is_exact():
     assert developer_bridge.PHASE3_SESSION_ALLOWLIST == frozenset({
         "developer.bounded_session",
     })
+
+
+def test_exact_repair_benchmark_routes_to_bounded_session_before_execution(
+    isolated_workspace,
+    monkeypatch,
+):
+    source = isolated_workspace.root / "stock.py"
+    test = isolated_workspace.root / "test_stock.py"
+    source.write_text("STOCK = 1\n", encoding="utf-8")
+    test.write_text(
+        "from stock import STOCK\n\ndef test_stock():\n    assert STOCK == 1\n",
+        encoding="utf-8",
+    )
+    source_before = source.read_bytes()
+    test_before = test.read_bytes()
+    workspace_factory = Mock(return_value=isolated_workspace)
+    executor = Mock(side_effect=AssertionError("verification must await approval"))
+    bridge_executor = Mock(side_effect=AssertionError("no direct tool may run"))
+    model = Mock(side_effect=AssertionError("model must await failed verification"))
+    monkeypatch.setattr(
+        developer_bridge,
+        "_workspace_from_explicit_root",
+        workspace_factory,
+    )
+    monkeypatch.setattr(developer_bridge, "execute_tool", bridge_executor)
+    monkeypatch.setattr(developer_session, "execute_tool", executor)
+    monkeypatch.setattr(developer_session, "propose_repair", model)
+
+    parsed = developer_bridge.classify_developer_request(
+        _EXACT_REPAIR_BENCHMARK_REQUEST
+    )
+    assert parsed.capability_id == "developer.bounded_session"
+    assert parsed.capability_id != "developer.repair_loop"
+    normalized = developer_bridge.classify_developer_request(
+        " ".join(_EXACT_REPAIR_BENCHMARK_REQUEST.split())
+    )
+    assert normalized.capability_id == "developer.bounded_session"
+    assert normalized.capability_id != "developer.repair_loop"
+    proposed = orchestrator.process_request(_EXACT_REPAIR_BENCHMARK_REQUEST)
+
+    assert proposed.developer_status == "confirmation_required"
+    assert proposed.developer_capability_id == "developer.bounded_session"
+    assert proposed.developer_tool_invoked is False
+    assert proposed.metadata["llm_called"] is False
+    assert developer_bridge._pending_action is not None
+    assert developer_bridge._pending_action.capability_id == "developer.bounded_session"
+    assert developer_bridge._pending_action.explicit_workspace is True
+    workspace_factory.assert_called_once_with(
+        "/home/mnahtygal/projects/jarvis-repair-challenge"
+    )
+    assert source.read_bytes() == source_before
+    assert test.read_bytes() == test_before
+    assert not (isolated_workspace.root / ".git").exists()
+    executor.assert_not_called()
+    bridge_executor.assert_not_called()
+    model.assert_not_called()
+
+
+def test_exact_repair_benchmark_approval_uses_canonical_session_once(
+    isolated_workspace,
+    monkeypatch,
+):
+    source = isolated_workspace.root / "stock.py"
+    test = isolated_workspace.root / "test_stock.py"
+    source.write_text("STOCK = 1\n", encoding="utf-8")
+    test.write_text(
+        "from stock import STOCK\n\ndef test_stock():\n    assert STOCK == 1\n",
+        encoding="utf-8",
+    )
+    source_before = source.read_bytes()
+    test_before = test.read_bytes()
+    verification = Mock(return_value=success_result(
+        "developer.run_command",
+        "1 passed",
+        metadata={"command_family": "pytest", "exit_code": 0},
+    ))
+    model = Mock(side_effect=AssertionError("green verification must not call model"))
+    real_handler = developer_bridge.run_developer_session_request
+    handler_calls = []
+
+    def canonical_handler(request, *, workspace):
+        handler_calls.append((request, workspace))
+        return real_handler(request, workspace=workspace)
+
+    monkeypatch.setattr(
+        developer_bridge,
+        "_workspace_from_explicit_root",
+        lambda value: isolated_workspace,
+    )
+    monkeypatch.setattr(
+        developer_bridge,
+        "Workspace",
+        lambda root=None: isolated_workspace,
+    )
+    monkeypatch.setattr(developer_session, "execute_tool", verification)
+    monkeypatch.setattr(developer_session, "propose_repair", model)
+    monkeypatch.setattr(
+        developer_bridge,
+        "run_developer_session_request",
+        canonical_handler,
+    )
+    monkeypatch.setattr(
+        developer_bridge,
+        "_CANONICAL_BOUNDED_SESSION_HANDLER",
+        canonical_handler,
+    )
+
+    proposed = orchestrator.process_request(_EXACT_REPAIR_BENCHMARK_REQUEST)
+    assert proposed.developer_status == "confirmation_required"
+    approved = orchestrator.process_request("approve")
+
+    assert approved.developer_status == "executed_success"
+    assert approved.developer_capability_id == "developer.bounded_session"
+    assert approved.developer_result.verification_count == 1
+    assert approved.developer_result.repair_count == 0
+    assert len(handler_calls) == 1
+    assert handler_calls[0][0].approved is True
+    assert handler_calls[0][1] is isolated_workspace
+    verification.assert_called_once_with(
+        "developer.run_command",
+        {"argv": ("pytest", "-q", "test_stock.py")},
+        workspace=isolated_workspace,
+    )
+    model.assert_not_called()
+    assert source.read_bytes() == source_before
+    assert test.read_bytes() == test_before
+    assert not (isolated_workspace.root / ".git").exists()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "fix this bug",
+        "repair this project",
+        "why is pytest failing?",
+        "run the tests",
+        "patch stock.py",
+        _EXACT_REPAIR_BENCHMARK_REQUEST.replace(
+            " on /home/mnahtygal/projects/jarvis-repair-challenge", ""
+        ),
+        _EXACT_REPAIR_BENCHMARK_REQUEST.replace("Source file:\nstock.py\n\n", ""),
+        _EXACT_REPAIR_BENCHMARK_REQUEST.replace("Test file:\ntest_stock.py\n\n", ""),
+        _EXACT_REPAIR_BENCHMARK_REQUEST.replace(
+            "Verification:\npytest -q test_stock.py\n\n", ""
+        ),
+        _EXACT_REPAIR_BENCHMARK_REQUEST.replace(
+            "Only stock.py may be modified.\n", ""
+        ),
+        _EXACT_REPAIR_BENCHMARK_REQUEST.replace(
+            "pytest -q test_stock.py", "python -m pytest test_stock.py"
+        ),
+        _EXACT_REPAIR_BENCHMARK_REQUEST.replace(
+            "Source file:\nstock.py", "Source file:\nstock.py helper.py"
+        ),
+    ],
+)
+def test_incomplete_or_ambiguous_requests_do_not_become_bounded_sessions(command):
+    request = developer_bridge.classify_developer_request(command)
+    assert request is None or request.capability_id != "developer.bounded_session"
+    assert developer_bridge._pending_action is None
 
 
 def test_valid_session_is_frozen_and_executes_only_after_approval(

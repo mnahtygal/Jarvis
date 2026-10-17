@@ -92,6 +92,14 @@ For Python, Brain accepts an explicit source and explicit test path, freezes
 source writable. For Gradle, the explicit form freezes one Java/Kotlin source,
 one Java/Kotlin test, one project root, and the existing reviewed offline
 `developer.gradle_test` behavior.
+
+The explicit-workspace Python form starts with `Run a bounded developer session
+on <canonical-absolute-workspace>.` and requires labeled source, test, and
+`pytest -q <test-path>` fields, an exact source-only writable declaration, an
+exact test read-only declaration, approval-before-change wording, and `Do not use
+Git.` Incomplete, inconsistent, non-canonical, or ambiguous versions do not
+create a pending session and cannot fall through to an internal repair primitive.
+
 Every candidate must already exist and remain unchanged between confirmation and
 approval. Tests are always readable but non-writable in Phase 3. No model can add
 a candidate, writable path, command, task, flag, workspace, or retry.

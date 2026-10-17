@@ -113,6 +113,7 @@ class PendingDeveloperAction:
     workspace_root: Path
     registry_signature: tuple[object, ...]
     validation_seal: tuple[object, ...]
+    explicit_workspace: bool = False
     version: int = 1
 
     def __post_init__(self) -> None:
@@ -153,6 +154,23 @@ _PYTHON_SESSION_ONLY_PATTERN = re.compile(
 _GRADLE_SESSION_PATTERN = re.compile(
     r"^fix\s+([A-Za-z0-9_./-]+)\s+using\s+([A-Za-z0-9_./-]+)\s+until\s+"
     r"gradle\s+tests?\s+pass(?:es)?\s+in\s+([A-Za-z0-9_./-]+)[?.!]*$",
+    re.I,
+)
+_BOUNDED_PYTHON_SESSION_PATTERN = re.compile(
+    r"^Run\s+a\s+bounded\s+developer\s+session\s+on\s+"
+    r"(?P<workspace>/[^\s]+?)\.\s+"
+    r"Source\s+file:\s*(?P<source>[A-Za-z0-9_./-]+\.py)\s+"
+    r"Test\s+file:\s*(?P<test>[A-Za-z0-9_./-]+\.py)\s+"
+    r"Verification:\s*pytest\s+-q\s+"
+    r"(?P<verification_test>[A-Za-z0-9_./-]+\.py)\s+"
+    r"Only\s+(?P<writable>[A-Za-z0-9_./-]+\.py)\s+may\s+be\s+modified\.\s+"
+    r"(?P<read_only>[A-Za-z0-9_./-]+\.py)\s+must\s+remain\s+read-only\.\s+"
+    r"Ask\s+for\s+approval\s+before\s+making\s+any\s+change\.\s+"
+    r"Do\s+not\s+use\s+Git\.$",
+    re.I,
+)
+_BOUNDED_DEVELOPER_SESSION_PREFIX_PATTERN = re.compile(
+    r"^Run\s+a\s+bounded\s+developer\s+session\b",
     re.I,
 )
 _DEVELOPER_PREFIX_PATTERN = re.compile(r"^(?:read|show|open|list|write|create|patch|edit|modify|run|repair|fix|stage|add|commit|developer)\b", re.I)
@@ -199,6 +217,40 @@ def _safe_path(value: str, *, require_file_signal: bool) -> str | None:
     if require_file_signal and "/" not in candidate and "." not in path.name:
         return None
     return candidate
+
+
+def _safe_workspace_root(value: str) -> str | None:
+    candidate = value.strip()
+    try:
+        size = len(candidate.encode("utf-8", errors="strict"))
+    except UnicodeEncodeError:
+        return None
+    if (
+        not candidate
+        or size > MAX_PATH_LENGTH
+        or "\x00" in candidate
+        or any(
+            character.isspace() or character in _UNSAFE_PATH_CHARACTERS
+            for character in candidate
+        )
+    ):
+        return None
+    path = PurePath(candidate)
+    if (
+        not path.is_absolute()
+        or ".." in path.parts
+        or "." in path.parts
+        or path.as_posix() != candidate
+    ):
+        return None
+    return candidate
+
+
+def _workspace_from_explicit_root(value: str) -> Workspace:
+    workspace = Workspace(Path(value))
+    if workspace.root.as_posix() != value:
+        raise ValueError("workspace root must be canonical")
+    return workspace
 
 
 def _confirmation_request(capability_id: str, *, arguments: Mapping[str, object] | None = None, summary: tuple[str, ...] = ()) -> DeveloperRequest:
@@ -267,6 +319,40 @@ def _python_session_request(first: str, second: str) -> DeveloperRequest:
             f"max_verification_runs={MAX_SESSION_VERIFICATION_RUNS}",
             f"max_proposal_requests={MAX_SESSION_PROPOSAL_REQUESTS}",
         ),
+    )
+
+
+def _bounded_python_session_request(
+    match: re.Match[str],
+) -> DeveloperRequest:
+    workspace = _safe_workspace_root(match.group("workspace"))
+    source = _safe_path(match.group("source"), require_file_signal=True)
+    test = _safe_path(match.group("test"), require_file_signal=True)
+    verification_test = _safe_path(
+        match.group("verification_test"),
+        require_file_signal=True,
+    )
+    writable = _safe_path(match.group("writable"), require_file_signal=True)
+    read_only = _safe_path(match.group("read_only"), require_file_signal=True)
+    if (
+        workspace is None
+        or source is None
+        or test is None
+        or verification_test != test
+        or writable != source
+        or read_only != test
+    ):
+        return DeveloperRequest(DEVELOPER_UNSUPPORTED)
+    request = _python_session_request(source, test)
+    if request.mode != DEVELOPER_CONFIRMATION_REQUIRED:
+        return DeveloperRequest(DEVELOPER_UNSUPPORTED)
+    return _confirmation_request(
+        "developer.bounded_session",
+        arguments={
+            "request": request.arguments["request"],
+            "workspace": workspace,
+        },
+        summary=(f"workspace={workspace}",) + request.safe_argument_summary,
     )
 
 
@@ -343,7 +429,14 @@ def classify_developer_request(command: str) -> DeveloperRequest | None:
                 f"writable_after_creation={sum(item.role == 'source' for item in greenfield.files)}",
             ),
         )
-    if len(cleaned) > MAX_DEVELOPER_REQUEST_LENGTH or "\x00" in cleaned or "\n" in cleaned:
+    if len(cleaned) > MAX_DEVELOPER_REQUEST_LENGTH or "\x00" in cleaned:
+        return DeveloperRequest(DEVELOPER_UNSUPPORTED) if _DEVELOPER_PREFIX_PATTERN.match(cleaned) else None
+    match = _BOUNDED_PYTHON_SESSION_PATTERN.fullmatch(cleaned)
+    if match:
+        return _bounded_python_session_request(match)
+    if _BOUNDED_DEVELOPER_SESSION_PREFIX_PATTERN.match(cleaned):
+        return DeveloperRequest(DEVELOPER_UNSUPPORTED)
+    if "\n" in cleaned:
         return DeveloperRequest(DEVELOPER_UNSUPPORTED) if _DEVELOPER_PREFIX_PATTERN.match(cleaned) else None
     text = " ".join(cleaned.casefold().split())
     words = set(re.findall(r"[a-z0-9_]+", text))
@@ -971,8 +1064,30 @@ def _propose_action(request: DeveloperRequest) -> DeveloperBridgeResult:
             "Nothing was created or executed.",
             request.safe_argument_summary,
         )
+    arguments = dict(request.arguments)
+    explicit_workspace = False
+    requested_workspace = None
+    if capability_id == "developer.bounded_session":
+        requested_workspace = arguments.pop("workspace", None)
+        if requested_workspace is not None:
+            if (
+                not isinstance(requested_workspace, str)
+                or _safe_workspace_root(requested_workspace)
+                != requested_workspace
+            ):
+                return _failure(
+                    "validation_failed",
+                    capability_id,
+                    "invalid_workspace",
+                    request.safe_argument_summary,
+                )
+            explicit_workspace = True
     try:
-        workspace = Workspace()
+        workspace = (
+            _workspace_from_explicit_root(requested_workspace)
+            if explicit_workspace
+            else Workspace()
+        )
     except Exception:
         return _failure(
             "validation_failed",
@@ -980,7 +1095,6 @@ def _propose_action(request: DeveloperRequest) -> DeveloperBridgeResult:
             "workspace_unavailable",
             request.safe_argument_summary,
         )
-    arguments = dict(request.arguments)
     if capability_id == "developer.git_commit":
         with _state_lock:
             verification = _verification_record
@@ -994,7 +1108,16 @@ def _propose_action(request: DeveloperRequest) -> DeveloperBridgeResult:
     seal, error = _validate_pending_arguments(capability_id, arguments, workspace)
     if error or seal is None:
         return _failure("validation_failed", capability_id, error or "validation_failed", request.safe_argument_summary)
-    pending = PendingDeveloperAction(capability_id, arguments, request.safe_argument_summary, time.monotonic(), workspace.root, signature, seal)
+    pending = PendingDeveloperAction(
+        capability_id,
+        arguments,
+        request.safe_argument_summary,
+        time.monotonic(),
+        workspace.root,
+        signature,
+        seal,
+        explicit_workspace,
+    )
     with _state_lock:
         if _state_generation != generation:
             return _failure("rejected", capability_id, "request_superseded", request.safe_argument_summary)
@@ -1156,7 +1279,11 @@ def _approve_action() -> DeveloperBridgeResult:
                 _verification_record = None
         return _adapt_greenfield_result(result, pending.safe_argument_summary)
     try:
-        workspace = Workspace()
+        workspace = (
+            Workspace(pending.workspace_root)
+            if pending.explicit_workspace
+            else Workspace()
+        )
     except Exception:
         return _failure(
             "validation_failed",
