@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -305,6 +306,91 @@ def inspect_staged(workspace: Workspace) -> StagedInspection:
     if mode_error is not None:
         return StagedInspection(False, mode_error, ())
     return inspection
+
+
+def _repository_state_fingerprint_once(
+    workspace: Workspace,
+) -> tuple[str | None, str | None]:
+    commands = (
+        ("status", "--porcelain=v1", "-z", "--untracked-files=all"),
+        ("diff", "--binary", "--no-ext-diff", "--no-textconv"),
+        ("diff", "--cached", "--binary", "--no-ext-diff", "--no-textconv"),
+    )
+    digest = hashlib.sha256()
+    for arguments in commands:
+        result = _run_fixed(workspace, arguments)
+        if result.status != "ok" or result.returncode != 0:
+            return None, result.status if result.status != "ok" else "git_state_unavailable"
+        digest.update(len(result.stdout).to_bytes(8, "big"))
+        digest.update(result.stdout)
+
+    untracked = _run_fixed(
+        workspace,
+        ("ls-files", "--others", "--exclude-standard", "-z"),
+    )
+    if untracked.status != "ok" or untracked.returncode != 0:
+        return None, (
+            untracked.status
+            if untracked.status != "ok"
+            else "git_state_unavailable"
+        )
+    fields = untracked.stdout.split(b"\x00")
+    if fields and fields[-1] == b"":
+        fields.pop()
+    total_bytes = 0
+    for raw_path in fields:
+        try:
+            relative_path = raw_path.decode("utf-8", errors="strict")
+            requested = workspace.root / Path(relative_path)
+            resolved = workspace.resolve_path(relative_path)
+        except (UnicodeDecodeError, OSError, ValueError):
+            return None, "untracked_state_unavailable"
+        if requested != resolved or not resolved.is_file():
+            return None, "untracked_state_unavailable"
+        digest.update(len(raw_path).to_bytes(8, "big"))
+        digest.update(raw_path)
+        try:
+            before = resolved.stat()
+            digest.update(before.st_size.to_bytes(8, "big"))
+            with resolved.open("rb") as file_handle:
+                while True:
+                    block = file_handle.read(_READ_CHUNK_BYTES)
+                    if not block:
+                        break
+                    total_bytes += len(block)
+                    if total_bytes > MAX_GIT_OUTPUT_BYTES:
+                        return None, "output_too_large"
+                    digest.update(block)
+            after = resolved.stat()
+        except OSError:
+            return None, "untracked_state_unavailable"
+        if (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+        ):
+            return None, "repository_state_changed"
+    return digest.hexdigest(), None
+
+
+def repository_state_fingerprint(workspace: Workspace) -> tuple[str | None, str | None]:
+    """Return a stable bounded repository digest, or fail closed on change."""
+
+    first, error = _repository_state_fingerprint_once(workspace)
+    if error or first is None:
+        return None, error or "git_state_unavailable"
+    second, error = _repository_state_fingerprint_once(workspace)
+    if error or second is None:
+        return None, error or "git_state_unavailable"
+    if first != second:
+        return None, "repository_state_changed"
+    return first, None
 
 
 def stage_paths(workspace: Workspace, paths: tuple[str, ...]) -> str | None:

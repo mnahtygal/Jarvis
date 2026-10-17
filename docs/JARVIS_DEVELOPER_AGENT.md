@@ -15,7 +15,8 @@ verification capability without widening the generic command grammar. Phase 8C
 hardens repair-model structured output at generation time.
 
 Brain v2 Phase 12 has a narrow natural-language bridge for the three Phase 1
-read-only tools only. It does not run an autonomous tool loop.
+read-only tools and six Phase 2 single-action explicit-approval continuations. It
+does not run an autonomous tool loop.
 
 ## Brain v2 Phase 1 natural-language bridge
 
@@ -31,11 +32,44 @@ workspace containment, symlink handling, sensitive-file refusal, output bounds,
 and safe errors. Brain does not accept LLM-generated capability selections or
 argument dictionaries.
 
-Brain may recognize file writes, patches, command or pytest runs, Gradle tests,
-repairs, repair proposals, Git staging, Git commits, and bounded autonomous
-sessions, but it returns `confirmation_required` without executing them. There is
-no approval continuation in this phase. Ambiguous developer requests execute
-nothing, and multi-step or autonomous developer plans remain unsupported.
+## Brain v2 Phase 2 explicit approval
+
+Brain can hold one fully specified proposal for `developer.write_file`,
+`developer.patch_file`, `developer.run_command`, `developer.gradle_test`,
+`developer.git_stage`, or `developer.git_commit`. The initial request returns
+`confirmation_required` and executes nothing. A separate exact approval response
+causes one attempt through the canonical executor after all registry, workspace,
+argument, file, command, Gradle, and Git checks are rerun. Approval is single-use,
+argument-bound, expires after five minutes, and cannot approve multiple actions.
+
+Cancellation clears the proposal. A newer Developer request replaces it, while a
+materially unrelated conversation invalidates it before normal routing. Changed
+patch sources, Git state, workspace identity, or registry metadata fail closed.
+Successful verification evidence is output-free and bound to the current
+workspace status before it can support a later commit. Commit never auto-stages.
+The Git seal hashes porcelain status, the tracked worktree diff, the cached diff,
+and untracked file names and contents twice. Each Git command is capped at 256
+KiB and all untracked content is capped at 256 KiB per pass. Any overflow,
+unreadable or symlinked untracked path, concurrent change, or unequal pass fails
+closed rather than hashing truncated state.
+
+The bridge keeps confirmation-gated registry entries `executable=False`; that
+flag continues to mean they are unavailable to autonomous planning. The separate
+fixed Phase 2 allowlist plus an exact, single-use approval is the only Brain
+execution gate. `developer.repair_loop`, `developer.propose_repair`, and
+`developer.bounded_session` remain unavailable through Brain approval.
+
+Pending payloads live only in bounded process memory. All Developer bridge turns,
+including approval and cancellation text, bypass durable conversation history,
+project memory, semantic memory, and exact/personal memory. Raw Developer prompts
+are not printed to the console. Brain status contains safe lifecycle fields only.
+The current local API has no session identifier, so
+the pending slot belongs to the one local process/user conversation. `/text` and
+`/ask` continue to return ordinary strings; no UI changes are required.
+Concurrent independent users and multi-user approval isolation are not supported.
+
+Ambiguous developer requests execute nothing, and multi-step or autonomous
+developer plans remain unsupported.
 
 Successful read-only calls use the `developer_tool` route. Recognized operations
 that stop for confirmation use `developer_confirmation`. Tool output is adapted
@@ -73,7 +107,10 @@ The implementation is intentionally small:
 - `core/capability_registry.py` advertises the matching Brain v2 capabilities.
 
 There is no dynamic registration, dynamic import, `eval`, `exec`, or generic shell
-tool. Command requests are argv lists and never parsed as command strings.
+tool. The Developer Agent receives argv lists. Phase 2's fixed `Run command:`
+grammar tokenizes one user-authored string deterministically, then the existing
+command-policy engine validates every resulting argument before confirmation and
+again before execution.
 
 ## Phase 1 tools
 
