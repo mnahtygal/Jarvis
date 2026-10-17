@@ -358,10 +358,18 @@ def test_environment_is_minimal_and_rejects_ambient_injection(tmp_path, monkeypa
     monkeypatch.setenv("PYTEST_PLUGINS", "unsafe")
 
     environment = _safe_environment(_workspace(tmp_path), "pytest")
+    second_environment = _safe_environment(_workspace(tmp_path), "pytest")
 
     assert environment["PATH"] == SAFE_SYSTEM_PATH
     assert environment["HOME"] == str(tmp_path.resolve())
     assert environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] == "1"
+    assert environment["PYTHONDONTWRITEBYTECODE"] == "1"
+    assert environment["PYTHONPYCACHEPREFIX"].startswith("/tmp/jarvis-pycache-")
+    assert (
+        second_environment["PYTHONPYCACHEPREFIX"]
+        != environment["PYTHONPYCACHEPREFIX"]
+    )
+    assert not Path(environment["PYTHONPYCACHEPREFIX"]).exists()
     assert environment["PYTHONNOUSERSITE"] == "1"
     assert environment["PYTHONSAFEPATH"] == "1"
     assert "JARVIS_PRIVATE_VALUE" not in environment

@@ -292,6 +292,8 @@ def test_capabilities_command_is_deterministic_and_safe(monkeypatch, command):
     assert "developer.write_file [brain-explicit-approval]" in response
     assert "three read-only Developer capabilities" in response
     assert "six single-action explicit-approval continuations" in response
+    assert "developer.bounded_session [brain-approved-bounded-session]" in response
+    assert "one approved bounded developer session" in response
     llm.assert_not_called()
 
 

@@ -15,8 +15,9 @@ verification capability without widening the generic command grammar. Phase 8C
 hardens repair-model structured output at generation time.
 
 Brain v2 Phase 12 has a narrow natural-language bridge for the three Phase 1
-read-only tools and six Phase 2 single-action explicit-approval continuations. It
-does not run an autonomous tool loop.
+read-only tools, six Phase 2 single-action explicit-approval continuations, and
+one Phase 3 explicitly approved bounded session. It does not expose unrestricted
+autonomous developer mode.
 
 ## Brain v2 Phase 1 natural-language bridge
 
@@ -56,13 +57,14 @@ closed rather than hashing truncated state.
 The bridge keeps confirmation-gated registry entries `executable=False`; that
 flag continues to mean they are unavailable to autonomous planning. The separate
 fixed Phase 2 allowlist plus an exact, single-use approval is the only Brain
-execution gate. `developer.repair_loop`, `developer.propose_repair`, and
-`developer.bounded_session` remain unavailable through Brain approval.
+execution gate for those six tools. `developer.repair_loop` and
+`developer.propose_repair` remain unavailable through direct Brain approval.
 
 Pending payloads live only in bounded process memory. All Developer bridge turns,
 including approval and cancellation text, bypass durable conversation history,
 project memory, semantic memory, and exact/personal memory. Raw Developer prompts
 are not printed to the console. Brain status contains safe lifecycle fields only.
+Restarting the local Jarvis process clears every pending approval.
 The current local API has no session identifier, so
 the pending slot belongs to the one local process/user conversation. `/text` and
 `/ask` continue to return ordinary strings; no UI changes are required.
@@ -70,6 +72,44 @@ Concurrent independent users and multi-user approval isolation are not supported
 
 Ambiguous developer requests execute nothing, and multi-step or autonomous
 developer plans remain unsupported.
+
+## Brain v2 Phase 3 approved bounded session
+
+Brain may propose exactly one `developer.bounded_session` using the existing
+Phase 7 implementation. It uses the same single pending slot, exact approval
+phrases, five-minute expiry, interruption rules, atomic single-use consumption,
+and memory/privacy exclusions as Phase 2. The capability remains
+`executable=False`, is absent from the generic executor dispatch table, and is
+reachable only through an exact one-item Phase 3 allowlist plus matching Brain and
+Developer Agent registry metadata and the canonical session handler.
+
+For Python, Brain accepts an explicit source and explicit test path, freezes
+`pytest -q <test-path>` through the existing command policy, and makes only the
+source writable. For Gradle, the explicit form freezes one Java/Kotlin source,
+one Java/Kotlin test, one project root, and the existing reviewed offline
+`developer.gradle_test` behavior.
+Every candidate must already exist and remain unchanged between confirmation and
+approval. Tests are always readable but non-writable in Phase 3. No model can add
+a candidate, writable path, command, task, flag, workspace, or retry.
+
+The canonical session verifies before requesting a repair. Green verification
+returns immediately without a model call or mutation. A failure may use the
+existing Phase 6 proposal path and exact patch/write tools, with the unchanged
+hard ceilings of two repairs, three verification runs, and two proposal requests.
+Pytest verification uses a fresh non-writing bytecode-cache namespace on every
+run so a same-size rapid repair cannot be masked by a pre-existing `.pyc` file.
+Model unavailability, malformed output, low confidence, protected/out-of-scope
+paths, stale snapshots, policy failure, and exhausted limits stop safely. Applied
+repairs are reported honestly and are not rolled back when final verification
+fails.
+
+The response contains only pass/fail state, verification and repair counts, safe
+modified paths, stop reason, and confirmation that no stage/commit/push action was
+performed. Brain status keeps only capability, invocation, verification kind,
+counters, final state, and a safe error code. It never stores source, patches,
+prompts, diagnostics, command output, or raw model output. `/text` and `/ask`
+remain string-compatible; there is no UI, background task, recursive session,
+planner expansion, automatic Git, or push behavior.
 
 Successful read-only calls use the `developer_tool` route. Recognized operations
 that stop for confirmation use `developer_confirmation`. Tool output is adapted
@@ -556,10 +596,11 @@ reset, restore, checkout, staging, commit, or push. A green session stops withou
 Git mutation; any Phase 5 checkpoint is a separate, later human-directed action.
 
 Brain v2 advertises `developer.bounded_session` as enabled, mutating,
-`requires_confirmation=True`, and `executable=False`. It is available only through
-the explicit internal/manual Python API. There is no executor tool registration,
-planner mapping, router or natural-language trigger, autonomous Brain entry point,
-background task, or recurring execution.
+`requires_confirmation=True`, and `executable=False`. The Phase 7 Python API
+remains canonical. Brain Phase 3 adds only a deterministic natural-language
+proposal and explicit-approval entry point with frozen scope; there is still no
+generic executor registration, planner mapping, unrestricted router entry point,
+background task, recurring execution, or recursive session.
 
 ## Phase 8B dedicated Android/Gradle verification
 

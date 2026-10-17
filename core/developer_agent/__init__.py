@@ -14,6 +14,7 @@ from core.developer_agent.developer_session import (
     build_diagnostic_excerpt,
     run_bounded_developer_session,
     run_developer_session_request,
+    validate_developer_session_request,
 )
 from core.developer_agent.executor import execute_tool
 from core.developer_agent.repair_loop import (
@@ -62,5 +63,6 @@ __all__ = (
     "resolve_workspace_path",
     "run_bounded_developer_session",
     "run_developer_session_request",
+    "validate_developer_session_request",
     "run_repair_loop",
 )

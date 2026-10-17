@@ -148,6 +148,9 @@ PHASE2_DEVELOPER_APPROVAL_ALLOWLIST = frozenset({
     "developer.git_stage",
     "developer.git_commit",
 })
+PHASE3_DEVELOPER_SESSION_ALLOWLIST = frozenset({
+    "developer.bounded_session",
+})
 
 _PLAN_STEP_CAPABILITIES = {
     ("runtime", "check runtime health"): ("runtime.health",),
@@ -230,6 +233,8 @@ def get_capabilities_response() -> str:
                 readiness = "brain-read-only"
             elif capability.capability_id in PHASE2_DEVELOPER_APPROVAL_ALLOWLIST:
                 readiness = "brain-explicit-approval"
+            elif capability.capability_id in PHASE3_DEVELOPER_SESSION_ALLOWLIST:
+                readiness = "brain-approved-bounded-session"
             elif not capability.enabled:
                 readiness = "disabled"
             elif capability.executable:
@@ -239,7 +244,7 @@ def get_capabilities_response() -> str:
             lines.append(f"- {capability.capability_id} [{readiness}]")
     lines.append(
         "Planning remains observe-only; Brain execution is limited to three "
-        "read-only Developer capabilities plus six single-action explicit-approval "
-        "continuations."
+        "read-only Developer capabilities, six single-action explicit-approval "
+        "continuations, and one approved bounded developer session."
     )
     return "\n".join(lines)

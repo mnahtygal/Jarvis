@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import os
+import secrets
 import signal
 import subprocess
 import sys
@@ -77,6 +78,10 @@ def _safe_environment(workspace: Workspace, command_family: str) -> dict[str, st
         })
     if command_family == "pytest":
         environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+        environment["PYTHONDONTWRITEBYTECODE"] = "1"
+        environment["PYTHONPYCACHEPREFIX"] = (
+            f"/tmp/jarvis-pycache-{secrets.token_hex(16)}"
+        )
     return environment
 
 

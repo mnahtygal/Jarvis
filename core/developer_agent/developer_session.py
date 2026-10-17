@@ -325,6 +325,22 @@ def _freeze_request(
     )
 
 
+def validate_developer_session_request(
+    request: object,
+    *,
+    workspace: Workspace | None = None,
+) -> str | None:
+    """Validate one session scope without verification, model, or mutation work."""
+
+    try:
+        _freeze_request(request, workspace or Workspace())
+    except _RequestError as exc:
+        return exc.code
+    except Exception:
+        return "invalid_request"
+    return None
+
+
 def _valid_verification_argv(value: object) -> tuple[str, ...]:
     if type(value) is not tuple or not value:
         raise _RequestError("invalid_verification_argv")

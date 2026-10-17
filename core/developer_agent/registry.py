@@ -53,6 +53,10 @@ _TOOLS = (
         "developer.git_commit", "Create a verified local Git checkpoint",
         False, True, True, True, False,
     ),
+    ToolDefinition(
+        "developer.bounded_session", "Run one fixed-scope bounded repair session",
+        False, True, True, True, False,
+    ),
 )
 
 _TOOLS_BY_ID = {tool.tool_id: tool for tool in _TOOLS}
