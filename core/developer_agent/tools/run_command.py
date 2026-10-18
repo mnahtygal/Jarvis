@@ -202,6 +202,7 @@ def _execute_fixed_argv(
     output_limit: int,
     tool_id: str,
     command_family: str,
+    pass_fds: Sequence[int] = (),
 ) -> ToolResult:
     """Execute an already-validated fixed argv through the bounded process path."""
 
@@ -216,6 +217,7 @@ def _execute_fixed_argv(
             stderr=subprocess.PIPE,
             shell=False,
             start_new_session=os.name == "posix",
+            pass_fds=tuple(pass_fds),
         )
     except (OSError, subprocess.SubprocessError):
         return _result(

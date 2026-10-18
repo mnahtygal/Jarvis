@@ -36,6 +36,7 @@ from core.developer_agent.workspace import Workspace, WorkspacePathError
 
 BWRAP_PATH = Path("/usr/bin/bwrap")
 UNSHARE_PATH = Path("/usr/bin/unshare")
+CANDIDATE_SANDBOX_LAUNCHER = Path("/usr/libexec/jarvis-candidate-sandbox")
 SANDBOX_HOME = "/tmp/home"
 SANDBOX_PYCACHE = "/tmp/pycache"
 SANDBOX_SITE_PACKAGES = Path("/opt/jarvis-site-packages")
@@ -394,8 +395,23 @@ def _validate_unshare() -> Path:
     return resolved
 
 
-def _sandbox_argv(
-    candidate_root: Path,
+def _validate_candidate_launcher() -> Path:
+    try:
+        resolved = CANDIDATE_SANDBOX_LAUNCHER.resolve(strict=True)
+        file_stat = resolved.stat()
+    except OSError:
+        raise CandidateIsolationError("candidate_isolation_unavailable") from None
+    if (
+        not resolved.is_file()
+        or not os.access(resolved, os.X_OK)
+        or file_stat.st_uid != 0
+        or bool(file_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH))
+    ):
+        raise CandidateIsolationError("candidate_isolation_unavailable")
+    return resolved
+
+
+def _candidate_pytest_arguments(
     verification_argv: tuple[str, ...],
     workspace: Workspace,
 ) -> tuple[str, ...]:
@@ -405,146 +421,26 @@ def _sandbox_argv(
         raise CandidateIsolationError(exc.code) from None
     if approved.family != "pytest":
         raise CandidateIsolationError("candidate_verification_not_supported")
-
-    unshare = _validate_unshare()
-    bwrap = _validate_bwrap()
-    runtime = _runtime_venv()
-    site_packages = _runtime_site_packages(runtime)
-    shared_libraries, standard_library, loader_name = _system_runtime_roots()
-    base_python = Path(sys.executable).resolve(strict=True)
-    if base_python.parent != Path("/usr/bin"):
-        raise CandidateIsolationError("candidate_runtime_unavailable")
-    library_bindings = _system_library_bindings(
-        runtime,
-        shared_libraries,
-        standard_library,
-        base_python,
-    )
     requested = approved.requested_argv
     if requested[0] == "pytest":
-        pytest_arguments = requested[1:]
-    elif (
+        return requested[1:]
+    if (
         len(requested) >= 3
         and requested[0] in {"python", "python3"}
         and requested[1:3] == ("-m", "pytest")
     ):
-        pytest_arguments = requested[3:]
-    else:
-        raise CandidateIsolationError("candidate_verification_not_supported")
+        return requested[3:]
+    raise CandidateIsolationError("candidate_verification_not_supported")
 
-    return (
-        str(unshare),
-        "--user",
-        "--map-root-user",
-        "--net",
-        "--",
-        str(bwrap),
-        "--unshare-ipc",
-        "--unshare-pid",
-        "--unshare-uts",
-        "--unshare-cgroup-try",
-        "--die-with-parent",
-        "--new-session",
-        "--cap-drop",
-        "ALL",
-        "--clearenv",
-        "--dir",
-        "/usr",
-        "--dir",
-        "/usr/lib",
-        "--dir",
-        str(shared_libraries),
-        "--dir",
-        str(standard_library),
-        "--symlink",
-        f"{shared_libraries.name}/{loader_name}",
-        f"/usr/lib/{loader_name}",
-        *(
-            value
-            for source, destination in library_bindings
-            for value in ("--ro-bind", str(source), str(destination))
-        ),
-        "--ro-bind",
-        str(standard_library),
-        str(standard_library),
-        "--dir",
-        "/usr/bin",
-        "--ro-bind",
-        str(base_python),
-        str(base_python),
-        "--symlink",
-        base_python.name,
-        "/usr/bin/python3",
-        "--symlink",
-        "usr/bin",
-        "/bin",
-        "--symlink",
-        "usr/lib",
-        "/lib",
-        "--proc",
-        "/proc",
-        "--dev",
-        "/dev",
-        "--tmpfs",
-        "/tmp",
-        "--dir",
-        SANDBOX_HOME,
-        "--dir",
-        SANDBOX_PYCACHE,
-        "--dir",
-        "/opt",
-        "--ro-bind",
-        str(site_packages),
-        str(SANDBOX_SITE_PACKAGES),
-        "--dir",
-        "/workspace",
-        "--ro-bind",
-        str(candidate_root),
-        "/workspace",
-        "--chdir",
-        "/workspace",
-        "--setenv",
-        "HOME",
-        SANDBOX_HOME,
-        "--setenv",
-        "LANG",
-        "C.UTF-8",
-        "--setenv",
-        "LC_ALL",
-        "C.UTF-8",
-        "--setenv",
-        "PATH",
-        "/usr/bin:/bin",
-        "--setenv",
-        "PYTEST_DISABLE_PLUGIN_AUTOLOAD",
-        "1",
-        "--setenv",
-        "PYTHONDONTWRITEBYTECODE",
-        "1",
-        "--setenv",
-        "PYTHONNOUSERSITE",
-        "1",
-        "--setenv",
-        "PYTHONPATH",
-        str(SANDBOX_SITE_PACKAGES),
-        "--setenv",
-        "PYTHONSAFEPATH",
-        "1",
-        "--setenv",
-        "PYTHONPYCACHEPREFIX",
-        SANDBOX_PYCACHE,
-        "--",
-        str(base_python),
-        "-m",
-        "pytest",
-        "-c",
-        "/dev/null",
-        "--rootdir=/workspace",
-        "--confcutdir=/workspace",
-        "-p",
-        "no:cacheprovider",
-        *pytest_arguments,
-    )
+
+def _sandbox_argv(
+    candidate_fd: int,
+    verification_argv: tuple[str, ...],
+    workspace: Workspace,
+) -> tuple[str, ...]:
+    launcher = _validate_candidate_launcher()
+    pytest_arguments = _candidate_pytest_arguments(verification_argv, workspace)
+    return (str(launcher), "--candidate-fd", str(candidate_fd), *pytest_arguments)
 
 
 def _run_isolated_pytest(
@@ -552,17 +448,30 @@ def _run_isolated_pytest(
     verification_argv: tuple[str, ...],
     workspace: Workspace,
 ) -> ToolResult:
-    argv = _sandbox_argv(candidate_root, verification_argv, workspace)
-    result = _execute_fixed_argv(
-        argv,
-        cwd=Path("/"),
-        environment={"PATH": "/usr/bin:/bin"},
-        timeout=DEFAULT_TIMEOUT_SECONDS,
-        output_limit=DEFAULT_MAX_OUTPUT_BYTES,
-        tool_id="developer.run_command",
-        command_family="pytest",
+    flags = os.O_RDONLY | os.O_DIRECTORY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        candidate_fd = os.open(candidate_root, flags)
+    except OSError:
+        raise CandidateIsolationError("candidate_isolation_unavailable") from None
+    try:
+        argv = _sandbox_argv(candidate_fd, verification_argv, workspace)
+        result = _execute_fixed_argv(
+            argv,
+            cwd=Path("/"),
+            environment={"PATH": "/usr/bin:/bin"},
+            timeout=DEFAULT_TIMEOUT_SECONDS,
+            output_limit=DEFAULT_MAX_OUTPUT_BYTES,
+            tool_id="developer.run_command",
+            command_family="pytest",
+            pass_fds=(candidate_fd,),
+        )
+    finally:
+        os.close(candidate_fd)
+    isolation_error = result.output.lstrip().startswith(
+        ("bwrap:", "unshare:", "jarvis-candidate-sandbox:")
     )
-    isolation_error = result.output.lstrip().startswith(("bwrap:", "unshare:"))
     if not result.success and isolation_error:
         return ToolResult(
             False,

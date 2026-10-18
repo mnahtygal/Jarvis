@@ -1,0 +1,20 @@
+# Repository-reviewed profile; install as /etc/apparmor.d/usr.libexec.jarvis-api-entry.
+
+abi <abi/4.0>,
+
+profile jarvis-api-entry /usr/libexec/jarvis-api-entry flags=(default_allow) {
+  audit deny userns create,
+
+  /usr/libexec/jarvis-candidate-sandbox Cx -> candidate_userns,
+
+  profile candidate_userns flags=(default_allow) {
+    userns create,
+
+    /usr/bin/unshare ix,
+    /usr/bin/bwrap Cx -> candidate_runtime,
+
+    profile candidate_runtime flags=(default_allow) {
+      audit deny userns create,
+    }
+  }
+}

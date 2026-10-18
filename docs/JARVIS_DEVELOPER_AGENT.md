@@ -847,13 +847,23 @@ fresh disposable candidate containing only the approved candidate files. Every
 candidate run consumes one of the unchanged three verification slots; there is no
 post-promotion fourth run.
 
-The verifier uses fixed root-owned `/usr/bin/unshare` and `/usr/bin/bwrap`
-executables. On Thor, `unshare --user --map-root-user --net`
-creates the user and disconnected network namespaces without asking Bubblewrap
-0.9.0 to configure loopback. Bubblewrap then creates the IPC, PID, UTS, and cgroup
-namespaces where supported, drops all capabilities, supplies no stdin, and retains
-the existing timeout, bounded-output, and process-group termination behavior. The
-sandbox mounts:
+The verifier passes an already-open disposable-directory FD and the approved
+pytest argument subset to the fixed root-owned native
+`/usr/libexec/jarvis-candidate-sandbox` launcher. The launcher independently
+validates the FD identity and pytest grammar; it accepts no executable, shell,
+Python text, environment block, namespace flag, or mount list. Authorization and
+approval remain in the Developer Agent and are not duplicated in this launcher.
+
+On Thor, a dedicated AppArmor profile attached only to the native
+`/usr/libexec/jarvis-api-entry` allows `userns create` solely in a local child
+profile entered by the exact candidate launcher. The API and post-unshare
+Bubblewrap domains explicitly deny further user-namespace creation. The native
+launcher uses fixed `/usr/bin/unshare` and `/usr/bin/bwrap` executables.
+`unshare --user --map-root-user --net` creates the user and disconnected network
+namespaces without asking Bubblewrap 0.9.0 to configure loopback. Bubblewrap then
+creates the IPC, PID, UTS, and cgroup namespaces where supported, drops all
+capabilities, supplies no stdin, and retains the existing timeout, bounded-output,
+and process-group termination behavior. The sandbox mounts:
 
 - the base Python executable, its standard library, and only the individual
   platform shared-library files required by Python and installed venv extensions,
@@ -870,6 +880,14 @@ Jarvis source, and unrelated files are not mounted. Network access is disabled.
 Pytest plugin autoload and its cache provider are disabled; bytecode is redirected
 to private tmpfs. Failure to establish the required namespace or mounts is a
 fail-closed `candidate_isolation_unavailable` result.
+
+The reviewed launcher sources, native build, AppArmor profile, parser-validation
+command, installation steps, and rollback steps are in `packaging/apparmor/`.
+The profile uses `flags=(default_allow)`, not filesystem confinement, so the
+existing API does not require a large machine-specific file-access policy.
+AppArmor supplies only the selective user-namespace gate and exact executable
+transitions. Bubblewrap remains the candidate filesystem, process, capability,
+and network sandbox.
 
 After a candidate passes, Jarvis reads and seals the exact candidate source bytes,
 size, and SHA-256 before destroying the disposable directory. It then revalidates

@@ -3,13 +3,14 @@
 JARVIS_HOME="${JARVIS_HOME:-$HOME/jarvis}"
 API_PYTHON="$JARVIS_HOME/.venv/bin/python"
 API_SCRIPT="$JARVIS_HOME/api.py"
+API_ENTRY="/usr/libexec/jarvis-api-entry"
 API_PID_FILE="/tmp/jarvis-api.pid"
 UI_PID_FILE="/tmp/jarvis-ui.pid"
 API_LOG="/tmp/jarvis-api.log"
 UI_LOG="/tmp/jarvis_ui.log"
 
 pid_matches_api() {
-  local pid="${1:-}" cwd process_executable expected_executable script_path
+  local pid="${1:-}" cwd process_executable expected_executable argument script_path
   local -a cmdline
   [[ "$pid" =~ ^[0-9]+$ ]] || return 1
   [[ -r "/proc/$pid/cmdline" ]] || return 1
@@ -18,12 +19,16 @@ pid_matches_api() {
   process_executable=$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)
   expected_executable=$(readlink -f "$API_PYTHON" 2>/dev/null || true)
   [[ "$cwd" == "$JARVIS_HOME" && "$process_executable" == "$expected_executable" ]] || return 1
-  if [[ "${cmdline[1]:-}" == /* ]]; then
-    script_path=$(readlink -f "${cmdline[1]}" 2>/dev/null || true)
-  else
-    script_path=$(readlink -f "$cwd/${cmdline[1]:-}" 2>/dev/null || true)
-  fi
-  [[ "$script_path" == "$API_SCRIPT" ]]
+  for argument in "${cmdline[@]:1}"; do
+    [[ "$argument" == -* ]] && continue
+    if [[ "$argument" == /* ]]; then
+      script_path=$(readlink -f "$argument" 2>/dev/null || true)
+    else
+      script_path=$(readlink -f "$cwd/$argument" 2>/dev/null || true)
+    fi
+    [[ "$script_path" == "$API_SCRIPT" ]] && return 0
+  done
+  return 1
 }
 
 api_pids() {

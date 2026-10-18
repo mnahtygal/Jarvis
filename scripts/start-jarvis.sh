@@ -79,10 +79,14 @@ elif port_is_listening 5000; then
   echo "✗ Port 5000 is occupied by a process other than the Jarvis API" >&2
   exit 1
 else
-  [[ -x "$API_PYTHON" ]] || { echo "✗ Missing API interpreter: $API_PYTHON" >&2; exit 1; }
   echo "→ Starting Jarvis API"
   cd "$JARVIS_HOME"
-  nohup "$API_PYTHON" "$API_SCRIPT" >"$API_LOG" 2>&1 &
+  if [[ -x "$API_ENTRY" ]]; then
+    nohup "$API_ENTRY" >"$API_LOG" 2>&1 &
+  else
+    [[ -x "$API_PYTHON" ]] || { echo "✗ Missing API interpreter: $API_PYTHON" >&2; exit 1; }
+    nohup "$API_PYTHON" "$API_SCRIPT" >"$API_LOG" 2>&1 &
+  fi
   api_pid=$!
   printf '%s\n' "$api_pid" >"$API_PID_FILE"
 fi

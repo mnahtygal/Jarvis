@@ -1,4 +1,5 @@
 import hashlib
+import os
 from pathlib import Path
 import socket
 
@@ -7,17 +8,19 @@ import pytest
 from core.developer_agent.candidate_verification import (
     CandidateIsolationError,
     CandidateVerification,
-    SANDBOX_SITE_PACKAGES,
-    _runtime_venv,
-    _runtime_site_packages,
     _sandbox_argv,
-    _system_runtime_roots,
     capture_session_baseline,
     promote_sealed_candidate,
     validate_session_baseline,
     verify_disposable_candidate,
 )
 from core.developer_agent.workspace import Workspace
+
+
+PACKAGED_CANDIDATE_LAUNCHER = (
+    Path(__file__).resolve().parents[1]
+    / "packaging/apparmor/jarvis-candidate-sandbox"
+)
 
 
 def _fixture(tmp_path: Path) -> tuple[Workspace, Path, Path]:
@@ -43,6 +46,11 @@ def _repair() -> dict[str, object]:
             "expected_matches": 1,
         },
     }
+
+
+def _direct_candidate_path(tmp_path: Path, label: str) -> Path:
+    identity = hashlib.sha256(str(tmp_path).encode()).hexdigest()[:16]
+    return Path("/tmp") / f"jarvis-candidate-{identity}-{label}"
 
 
 def test_isolated_candidate_passes_and_promotes_exact_sealed_bytes(tmp_path):
@@ -99,11 +107,11 @@ def test_failed_candidate_is_cleaned_and_original_is_unchanged(tmp_path, monkeyp
     workspace, source, test = _fixture(tmp_path)
     source_before = source.read_bytes()
     test_before = test.read_bytes()
-    candidate_root = tmp_path / "disposable"
+    candidate_root = _direct_candidate_path(tmp_path, "failed")
 
     def make_candidate(*, prefix):
         assert prefix == "jarvis-candidate-"
-        candidate_root.mkdir()
+        candidate_root.mkdir(mode=0o700)
         return str(candidate_root)
 
     monkeypatch.setattr(
@@ -297,11 +305,11 @@ def test_cleanup_failure_never_returns_a_promotable_seal(tmp_path, monkeypatch):
         workspace,
         ("calculator.py", "test_calculator.py"),
     )
-    candidate_root = tmp_path / "cleanup-failure-candidate"
+    candidate_root = _direct_candidate_path(tmp_path, "cleanup")
 
     def make_candidate(*, prefix):
         assert prefix == "jarvis-candidate-"
-        candidate_root.mkdir()
+        candidate_root.mkdir(mode=0o700)
         return str(candidate_root)
 
     monkeypatch.setattr(
@@ -327,78 +335,50 @@ def test_cleanup_failure_never_returns_a_promotable_seal(tmp_path, monkeypatch):
     assert source.read_text(encoding="utf-8").endswith("return a - b\n")
 
 
-def test_bubblewrap_invocation_exposes_only_fixed_runtime_and_candidate(tmp_path):
+def test_candidate_launcher_receives_only_fd_and_approved_pytest_arguments(tmp_path):
     workspace, _, _ = _fixture(tmp_path)
     candidate_root = tmp_path.parent / "candidate-for-argv"
     candidate_root.mkdir()
-    argv = _sandbox_argv(
-        candidate_root,
-        ("pytest", "-q", "test_calculator.py"),
-        workspace,
-    )
+    descriptor = os.open(candidate_root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        argv = _sandbox_argv(
+            descriptor,
+            ("pytest", "-q", "test_calculator.py"),
+            workspace,
+        )
+    finally:
+        os.close(descriptor)
 
-    assert argv[:5] == (
-        "/usr/bin/unshare",
-        "--user",
-        "--map-root-user",
-        "--net",
-        "--",
+    assert Path(argv[0]).name == "jarvis-candidate-sandbox"
+    assert argv[1:] == (
+        "--candidate-fd",
+        str(descriptor),
+        "-q",
+        "test_calculator.py",
     )
-    assert argv[5] == "/usr/bin/bwrap"
-    assert "--unshare-net" not in argv
-    assert "--unshare-pid" in argv
-    assert "--unshare-user" not in argv
-    assert "--unshare-user-try" not in argv
-    assert "--cap-drop" in argv
-    assert argv[argv.index("--cap-drop") + 1] == "ALL"
-    assert "--clearenv" in argv
-    assert "--bind" not in argv
-    assert "/usr/bin/git" not in argv
-    shared_libraries, standard_library, loader_name = _system_runtime_roots()
-    triples = tuple(zip(argv, argv[1:], argv[2:]))
-    assert ("--ro-bind", str(shared_libraries), str(shared_libraries)) not in triples
-    assert ("--ro-bind", str(standard_library), str(standard_library)) in triples
-    assert ("--ro-bind", "/usr/lib", "/usr/lib") not in triples
-    assert any(
-        flag == "--ro-bind"
-        and Path(destination).parent == shared_libraries
-        and Path(source).parent == shared_libraries
-        for flag, source, destination in triples
-    )
-    assert (
-        "--symlink",
-        f"{shared_libraries.name}/{loader_name}",
-        f"/usr/lib/{loader_name}",
-    ) in triples
-    site_packages = _runtime_site_packages(_runtime_venv())
-    runtime_index = argv.index(str(site_packages))
-    assert argv[runtime_index - 1] == "--ro-bind"
-    assert argv[runtime_index + 1] == str(SANDBOX_SITE_PACKAGES)
-    assert str(_runtime_venv()) not in argv
-    candidate_index = argv.index(str(candidate_root))
-    assert argv[candidate_index - 1] == "--ro-bind"
-    assert argv[candidate_index + 1] == "/workspace"
+    assert str(candidate_root) not in argv
     assert str(workspace.root) not in argv
-    assert "/home" not in argv
-    assert ("-p", "no:cacheprovider") in tuple(
-        zip(argv, argv[1:])
-    )
 
 
-def test_missing_network_namespace_launcher_fails_closed(tmp_path, monkeypatch):
+def test_missing_candidate_launcher_fails_closed(tmp_path, monkeypatch):
     workspace, _, _ = _fixture(tmp_path)
     candidate_root = tmp_path.parent / "candidate-for-missing-unshare"
     candidate_root.mkdir()
     monkeypatch.setattr(
-        "core.developer_agent.candidate_verification.UNSHARE_PATH",
-        tmp_path / "missing-unshare",
+        "core.developer_agent.candidate_verification._validate_candidate_launcher",
+        lambda: (_ for _ in ()).throw(
+            CandidateIsolationError("candidate_isolation_unavailable")
+        ),
     )
-
-    with pytest.raises(CandidateIsolationError) as caught:
-        _sandbox_argv(
-            candidate_root,
-            ("pytest", "-q", "test_calculator.py"),
-            workspace,
-        )
+    descriptor = os.open(candidate_root, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        with pytest.raises(CandidateIsolationError) as caught:
+            _sandbox_argv(
+                descriptor,
+                ("pytest", "-q", "test_calculator.py"),
+                workspace,
+            )
+    finally:
+        os.close(descriptor)
 
     assert caught.value.code == "candidate_isolation_unavailable"
