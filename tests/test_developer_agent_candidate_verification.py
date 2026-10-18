@@ -1,9 +1,11 @@
 import hashlib
 from pathlib import Path
+import socket
 
 import pytest
 
 from core.developer_agent.candidate_verification import (
+    CandidateIsolationError,
     CandidateVerification,
     SANDBOX_SITE_PACKAGES,
     _runtime_venv,
@@ -178,6 +180,59 @@ def test_candidate_tree_is_read_only_and_home_is_not_exposed(tmp_path):
     assert "candidate tree was writable" not in result.verification.output
 
 
+def test_candidate_network_namespace_cannot_reach_host_lan_or_external(tmp_path):
+    workspace, _, test = _fixture(tmp_path)
+    host_netns_inode = Path("/proc/self/ns/net").stat().st_ino
+    route_probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        route_probe.connect(("198.51.100.1", 9))
+        lan_address = route_probe.getsockname()[0]
+    finally:
+        route_probe.close()
+    assert not lan_address.startswith("127.")
+
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind(("0.0.0.0", 0))
+    listener.listen(1)
+    listener.settimeout(0.1)
+    port = listener.getsockname()[1]
+    test.write_text(
+        "import os\n"
+        "import socket\n\n"
+        "def connection_is_blocked(host, port):\n"
+        "    try:\n"
+        "        with socket.create_connection((host, port), timeout=0.25):\n"
+        "            return False\n"
+        "    except OSError:\n"
+        "        return True\n\n"
+        "def test_network_isolation():\n"
+        f"    assert os.stat('/proc/self/ns/net').st_ino != {host_netns_inode}\n"
+        f"    assert connection_is_blocked('127.0.0.1', {port})\n"
+        f"    assert connection_is_blocked('{lan_address}', {port})\n"
+        "    assert connection_is_blocked('1.1.1.1', 53)\n",
+        encoding="utf-8",
+    )
+    baseline = capture_session_baseline(
+        workspace,
+        ("calculator.py", "test_calculator.py"),
+    )
+
+    try:
+        result = verify_disposable_candidate(
+            workspace=workspace,
+            baseline=baseline,
+            verification_argv=("pytest", "-q", "test_calculator.py"),
+        )
+        with pytest.raises((TimeoutError, socket.timeout)):
+            listener.accept()
+    finally:
+        listener.close()
+
+    assert result.status == "candidate_verification_passed"
+    assert result.verification is not None and result.verification.success
+
+
 @pytest.mark.parametrize("changed_path", ["calculator.py", "test_calculator.py"])
 def test_original_identity_change_blocks_promotion(tmp_path, changed_path):
     workspace, source, test = _fixture(tmp_path)
@@ -282,10 +337,17 @@ def test_bubblewrap_invocation_exposes_only_fixed_runtime_and_candidate(tmp_path
         workspace,
     )
 
-    assert argv[0] == "/usr/bin/bwrap"
-    assert "--unshare-net" in argv
+    assert argv[:5] == (
+        "/usr/bin/unshare",
+        "--user",
+        "--map-root-user",
+        "--net",
+        "--",
+    )
+    assert argv[5] == "/usr/bin/bwrap"
+    assert "--unshare-net" not in argv
     assert "--unshare-pid" in argv
-    assert "--unshare-user" in argv
+    assert "--unshare-user" not in argv
     assert "--unshare-user-try" not in argv
     assert "--cap-drop" in argv
     assert argv[argv.index("--cap-drop") + 1] == "ALL"
@@ -318,7 +380,25 @@ def test_bubblewrap_invocation_exposes_only_fixed_runtime_and_candidate(tmp_path
     assert argv[candidate_index + 1] == "/workspace"
     assert str(workspace.root) not in argv
     assert "/home" not in argv
-    assert "--unshare-net" in argv
     assert ("-p", "no:cacheprovider") in tuple(
         zip(argv, argv[1:])
     )
+
+
+def test_missing_network_namespace_launcher_fails_closed(tmp_path, monkeypatch):
+    workspace, _, _ = _fixture(tmp_path)
+    candidate_root = tmp_path.parent / "candidate-for-missing-unshare"
+    candidate_root.mkdir()
+    monkeypatch.setattr(
+        "core.developer_agent.candidate_verification.UNSHARE_PATH",
+        tmp_path / "missing-unshare",
+    )
+
+    with pytest.raises(CandidateIsolationError) as caught:
+        _sandbox_argv(
+            candidate_root,
+            ("pytest", "-q", "test_calculator.py"),
+            workspace,
+        )
+
+    assert caught.value.code == "candidate_isolation_unavailable"

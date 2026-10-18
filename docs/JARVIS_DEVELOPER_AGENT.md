@@ -847,10 +847,13 @@ fresh disposable candidate containing only the approved candidate files. Every
 candidate run consumes one of the unchanged three verification slots; there is no
 post-promotion fourth run.
 
-The verifier uses the fixed root-owned `/usr/bin/bwrap` executable. It creates
-separate user, IPC, PID, network, UTS, and cgroup namespaces where supported,
-drops all capabilities, supplies no stdin, and retains the existing timeout,
-bounded-output, and process-group termination behavior. The sandbox mounts:
+The verifier uses fixed root-owned `/usr/bin/unshare` and `/usr/bin/bwrap`
+executables. On Thor, `unshare --user --map-root-user --net`
+creates the user and disconnected network namespaces without asking Bubblewrap
+0.9.0 to configure loopback. Bubblewrap then creates the IPC, PID, UTS, and cgroup
+namespaces where supported, drops all capabilities, supplies no stdin, and retains
+the existing timeout, bounded-output, and process-group termination behavior. The
+sandbox mounts:
 
 - the base Python executable, its standard library, and only the individual
   platform shared-library files required by Python and installed venv extensions,

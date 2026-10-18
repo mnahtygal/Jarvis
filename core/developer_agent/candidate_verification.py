@@ -35,6 +35,7 @@ from core.developer_agent.workspace import Workspace, WorkspacePathError
 
 
 BWRAP_PATH = Path("/usr/bin/bwrap")
+UNSHARE_PATH = Path("/usr/bin/unshare")
 SANDBOX_HOME = "/tmp/home"
 SANDBOX_PYCACHE = "/tmp/pycache"
 SANDBOX_SITE_PACKAGES = Path("/opt/jarvis-site-packages")
@@ -377,6 +378,22 @@ def _validate_bwrap() -> Path:
     return resolved
 
 
+def _validate_unshare() -> Path:
+    try:
+        resolved = UNSHARE_PATH.resolve(strict=True)
+        file_stat = resolved.stat()
+    except OSError:
+        raise CandidateIsolationError("candidate_isolation_unavailable") from None
+    if (
+        not resolved.is_file()
+        or not os.access(resolved, os.X_OK)
+        or file_stat.st_uid != 0
+        or bool(file_stat.st_mode & (stat.S_IWGRP | stat.S_IWOTH))
+    ):
+        raise CandidateIsolationError("candidate_isolation_unavailable")
+    return resolved
+
+
 def _sandbox_argv(
     candidate_root: Path,
     verification_argv: tuple[str, ...],
@@ -389,6 +406,7 @@ def _sandbox_argv(
     if approved.family != "pytest":
         raise CandidateIsolationError("candidate_verification_not_supported")
 
+    unshare = _validate_unshare()
     bwrap = _validate_bwrap()
     runtime = _runtime_venv()
     site_packages = _runtime_site_packages(runtime)
@@ -415,11 +433,14 @@ def _sandbox_argv(
         raise CandidateIsolationError("candidate_verification_not_supported")
 
     return (
+        str(unshare),
+        "--user",
+        "--map-root-user",
+        "--net",
+        "--",
         str(bwrap),
-        "--unshare-user",
         "--unshare-ipc",
         "--unshare-pid",
-        "--unshare-net",
         "--unshare-uts",
         "--unshare-cgroup-try",
         "--die-with-parent",
@@ -541,7 +562,8 @@ def _run_isolated_pytest(
         tool_id="developer.run_command",
         command_family="pytest",
     )
-    if not result.success and result.output.lstrip().startswith("bwrap:"):
+    isolation_error = result.output.lstrip().startswith(("bwrap:", "unshare:"))
+    if not result.success and isolation_error:
         return ToolResult(
             False,
             result.tool_name,
