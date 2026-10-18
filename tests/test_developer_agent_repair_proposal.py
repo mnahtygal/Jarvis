@@ -21,6 +21,7 @@ from core.developer_agent.repair_proposal import (
     MAX_MODEL_OUTPUT_BYTES,
 )
 from core.developer_agent.executor import execute_tool as real_execute_tool
+from skills.llama_cpp_skill import LlamaCppStructuredResponse
 
 
 PROTECTED_FILES = (
@@ -194,20 +195,32 @@ def test_non_json_wrappers_receive_only_one_format_retry(tmp_path, bad_output):
 
 
 @pytest.mark.parametrize(
-    "bad_output",
+    "bad_output,expected_reason",
     [
-        _model_output(extra="not allowed"),
-        _model_output(proposal_type="run_command"),
-        "[]",
-        '{"proposal_type":"no_fix","confidence":NaN,"reason":"bad"}',
-        '{"proposal_type":"no_fix","confidence":-0.1,"reason":"bad"}',
-        '{"proposal_type":"no_fix","confidence":1.1,"reason":"bad"}',
-        '{"proposal_type":"no_fix","confidence":Infinity,"reason":"bad"}',
-        '{"proposal_type":"no_fix","confidence":0.5,"confidence":0.8,"reason":"bad"}',
-        '{"proposal_type":"no_fix","confidence":"high","reason":"bad"}',
+        (_model_output(extra="not allowed"), "unexpected_field"),
+        (_model_output(proposal_type="run_command"), "schema_mismatch"),
+        ("[]", "schema_mismatch"),
+        ('{"proposal_type":"no_fix","confidence":NaN,"reason":"bad"}',
+         "invalid_json_constant"),
+        ('{"proposal_type":"no_fix","confidence":-0.1,"reason":"bad"}',
+         "invalid_confidence"),
+        ('{"proposal_type":"no_fix","confidence":1.1,"reason":"bad"}',
+         "invalid_confidence"),
+        ('{"proposal_type":"no_fix","confidence":Infinity,"reason":"bad"}',
+         "invalid_json_constant"),
+        ('{"proposal_type":"no_fix","confidence":0.5,"confidence":0.8,'
+         '"reason":"bad"}', "duplicate_json_field"),
+        ('{"proposal_type":"no_fix","confidence":"high","reason":"bad"}',
+         "invalid_confidence"),
+        ('{"proposal_type":"no_fix","confidence":0.5,"reason":42}',
+         "invalid_reason"),
     ],
 )
-def test_strict_schema_rejects_unknown_or_invalid_model_data(tmp_path, bad_output):
+def test_strict_schema_rejects_unknown_or_invalid_model_data(
+    tmp_path,
+    bad_output,
+    expected_reason,
+):
     _source(tmp_path)
     model = _Responses(bad_output, bad_output)
 
@@ -219,7 +232,7 @@ def test_strict_schema_rejects_unknown_or_invalid_model_data(tmp_path, bad_outpu
 
     assert proposal.valid is False
     assert proposal.proposal_type == "no_fix"
-    assert proposal.status == "invalid_model_output"
+    assert proposal.status == expected_reason
     assert len(model.calls) == 2
 
 
@@ -618,7 +631,7 @@ def test_malformed_json_twice_stops_at_hard_retry_bound(tmp_path):
         model_call=model,
     )
 
-    assert proposal.status == "invalid_model_output"
+    assert proposal.status == "json_parse_failed"
     assert len(model.calls) == MAX_MODEL_CALLS
 
 
@@ -633,8 +646,69 @@ def test_oversized_model_output_stops_after_one_format_retry(tmp_path):
         model_call=model,
     )
 
-    assert proposal.status == "invalid_model_output"
+    assert proposal.status == "model_output_too_large"
     assert len(model.calls) == MAX_MODEL_CALLS
+
+
+def test_structured_transport_failure_surfaces_exact_safe_reason(tmp_path):
+    _source(tmp_path)
+    response = LlamaCppStructuredResponse(
+        "", None, None, "transport_error", 12.5, 0
+    )
+    model = _Responses(response)
+
+    proposal = propose_repair(
+        _request(excerpts={"example.py": "VALUE = 1"}),
+        workspace=_workspace(tmp_path),
+        model_call=model,
+    )
+
+    assert proposal.status == "transport_error"
+    assert len(model.calls) == 1
+
+
+def test_structured_truncation_retries_once_and_surfaces_reason(tmp_path):
+    _source(tmp_path)
+    response = LlamaCppStructuredResponse(
+        '{"proposal_type":"patch_file"',
+        "length",
+        200,
+        "ok",
+        10.0,
+        29,
+    )
+    model = _Responses(response, response)
+
+    proposal = propose_repair(
+        _request(excerpts={"example.py": "VALUE = 1"}),
+        workspace=_workspace(tmp_path),
+        model_call=model,
+    )
+
+    assert proposal.status == "model_output_truncated"
+    assert len(model.calls) == MAX_MODEL_CALLS
+
+
+def test_rejection_log_contains_only_bounded_metadata(tmp_path, caplog):
+    _source(tmp_path, "PRIVATE_SOURCE = 1\n")
+    raw_output = "PRIVATE_MODEL_OUTPUT"
+    model = _Responses(raw_output, raw_output)
+
+    proposal = propose_repair(
+        _request(
+            excerpts={"example.py": "PRIVATE_SOURCE = 1"},
+            failure_output="PRIVATE_FAILURE_OUTPUT",
+        ),
+        workspace=_workspace(tmp_path),
+        model_call=model,
+    )
+
+    assert proposal.status == "json_parse_failed"
+    assert "reason=json_parse_failed" in caplog.text
+    assert "candidate_count=1" in caplog.text
+    assert "PRIVATE_SOURCE" not in caplog.text
+    assert "PRIVATE_MODEL_OUTPUT" not in caplog.text
+    assert "PRIVATE_FAILURE_OUTPUT" not in caplog.text
 
 
 @pytest.mark.parametrize(
@@ -740,7 +814,7 @@ def test_proposal_module_has_no_execution_persistence_or_autonomous_wiring():
     assert "core.memory" not in source
     assert "core.session" not in source
     assert "semantic_memory" not in source
-    assert "logging" not in source
+    assert "logger.warning" not in autonomous
 
 
 def test_isolated_failure_to_repair_data_demo_stops_before_application(tmp_path):

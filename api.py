@@ -773,5 +773,15 @@ def text():
         }), 500
 
 
+API_BIND_HOST = "127.0.0.1"
+API_PORT = 5000
+
+
+def _run_api_server() -> None:
+    """Run the local API on the fixed loopback security boundary."""
+
+    app.run(host=API_BIND_HOST, port=API_PORT)
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    _run_api_server()

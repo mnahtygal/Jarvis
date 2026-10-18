@@ -490,6 +490,18 @@ and correction prompts both require exactly one JSON object with no Markdown or
 surrounding prose. The existing one-initial-plus-one-correction hard limit remains
 unchanged.
 
+The repair transport retains endpoint status, HTTP status, finish reason, elapsed
+time, and output byte count. A complete leading `<think>...</think>` envelope is
+removed only when it precedes the JSON root; an incomplete or misplaced envelope
+is rejected. Token exhaustion, transport failure, empty or oversized output, JSON
+parsing, schema fields, confidence, and reason validation retain distinct bounded
+rejection codes instead of collapsing into `invalid_model_output`.
+
+Each proposal attempt logs only its attempt number, bounded reason code, finish
+reason, output byte count, elapsed time, endpoint status, and candidate count.
+Prompts, source, failure text, raw model output, model-supplied rationale, and
+patch/write payloads are never logged.
+
 Patch proposals require a protected-policy-safe existing text file, non-empty
 `old_text`, a different bounded replacement, and exactly one literal match in a
 complete bounded read of the current file. Write proposals are limited to bounded

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 import json
+import logging
 import math
 from pathlib import Path
 import re
@@ -16,7 +17,10 @@ from core.developer_agent.mutation import MAX_FILE_BYTES
 from core.developer_agent.policy import git_protection_code
 from core.developer_agent.tool_models import ToolResult
 from core.developer_agent.workspace import Workspace, WorkspacePathError
-from skills.llama_cpp_skill import get_llama_cpp_repair_response
+from skills.llama_cpp_skill import (
+    LlamaCppStructuredResponse,
+    get_llama_cpp_repair_response,
+)
 
 
 MAX_VERIFICATION_SUMMARY_BYTES = 4 * 1024
@@ -30,6 +34,8 @@ MAX_PROPOSAL_TEXT_BYTES = 16 * 1024
 MAX_REASON_BYTES = 1024
 MAX_MODEL_CALLS = 2
 MIN_REPAIR_PROPOSAL_CONFIDENCE = 0.70
+
+logger = logging.getLogger(__name__)
 
 _PROPOSAL_TYPES = frozenset({"patch_file", "write_file", "no_fix"})
 _PATCH_FIELDS = frozenset({
@@ -131,7 +137,9 @@ class _RequestError(ValueError):
 
 
 class _FormatError(ValueError):
-    pass
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
 
 
 class _ProposalError(ValueError):
@@ -196,13 +204,13 @@ def _bounded_model_text(
     allow_empty: bool = False,
 ) -> str:
     if not isinstance(value, str) or (not allow_empty and not value) or "\x00" in value:
-        raise _FormatError("invalid text field")
+        raise _FormatError("invalid_text_field")
     try:
         encoded = value.encode("utf-8", errors="strict")
     except UnicodeEncodeError:
-        raise _FormatError("invalid text encoding") from None
+        raise _FormatError("invalid_text_encoding") from None
     if len(encoded) > maximum_bytes:
-        raise _FormatError("text field exceeds its bound")
+        raise _FormatError("text_field_too_large")
     return value
 
 
@@ -480,27 +488,27 @@ def _prompt_for(
 
 
 def _reject_json_constant(value: str) -> object:
-    raise _FormatError(f"non-finite JSON number: {value}")
+    raise _FormatError("invalid_json_constant")
 
 
 def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:
         if key in result:
-            raise _FormatError("duplicate JSON field")
+            raise _FormatError("duplicate_json_field")
         result[key] = value
     return result
 
 
 def _parse_model_output(output: object) -> dict[str, object]:
     if not isinstance(output, str) or not output:
-        raise _FormatError("empty model output")
+        raise _FormatError("empty_model_output")
     try:
         encoded = output.encode("utf-8", errors="strict")
     except UnicodeEncodeError:
-        raise _FormatError("invalid model output encoding") from None
+        raise _FormatError("invalid_model_output_encoding") from None
     if len(encoded) > MAX_MODEL_OUTPUT_BYTES:
-        raise _FormatError("model output exceeds its bound")
+        raise _FormatError("model_output_too_large")
     try:
         parsed = json.loads(
             output,
@@ -510,19 +518,24 @@ def _parse_model_output(output: object) -> dict[str, object]:
     except _FormatError:
         raise
     except (json.JSONDecodeError, TypeError, ValueError):
-        raise _FormatError("model output is not strict JSON") from None
+        raise _FormatError("json_parse_failed") from None
     if not isinstance(parsed, dict):
-        raise _FormatError("model output must be one object")
+        raise _FormatError("schema_mismatch")
     proposal_type = parsed.get("proposal_type")
     if not isinstance(proposal_type, str) or proposal_type not in _PROPOSAL_TYPES:
-        raise _FormatError("unknown proposal type")
+        raise _FormatError("schema_mismatch")
     expected_fields = {
         "patch_file": _PATCH_FIELDS,
         "write_file": _WRITE_FIELDS,
         "no_fix": _NO_FIX_FIELDS,
     }[proposal_type]
     if set(parsed) != expected_fields:
-        raise _FormatError("proposal fields do not match the schema")
+        reason = (
+            "unexpected_field"
+            if set(parsed) - expected_fields
+            else "schema_mismatch"
+        )
+        raise _FormatError(reason)
     confidence = parsed["confidence"]
     if (
         not isinstance(confidence, (int, float))
@@ -530,16 +543,19 @@ def _parse_model_output(output: object) -> dict[str, object]:
         or not math.isfinite(float(confidence))
         or not 0.0 <= float(confidence) <= 1.0
     ):
-        raise _FormatError("invalid confidence")
+        raise _FormatError("invalid_confidence")
     parsed["confidence"] = float(confidence)
-    parsed["reason"] = _bounded_model_text(
-        parsed["reason"], maximum_bytes=MAX_REASON_BYTES
-    )
+    try:
+        parsed["reason"] = _bounded_model_text(
+            parsed["reason"], maximum_bytes=MAX_REASON_BYTES
+        )
+    except _FormatError:
+        raise _FormatError("invalid_reason") from None
     if any(
         unicodedata.category(character).startswith("C")
         for character in parsed["reason"]
     ):
-        raise _FormatError("reason must be short plain text")
+        raise _FormatError("invalid_reason")
     return parsed
 
 
@@ -708,6 +724,59 @@ def _safe_failure(status: str) -> RepairProposal:
     )
 
 
+def _model_response_metadata(response: object) -> dict[str, object]:
+    if isinstance(response, LlamaCppStructuredResponse):
+        return {
+            "finish_reason": response.finish_reason,
+            "http_status": response.http_status,
+            "endpoint_status": response.endpoint_status,
+            "elapsed_ms": response.elapsed_ms,
+            "output_bytes": response.output_bytes,
+        }
+    output_bytes = None
+    if isinstance(response, str):
+        try:
+            output_bytes = len(response.encode("utf-8", errors="strict"))
+        except UnicodeEncodeError:
+            output_bytes = None
+    return {
+        "finish_reason": None,
+        "http_status": None,
+        "endpoint_status": "custom_model",
+        "elapsed_ms": 0.0,
+        "output_bytes": output_bytes,
+    }
+
+
+def _model_output(response: object) -> object:
+    if isinstance(response, LlamaCppStructuredResponse):
+        return response.content
+    return response
+
+
+def _log_model_attempt(
+    *,
+    attempt: int,
+    reason: str,
+    metadata: Mapping[str, object],
+    candidate_count: int,
+) -> None:
+    log = logger.info if reason == "accepted" else logger.warning
+    log(
+        "Repair proposal attempt=%s reason=%s output_bytes=%s "
+        "candidate_count=%s status=%s endpoint_status=%s finish_reason=%s "
+        "elapsed_ms=%.1f",
+        attempt,
+        reason,
+        metadata["output_bytes"],
+        candidate_count,
+        metadata["http_status"],
+        metadata["endpoint_status"],
+        metadata["finish_reason"],
+        metadata["elapsed_ms"],
+    )
+
+
 def _default_model_call(system_prompt: str, user_prompt: str) -> object:
     return get_llama_cpp_repair_response(user_prompt, system_prompt)
 
@@ -729,27 +798,91 @@ def propose_repair(
         return _safe_failure("invalid_request")
 
     caller = model_call or _default_model_call
+    last_error = "invalid_model_output"
     for attempt in range(MAX_MODEL_CALLS):
         prompt = _prompt_for(prepared, excerpts, correction=attempt == 1)
         try:
-            raw_output = caller(REPAIR_PROPOSAL_SYSTEM_PROMPT, prompt)
+            response = caller(REPAIR_PROPOSAL_SYSTEM_PROMPT, prompt)
         except Exception:
+            _log_model_attempt(
+                attempt=attempt + 1,
+                reason="model_failure",
+                metadata={
+                    "finish_reason": None,
+                    "http_status": None,
+                    "endpoint_status": "model_call_failed",
+                    "elapsed_ms": 0.0,
+                    "output_bytes": None,
+                },
+                candidate_count=len(candidates),
+            )
             return _safe_failure("model_failure")
-        if raw_output in (None, ""):
-            return _safe_failure("model_failure")
-        try:
-            parsed = _parse_model_output(raw_output)
-        except _FormatError:
+        metadata = _model_response_metadata(response)
+        raw_output = _model_output(response)
+        endpoint_status = metadata["endpoint_status"]
+        if endpoint_status not in {"ok", "custom_model"}:
+            last_error = str(endpoint_status)
+            _log_model_attempt(
+                attempt=attempt + 1,
+                reason=last_error,
+                metadata=metadata,
+                candidate_count=len(candidates),
+            )
+            return _safe_failure(last_error)
+        finish_reason = metadata["finish_reason"]
+        if isinstance(finish_reason, str) and finish_reason.casefold() in {
+            "length",
+            "max_tokens",
+        }:
+            last_error = "model_output_truncated"
+            _log_model_attempt(
+                attempt=attempt + 1,
+                reason=last_error,
+                metadata=metadata,
+                candidate_count=len(candidates),
+            )
             if attempt + 1 < MAX_MODEL_CALLS:
                 continue
-            return _safe_failure("invalid_model_output")
+            return _safe_failure(last_error)
         try:
-            return _proposal_from_data(parsed, candidates, active_workspace)
+            parsed = _parse_model_output(raw_output)
+        except _FormatError as exc:
+            last_error = exc.code
+            _log_model_attempt(
+                attempt=attempt + 1,
+                reason=last_error,
+                metadata=metadata,
+                candidate_count=len(candidates),
+            )
+            if attempt + 1 < MAX_MODEL_CALLS:
+                continue
+            return _safe_failure(last_error)
+        try:
+            proposal = _proposal_from_data(parsed, candidates, active_workspace)
         except _ProposalError as exc:
+            _log_model_attempt(
+                attempt=attempt + 1,
+                reason=exc.code,
+                metadata=metadata,
+                candidate_count=len(candidates),
+            )
             return _safe_failure(exc.code)
         except Exception:
+            _log_model_attempt(
+                attempt=attempt + 1,
+                reason="invalid_proposal",
+                metadata=metadata,
+                candidate_count=len(candidates),
+            )
             return _safe_failure("invalid_proposal")
-    return _safe_failure("invalid_model_output")
+        _log_model_attempt(
+            attempt=attempt + 1,
+            reason="accepted",
+            metadata=metadata,
+            candidate_count=len(candidates),
+        )
+        return proposal
+    return _safe_failure(last_error)
 
 
 def proposal_to_predefined_repair(

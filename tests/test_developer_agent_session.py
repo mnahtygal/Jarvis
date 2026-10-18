@@ -444,7 +444,7 @@ def test_malformed_proposal_uses_only_phase6_bounded_retry(tmp_path):
         _request(), workspace=_workspace(tmp_path), model_call=model, _executor=executor
     )
 
-    assert result.status == "invalid_model_output"
+    assert result.status == "json_parse_failed"
     assert result.proposals_generated == 1
     assert result.repairs_applied == 0
     assert len(model.calls) == 2

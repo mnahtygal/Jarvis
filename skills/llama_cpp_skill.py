@@ -264,9 +264,13 @@ class LlamaCppStructuredResponse:
     endpoint_status: str
     elapsed_ms: float
     output_bytes: int | None = None
+    reasoning_envelope: bool = False
 
 
-def get_llama_cpp_repair_response(prompt: str, system_prompt: str) -> str:
+def get_llama_cpp_repair_response(
+    prompt: str,
+    system_prompt: str,
+) -> LlamaCppStructuredResponse:
     """Request one fixed-schema Developer Agent repair proposal."""
 
     payload = {
@@ -287,6 +291,8 @@ def get_llama_cpp_repair_response(prompt: str, system_prompt: str) -> str:
         "grammar": _REPAIR_PROPOSAL_GBNF,
     }
 
+    started = time.perf_counter()
+    response = None
     try:
         response = requests.post(
             LLAMA_CPP_URL,
@@ -300,9 +306,49 @@ def get_llama_cpp_repair_response(prompt: str, system_prompt: str) -> str:
         answer = message.get("content", "")
         if not answer:
             answer = message.get("reasoning_content", "")
-        return answer if answer else ""
+        answer = answer if isinstance(answer, str) else ""
+        output_bytes = len(answer.encode("utf-8"))
+        unwrapped = unwrap_structured_thinking(answer)
+        leading_think = bool(re.match(r"^\s*<think\s*>", answer, re.I))
+        reasoning_envelope = leading_think and unwrapped != answer
+        if leading_think and not reasoning_envelope:
+            return LlamaCppStructuredResponse(
+                "",
+                choice.get("finish_reason"),
+                getattr(response, "status_code", 200),
+                "reasoning_envelope",
+                (time.perf_counter() - started) * 1000,
+                output_bytes,
+            )
+        return LlamaCppStructuredResponse(
+            unwrapped,
+            choice.get("finish_reason"),
+            getattr(response, "status_code", 200),
+            "ok",
+            (time.perf_counter() - started) * 1000,
+            output_bytes,
+            reasoning_envelope,
+        )
+    except requests.HTTPError:
+        status = getattr(response, "status_code", None)
+        endpoint_status = "http_error"
+    except (TypeError, ValueError, AttributeError, KeyError, IndexError):
+        status = getattr(response, "status_code", None)
+        endpoint_status = "invalid_response"
+    except requests.RequestException:
+        status = None
+        endpoint_status = "transport_error"
     except Exception:
-        return ""
+        status = getattr(response, "status_code", None)
+        endpoint_status = "transport_error"
+    return LlamaCppStructuredResponse(
+        "",
+        None,
+        status,
+        endpoint_status,
+        (time.perf_counter() - started) * 1000,
+        0,
+    )
 
 
 def get_llama_cpp_greenfield_response(

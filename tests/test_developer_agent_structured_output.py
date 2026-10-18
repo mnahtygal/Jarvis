@@ -42,7 +42,11 @@ def test_repair_inference_uses_fixed_grammar_and_deterministic_profile(monkeypat
 
     result = llama_module.get_llama_cpp_repair_response("prompt", "system")
 
-    assert result == output
+    assert result.content == output
+    assert result.finish_reason == "stop"
+    assert result.endpoint_status == "ok"
+    assert result.output_bytes == len(output.encode("utf-8"))
+    assert result.reasoning_envelope is False
     payload = captured["payload"]
     assert payload["model"] == "test-model"
     assert payload["temperature"] == 0.0
@@ -88,6 +92,41 @@ def test_repair_inference_accepts_no_caller_grammar_or_schema():
     ).parameters
 
     assert tuple(parameters) == ("prompt", "system_prompt")
+
+
+def test_repair_inference_unwraps_only_complete_leading_thinking(monkeypatch):
+    output = (
+        "<think>private reasoning</think>"
+        '{"proposal_type":"no_fix","confidence":0.2,"reason":"insufficient"}'
+    )
+    monkeypatch.setattr(llama_module, "get_active_model_id", lambda: "test-model")
+    monkeypatch.setattr(
+        llama_module.requests,
+        "post",
+        lambda *args, **kwargs: _Response(output),
+    )
+
+    result = llama_module.get_llama_cpp_repair_response("prompt", "system")
+
+    assert result.content.startswith('{"proposal_type"')
+    assert "private reasoning" not in result.content
+    assert result.reasoning_envelope is True
+    assert result.endpoint_status == "ok"
+
+
+def test_repair_inference_rejects_incomplete_thinking_envelope(monkeypatch):
+    monkeypatch.setattr(llama_module, "get_active_model_id", lambda: "test-model")
+    monkeypatch.setattr(
+        llama_module.requests,
+        "post",
+        lambda *args, **kwargs: _Response("<think>unfinished"),
+    )
+
+    result = llama_module.get_llama_cpp_repair_response("prompt", "system")
+
+    assert result.content == ""
+    assert result.endpoint_status == "reasoning_envelope"
+    assert result.reasoning_envelope is False
 
 
 @pytest.mark.parametrize(
