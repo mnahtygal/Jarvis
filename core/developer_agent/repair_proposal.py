@@ -32,6 +32,8 @@ MAX_TOTAL_REPAIR_CONTEXT_BYTES = 48 * 1024
 MAX_MODEL_OUTPUT_BYTES = 32 * 1024
 MAX_PROPOSAL_TEXT_BYTES = 16 * 1024
 MAX_REASON_BYTES = 1024
+MAX_ATTEMPT_HISTORY_SUMMARY_BYTES = 1024
+MAX_ATTEMPT_HISTORY_RECORDS = 2
 MAX_MODEL_CALLS = 2
 MIN_REPAIR_PROPOSAL_CONFIDENCE = 0.70
 
@@ -86,6 +88,20 @@ Rules:
 
 
 @dataclass(frozen=True)
+class RepairAttemptFeedback:
+    """Bounded, payload-free evidence from one rejected candidate."""
+
+    attempt_number: int
+    proposal_type: str
+    proposal_path: str
+    proposal_confidence: float
+    validation_status: str
+    candidate_verification_status: str
+    sanitized_failure_summary: str
+    disposition: str
+
+
+@dataclass(frozen=True)
 class RepairProposalRequest:
     """Caller-supplied, bounded evidence for one proposal request."""
 
@@ -93,6 +109,7 @@ class RepairProposalRequest:
     failure_output: str
     candidate_files: tuple[str, ...]
     file_excerpts: Mapping[str, str] = field(default_factory=dict)
+    attempt_history: tuple[RepairAttemptFeedback, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "candidate_files", tuple(self.candidate_files))
@@ -101,6 +118,7 @@ class RepairProposalRequest:
             "file_excerpts",
             MappingProxyType(dict(self.file_excerpts)),
         )
+        object.__setattr__(self, "attempt_history", tuple(self.attempt_history))
 
 
 @dataclass(frozen=True)
@@ -396,6 +414,31 @@ def _prepare_request(
         raise _RequestError("invalid_file_excerpts")
     if not set(request.file_excerpts).issubset(candidate_paths):
         raise _RequestError("unexpected_file_excerpt")
+    if len(request.attempt_history) > MAX_ATTEMPT_HISTORY_RECORDS:
+        raise _RequestError("attempt_history_too_large")
+    for expected_number, item in enumerate(request.attempt_history, start=1):
+        if (
+            type(item) is not RepairAttemptFeedback
+            or item.attempt_number != expected_number
+            or item.proposal_type not in {"patch_file", "write_file"}
+            or item.proposal_path not in candidate_paths
+            or not isinstance(item.proposal_confidence, float)
+            or not math.isfinite(item.proposal_confidence)
+            or not 0.0 <= item.proposal_confidence <= 1.0
+            or item.validation_status != "accepted"
+            or item.candidate_verification_status
+            not in {
+                "candidate_verification_failed",
+                "candidate_verification_timeout",
+            }
+            or item.disposition != "rejected"
+        ):
+            raise _RequestError("invalid_attempt_history")
+        _bounded_request_text(
+            item.sanitized_failure_summary,
+            maximum_bytes=MAX_ATTEMPT_HISTORY_SUMMARY_BYTES,
+            code="invalid_attempt_history",
+        )
 
     contexts: dict[str, _SourceContext] = {}
     for candidate in candidates:
@@ -430,6 +473,13 @@ def _prepare_request(
             _encoded_length(context.text, code="repair_context_too_large")
             for context in contexts.values()
         )
+        + sum(
+            _encoded_length(
+                item.sanitized_failure_summary,
+                code="repair_context_too_large",
+            )
+            for item in request.attempt_history
+        )
     )
     if context_bytes > MAX_TOTAL_REPAIR_CONTEXT_BYTES:
         raise _RequestError("repair_context_too_large")
@@ -461,6 +511,21 @@ def _prompt_for(
         "failure_output": request.failure_output,
         "candidate_files": list(request.candidate_files),
         "file_contexts": file_contexts,
+        "previous_failed_candidates": [
+            {
+                "attempt_number": item.attempt_number,
+                "proposal_type": item.proposal_type,
+                "proposal_path": item.proposal_path,
+                "proposal_confidence": item.proposal_confidence,
+                "validation_status": item.validation_status,
+                "candidate_verification_status": (
+                    item.candidate_verification_status
+                ),
+                "sanitized_failure_summary": item.sanitized_failure_summary,
+                "disposition": item.disposition,
+            }
+            for item in request.attempt_history
+        ],
     }
     correction_text = (
         "\nYour previous response failed strict JSON/schema validation. "

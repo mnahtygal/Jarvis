@@ -16,6 +16,7 @@ from core.developer_agent import (
 from core.developer_agent.repair_proposal import (
     MAX_CANDIDATE_FILES,
     MAX_FAILURE_OUTPUT_BYTES,
+    RepairAttemptFeedback,
     MAX_FILE_EXCERPT_BYTES,
     MAX_MODEL_CALLS,
     MAX_MODEL_OUTPUT_BYTES,
@@ -738,6 +739,76 @@ def test_prompt_injection_remains_untrusted_data_only(tmp_path, failure_output, 
     assert failure_output in user_prompt
     assert json.dumps(excerpt)[1:-1] in user_prompt
     assert source.read_text(encoding="utf-8") == "VALUE = 1\n"
+
+
+def test_previous_failed_candidate_feedback_is_bounded_and_payload_free(tmp_path):
+    source = _source(tmp_path, "PRIVATE_SOURCE = 1\n")
+    model = _Responses(json.dumps({
+        "proposal_type": "no_fix",
+        "confidence": 0.2,
+        "reason": "The prior candidate failed",
+    }))
+    feedback = RepairAttemptFeedback(
+        1,
+        "patch_file",
+        "example.py",
+        0.91,
+        "accepted",
+        "candidate_verification_failed",
+        (
+            "developer.run_command failed; error_code=command_failed; "
+            "exit_code=1; diagnostic_truncated=false"
+        ),
+        "rejected",
+    )
+
+    proposal = propose_repair(
+        RepairProposalRequest(
+            verification_summary="candidate verification failed",
+            failure_output="one assertion failed",
+            candidate_files=("example.py",),
+            attempt_history=(feedback,),
+        ),
+        workspace=_workspace(tmp_path),
+        model_call=model,
+    )
+
+    assert proposal.valid is True
+    prompt = model.calls[0][1]
+    assert '"previous_failed_candidates":[{"attempt_number":1' in prompt
+    assert '"disposition":"rejected"' in prompt
+    assert "PRIVATE_SOURCE = 1" in prompt
+    assert "replacement payload" not in prompt
+    assert source.read_text(encoding="utf-8") == "PRIVATE_SOURCE = 1\n"
+
+
+def test_invalid_attempt_history_is_rejected_before_model_call(tmp_path):
+    _source(tmp_path)
+    model = _Responses(AssertionError("model must not run"))
+    invalid = RepairAttemptFeedback(
+        2,
+        "patch_file",
+        "example.py",
+        0.9,
+        "accepted",
+        "candidate_verification_failed",
+        "safe summary",
+        "rejected",
+    )
+
+    proposal = propose_repair(
+        RepairProposalRequest(
+            verification_summary="failed",
+            failure_output="failed",
+            candidate_files=("example.py",),
+            attempt_history=(invalid,),
+        ),
+        workspace=_workspace(tmp_path),
+        model_call=model,
+    )
+
+    assert proposal.status == "invalid_attempt_history"
+    assert model.calls == []
 
 
 def test_proposal_layer_dispatches_only_read_file(tmp_path, monkeypatch):

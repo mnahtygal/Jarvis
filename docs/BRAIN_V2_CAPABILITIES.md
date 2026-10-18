@@ -194,16 +194,21 @@ common approval typos after the pending action has already been cleared.
 
 Execution creates exactly one project directory with no recursive parent
 creation, writes each approved file through `developer.write_file`, and invokes
-the existing bounded-session engine. Its first action is verification, so green
+the bounded-session engine. Python verification runs inside a Bubblewrap namespace
+using a read-only disposable copy of only the approved files; the original project,
+broader home directory, network, Git credentials, model files, and unrelated user
+files are not mounted. Its first action is isolated verification, so green
 projects stop after one run without a repair-model call. Red projects retain the
-existing ceiling of two repairs, three total verification runs, and two proposal
-requests. All approved files are readable; only source-role files are writable
-during repair, and the pytest target never changes.
+existing ceiling of two candidate repairs, three total verification runs, and two
+proposal requests. A passing candidate's exact bytes and SHA-256 are sealed before
+cleanup and atomically promoted only after every original source/test identity and
+proposal precondition is revalidated. Failed candidates leave the project source
+unchanged, and the pytest target never changes.
 
 Bootstrap failures retain already-created user-visible files and return an
 honest partial-failure summary. The workflow performs no package installation,
 Git initialization, stage, commit, push, branch operation, dynamic file
 discovery, nested session, background execution, or durable storage of source,
-tests, prompts, manifests, or repair payloads. Safe results contain only the
-project path, created filenames, counters, modified source paths, final status,
-and confirmation that Git was untouched.
+tests, prompts, manifests, or repair payloads. Safe results distinguish proposals,
+candidate attempts, rejected candidates, promoted repairs, verification runs,
+modified source paths, final status, and confirmation that Git was untouched.

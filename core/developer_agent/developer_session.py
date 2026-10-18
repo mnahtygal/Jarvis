@@ -4,9 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+import hashlib
+import json
 from pathlib import Path
 import unicodedata
 
+from core.developer_agent.candidate_verification import (
+    CandidateVerification,
+    capture_session_baseline,
+    promote_sealed_candidate,
+    validate_session_baseline,
+    verify_disposable_candidate,
+)
 from core.developer_agent.executor import execute_tool
 from core.developer_agent.policy import git_protection_code
 from core.developer_agent.repair_proposal import (
@@ -14,6 +23,7 @@ from core.developer_agent.repair_proposal import (
     MAX_CANDIDATE_PATH_BYTES,
     MAX_FAILURE_OUTPUT_BYTES,
     MAX_MODEL_CALLS,
+    RepairAttemptFeedback,
     RepairProposal,
     RepairProposalRequest,
     proposal_to_predefined_repair,
@@ -89,6 +99,7 @@ _VERIFICATION_INFRASTRUCTURE_ERRORS = frozenset({
     "android_sdk_incomplete",
     "android_sdk_unavailable",
     "command_unavailable",
+    "candidate_isolation_unavailable",
     "execution_failed",
     "gradle_cache_unavailable",
     "gradle_distribution_not_cached",
@@ -108,6 +119,7 @@ _DIAGNOSTIC_MARKER = "\n...[diagnostic truncated]...\n"
 
 ModelCall = Callable[[str, str], object]
 ExecutorCall = Callable[..., ToolResult]
+CandidateVerifierCall = Callable[..., CandidateVerification]
 
 
 @dataclass(frozen=True)
@@ -144,6 +156,10 @@ class DeveloperSessionAttempt:
     proposal_path: str | None
     proposal_confidence: float | None
     mutation_status: str | None
+    candidate_verification_status: str | None = None
+    disposition: str | None = None
+    original_source_modified: bool = False
+    candidate_attempt_number: int | None = None
 
 
 @dataclass(frozen=True)
@@ -158,6 +174,9 @@ class DeveloperSessionResult:
     attempts: tuple[DeveloperSessionAttempt, ...]
     changed_paths: tuple[str, ...]
     stopped_reason: str
+    candidate_repairs_attempted: int = 0
+    candidate_repairs_rejected: int = 0
+    repairs_promoted: int = 0
 
 
 @dataclass(frozen=True)
@@ -194,6 +213,9 @@ def _result(
     repairs_applied: int = 0,
     attempts: tuple[DeveloperSessionAttempt, ...] = (),
     changed_paths: tuple[str, ...] = (),
+    candidate_repairs_attempted: int = 0,
+    candidate_repairs_rejected: int = 0,
+    repairs_promoted: int = 0,
 ) -> DeveloperSessionResult:
     return DeveloperSessionResult(
         success=success,
@@ -204,6 +226,9 @@ def _result(
         attempts=attempts,
         changed_paths=changed_paths,
         stopped_reason=status,
+        candidate_repairs_attempted=candidate_repairs_attempted,
+        candidate_repairs_rejected=candidate_repairs_rejected,
+        repairs_promoted=repairs_promoted,
     )
 
 
@@ -496,6 +521,10 @@ def _attempt(
     proposal_path: str | None = None,
     proposal_confidence: float | None = None,
     mutation_status: str | None = None,
+    candidate_verification_status: str | None = None,
+    disposition: str | None = None,
+    original_source_modified: bool = False,
+    candidate_attempt_number: int | None = None,
 ) -> DeveloperSessionAttempt:
     return DeveloperSessionAttempt(
         number,
@@ -505,6 +534,10 @@ def _attempt(
         proposal_path,
         proposal_confidence,
         mutation_status,
+        candidate_verification_status,
+        disposition,
+        original_source_modified,
+        candidate_attempt_number,
     )
 
 
@@ -514,6 +547,7 @@ def run_developer_session_request(
     workspace: Workspace | None = None,
     model_call: ModelCall | None = None,
     _executor: ExecutorCall | None = None,
+    _candidate_verifier: CandidateVerifierCall | None = None,
 ) -> DeveloperSessionResult:
     """Run one approved session; approval and all scope disappear on return."""
 
@@ -531,11 +565,16 @@ def run_developer_session_request(
         return _result(False, "invalid_request")
 
     executor = _executor or execute_tool
+    candidate_verifier = _candidate_verifier or verify_disposable_candidate
     attempts: list[DeveloperSessionAttempt] = []
+    feedback: list[RepairAttemptFeedback] = []
     changed_paths: list[str] = []
+    rejected_fingerprints: set[str] = set()
     verification_runs = 0
     proposal_requests = 0
     repairs_applied = 0
+    candidate_repairs_attempted = 0
+    candidate_repairs_rejected = 0
 
     def finish(success: bool, status: str) -> DeveloperSessionResult:
         return _result(
@@ -546,9 +585,21 @@ def run_developer_session_request(
             repairs_applied=repairs_applied,
             attempts=tuple(attempts),
             changed_paths=tuple(changed_paths),
+            candidate_repairs_attempted=candidate_repairs_attempted,
+            candidate_repairs_rejected=candidate_repairs_rejected,
+            repairs_promoted=repairs_applied,
         )
 
-    while verification_runs < scope.max_verification_runs:
+    try:
+        baseline = capture_session_baseline(
+            active_workspace,
+            scope.candidate_files,
+        )
+    except Exception as exc:
+        status = getattr(exc, "code", "baseline_unavailable")
+        return finish(False, str(status))
+
+    if scope.verification.kind != _RUN_COMMAND_VERIFICATION:
         verification_tool_id, verification_arguments = _verification_call(
             scope.verification
         )
@@ -579,19 +630,51 @@ def run_developer_session_request(
         if verification_status == "verification_passed":
             attempts.append(_attempt(verification_runs, verification_status))
             return finish(True, verification_status)
+        attempts.append(_attempt(verification_runs, verification_status))
         if verification_status != "verification_failed":
-            attempts.append(_attempt(verification_runs, verification_status))
             return finish(False, verification_status)
+        return finish(False, "candidate_isolation_unavailable")
 
-        if repairs_applied >= scope.max_repairs:
-            attempts.append(_attempt(verification_runs, verification_status))
+    verification_argv = scope.verification.argv
+    try:
+        initial_candidate = candidate_verifier(
+            workspace=active_workspace,
+            baseline=baseline,
+            verification_argv=verification_argv,
+        )
+    except Exception:
+        return finish(False, "candidate_verification_failure")
+    if type(initial_candidate) is not CandidateVerification:
+        return finish(False, "candidate_verification_failure")
+    if initial_candidate.verification is None:
+        return finish(False, initial_candidate.status)
+    if initial_candidate.status == "candidate_isolation_unavailable":
+        return finish(False, initial_candidate.status)
+    verification_runs += 1
+    if initial_candidate.status == "candidate_cleanup_failed":
+        return finish(False, initial_candidate.status)
+    verification_status = _verification_status(
+        initial_candidate.verification,
+        "developer.run_command",
+    )
+    if verification_status == "verification_passed":
+        attempts.append(_attempt(verification_runs, verification_status))
+        return finish(True, verification_status)
+    if verification_status != "verification_failed":
+        attempts.append(_attempt(verification_runs, verification_status))
+        return finish(False, verification_status)
+    verification = initial_candidate.verification
+
+    while True:
+        if candidate_repairs_attempted >= scope.max_repairs:
             return finish(False, "repair_limit")
         if verification_runs >= scope.max_verification_runs:
-            attempts.append(_attempt(verification_runs, verification_status))
             return finish(False, "verification_limit")
         if proposal_requests >= scope.max_proposal_requests:
-            attempts.append(_attempt(verification_runs, verification_status))
             return finish(False, "proposal_request_limit")
+        baseline_error = validate_session_baseline(active_workspace, baseline)
+        if baseline_error:
+            return finish(False, baseline_error)
 
         try:
             diagnostic = build_diagnostic_excerpt(verification)
@@ -599,6 +682,7 @@ def run_developer_session_request(
                 verification_summary=_verification_summary(verification, diagnostic),
                 failure_output=diagnostic.text,
                 candidate_files=scope.candidate_files,
+                attempt_history=tuple(feedback),
             )
         except Exception:
             attempts.append(_attempt(
@@ -669,6 +753,17 @@ def run_developer_session_request(
             ))
             return finish(False, "proposal_outside_mutation_scope")
 
+        baseline_error = validate_session_baseline(active_workspace, baseline)
+        if baseline_error:
+            attempts.append(_attempt(
+                verification_runs,
+                verification_status,
+                mutation_status="not_applied",
+                disposition="rejected",
+                **proposal_details,
+            ))
+            return finish(False, baseline_error)
+
         try:
             repair = proposal_to_predefined_repair(
                 proposal,
@@ -707,55 +802,199 @@ def run_developer_session_request(
             return finish(False, "proposal_conversion_failed")
 
         try:
-            mutation = executor(
-                tool_id,
-                arguments,
+            fingerprint = hashlib.sha256(json.dumps(
+                {"tool": tool_id, "arguments": dict(arguments)},
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")).hexdigest()
+        except (TypeError, ValueError, UnicodeEncodeError):
+            return finish(False, "proposal_conversion_failed")
+        if fingerprint in rejected_fingerprints:
+            attempts.append(_attempt(
+                verification_runs,
+                verification_status,
+                mutation_status="not_applied",
+                candidate_verification_status="not_run",
+                disposition="rejected",
+                original_source_modified=False,
+                candidate_attempt_number=candidate_repairs_attempted + 1,
+                **proposal_details,
+            ))
+            return finish(False, "duplicate_failed_candidate")
+
+        candidate_repairs_attempted += 1
+        try:
+            candidate = candidate_verifier(
                 workspace=active_workspace,
+                baseline=baseline,
+                verification_argv=verification_argv,
+                repair=repair,
+                seal_path=proposal_path,
             )
         except Exception:
             attempts.append(_attempt(
                 verification_runs,
                 verification_status,
-                mutation_status="unexpected_executor_failure",
+                mutation_status="candidate_verification_failure",
+                candidate_verification_status="not_run",
+                disposition="rejected",
+                original_source_modified=False,
+                candidate_attempt_number=candidate_repairs_attempted,
                 **proposal_details,
             ))
-            return finish(False, "unexpected_executor_failure")
-        if type(mutation) is not ToolResult or mutation.tool_name != tool_id:
+            return finish(False, "candidate_verification_failure")
+        if type(candidate) is not CandidateVerification:
             attempts.append(_attempt(
                 verification_runs,
                 verification_status,
-                mutation_status="unexpected_executor_failure",
+                mutation_status="candidate_verification_failure",
+                candidate_verification_status="not_run",
+                disposition="rejected",
+                original_source_modified=False,
+                candidate_attempt_number=candidate_repairs_attempted,
                 **proposal_details,
             ))
-            return finish(False, "unexpected_executor_failure")
-        if not mutation.success:
-            mutation_status = (
-                "failed"
-                if mutation.error_code in _MUTATION_OPERATION_ERRORS
-                else "rejected"
-            )
+            return finish(False, "candidate_verification_failure")
+        if candidate.status == "candidate_isolation_unavailable":
+            candidate_repairs_rejected += 1
             attempts.append(_attempt(
                 verification_runs,
                 verification_status,
-                mutation_status=mutation_status,
+                mutation_status=candidate.mutation_status or "candidate_only",
+                candidate_verification_status=candidate.status,
+                disposition="rejected",
+                original_source_modified=False,
+                candidate_attempt_number=candidate_repairs_attempted,
                 **proposal_details,
             ))
-            return finish(
-                False,
-                "mutation_failed" if mutation_status == "failed" else "mutation_rejected",
-            )
+            return finish(False, candidate.status)
+        if candidate.verification is None:
+            candidate_repairs_rejected += 1
+            attempts.append(_attempt(
+                verification_runs,
+                verification_status,
+                mutation_status=candidate.mutation_status or "not_applied",
+                candidate_verification_status=candidate.status,
+                disposition="rejected",
+                original_source_modified=False,
+                candidate_attempt_number=candidate_repairs_attempted,
+                **proposal_details,
+            ))
+            return finish(False, candidate.status)
 
-        repairs_applied += 1
-        if proposal_path not in changed_paths:
-            changed_paths.append(proposal_path)
+        verification_runs += 1
+        verification = candidate.verification
+        if candidate.status == "candidate_cleanup_failed":
+            candidate_repairs_rejected += 1
+            attempts.append(_attempt(
+                verification_runs,
+                verification_status,
+                mutation_status="candidate_only",
+                candidate_verification_status="candidate_cleanup_failed",
+                disposition="rejected",
+                original_source_modified=False,
+                candidate_attempt_number=candidate_repairs_attempted,
+                **proposal_details,
+            ))
+            return finish(False, "candidate_cleanup_failed")
+        candidate_status = _verification_status(
+            verification,
+            "developer.run_command",
+        )
+        if candidate_status == "verification_passed":
+            sealed = candidate.sealed_candidate
+            baseline_error = validate_session_baseline(active_workspace, baseline)
+            try:
+                current_repair = proposal_to_predefined_repair(
+                    proposal,
+                    workspace=active_workspace,
+                )
+            except Exception:
+                current_repair = None
+            if baseline_error:
+                promotion_error = baseline_error
+            elif sealed is None:
+                promotion_error = "candidate_seal_failed"
+            elif not isinstance(current_repair, Mapping):
+                promotion_error = "proposal_precondition_failed"
+            else:
+                try:
+                    same_repair = (
+                        current_repair.get("tool") == repair.get("tool")
+                        and dict(current_repair.get("arguments", {}))
+                        == dict(repair.get("arguments", {}))
+                    )
+                except (TypeError, ValueError):
+                    same_repair = False
+                promotion_error = (
+                    promote_sealed_candidate(
+                        workspace=active_workspace,
+                        baseline=baseline,
+                        proposal_repair=current_repair,
+                        sealed=sealed,
+                    )
+                    if same_repair
+                    else "proposal_precondition_failed"
+                )
+            if promotion_error:
+                candidate_repairs_rejected += 1
+                attempts.append(_attempt(
+                    verification_runs,
+                    verification_status,
+                    mutation_status="not_applied",
+                    candidate_verification_status=(
+                        "candidate_verification_passed"
+                    ),
+                    disposition="promotion_rejected",
+                    original_source_modified=False,
+                    candidate_attempt_number=candidate_repairs_attempted,
+                    **proposal_details,
+                ))
+                return finish(False, promotion_error)
+
+            repairs_applied += 1
+            if proposal_path not in changed_paths:
+                changed_paths.append(proposal_path)
+            attempts.append(_attempt(
+                verification_runs,
+                verification_status,
+                mutation_status="promoted",
+                candidate_verification_status="candidate_verification_passed",
+                disposition="promoted",
+                original_source_modified=True,
+                candidate_attempt_number=candidate_repairs_attempted,
+                **proposal_details,
+            ))
+            return finish(True, "verification_passed")
+
+        candidate_repairs_rejected += 1
+        rejected_fingerprints.add(fingerprint)
+        diagnostic = build_diagnostic_excerpt(verification)
+        safe_summary = _verification_summary(verification, diagnostic)
         attempts.append(_attempt(
             verification_runs,
             verification_status,
-            mutation_status="applied",
+            mutation_status="candidate_only",
+            candidate_verification_status=candidate.status,
+            disposition="rejected",
+            original_source_modified=False,
+            candidate_attempt_number=candidate_repairs_attempted,
             **proposal_details,
         ))
-
-    return finish(False, "verification_limit")
+        if candidate_status != "verification_failed":
+            return finish(False, candidate_status)
+        feedback.append(RepairAttemptFeedback(
+            candidate_repairs_attempted,
+            proposal.proposal_type,
+            proposal_path,
+            proposal_confidence if proposal_confidence is not None else 0.0,
+            proposal.status,
+            "candidate_verification_failed",
+            safe_summary,
+            "rejected",
+        ))
+        verification_status = candidate_status
 
 
 def run_bounded_developer_session(
@@ -770,6 +1009,7 @@ def run_bounded_developer_session(
     workspace: Workspace | None = None,
     model_call: ModelCall | None = None,
     _executor: ExecutorCall | None = None,
+    _candidate_verifier: CandidateVerifierCall | None = None,
     verification_spec: VerificationSpec | None = None,
 ) -> DeveloperSessionResult:
     """Construct and run one strictly validated bounded session request."""
@@ -789,4 +1029,5 @@ def run_bounded_developer_session(
         workspace=workspace,
         model_call=model_call,
         _executor=_executor,
+        _candidate_verifier=_candidate_verifier,
     )

@@ -39,17 +39,32 @@ def main() -> int:
         for number in range(1, CALL_COUNT + 1):
             proposal = propose_repair(request, workspace=workspace)
             parse_success = proposal.status not in {
-                "invalid_model_output",
+                "empty_model_output",
+                "invalid_model_output_encoding",
+                "model_output_too_large",
+                "model_output_truncated",
+                "reasoning_envelope",
+                "json_parse_failed",
+                "schema_mismatch",
+                "unexpected_field",
+                "invalid_json_constant",
+                "duplicate_json_field",
+                "invalid_confidence",
+                "invalid_reason",
+                "transport_error",
+                "http_error",
+                "invalid_response",
                 "model_failure",
             }
             observations.append({
                 "call": number,
                 "parse_success": parse_success,
-                "schema_success": parse_success,
+                "schema_success": proposal.valid,
                 "proposal_type": proposal.proposal_type,
                 "confidence": proposal.confidence,
                 "validation_status": proposal.status,
                 "valid": proposal.valid,
+                "eligible_for_repair": proposal.eligible_for_repair,
             })
 
         source_unchanged = source.read_text(encoding="utf-8") == "VALUE = 1\n"
@@ -57,10 +72,13 @@ def main() -> int:
     successes = sum(
         observation["parse_success"] is True for observation in observations
     )
+    schema_successes = sum(
+        observation["schema_success"] is True for observation in observations
+    )
     print(json.dumps({
         "calls": observations,
         "parse_successes": successes,
-        "schema_successes": successes,
+        "schema_successes": schema_successes,
         "source_unchanged": source_unchanged,
     }, indent=2))
     return 0 if successes == CALL_COUNT and source_unchanged else 1

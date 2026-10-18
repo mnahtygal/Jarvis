@@ -185,6 +185,10 @@ class GreenfieldProjectResult:
     changed_paths: tuple[str, ...]
     stopped_reason: str
     error_code: str | None = None
+    proposals_generated: int = 0
+    candidate_repairs_attempted: int = 0
+    candidate_repairs_rejected: int = 0
+    repairs_promoted: int = 0
 
 
 class GreenfieldProjectError(ValueError):
@@ -890,6 +894,14 @@ def _result(
         changed_paths=session.changed_paths if session else (),
         stopped_reason=session.stopped_reason if session else status,
         error_code=error_code,
+        proposals_generated=session.proposals_generated if session else 0,
+        candidate_repairs_attempted=(
+            session.candidate_repairs_attempted if session else 0
+        ),
+        candidate_repairs_rejected=(
+            session.candidate_repairs_rejected if session else 0
+        ),
+        repairs_promoted=session.repairs_promoted if session else 0,
     )
 
 

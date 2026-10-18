@@ -6,6 +6,10 @@ from pathlib import Path
 import pytest
 
 from core.developer_agent import Workspace
+from core.developer_agent.candidate_verification import (
+    CandidateVerification,
+    SealedCandidate,
+)
 from core.developer_agent.developer_session import (
     MAX_MUTATION_PATHS,
     MAX_SESSION_PROPOSAL_REQUESTS,
@@ -14,6 +18,7 @@ from core.developer_agent.developer_session import (
     DeveloperSessionAttempt,
     DeveloperSessionRequest,
     DeveloperSessionResult,
+    VerificationSpec,
     build_diagnostic_excerpt,
     run_bounded_developer_session,
     run_developer_session_request,
@@ -123,6 +128,66 @@ class _ScriptedExecutor:
             return self.mutation(tool_id, arguments, workspace=workspace)
         return ToolResult(True, tool_id, "applied", metadata={"path": arguments["path"]})
 
+    def verify_candidate(
+        self,
+        *,
+        workspace,
+        baseline,
+        verification_argv,
+        repair=None,
+        seal_path=None,
+    ):
+        if repair is not None:
+            tool_id = repair["tool"]
+            arguments = repair["arguments"]
+            self.calls.append((tool_id, dict(arguments)))
+            if self.mutation is not None:
+                mutation = self.mutation(tool_id, arguments, workspace=workspace)
+                if not mutation.success:
+                    return CandidateVerification(
+                        "candidate_mutation_failed",
+                        None,
+                        None,
+                        mutation.error_code,
+                        True,
+                    )
+        self.calls.append(("developer.run_command", {"argv": verification_argv}))
+        verification = self.verifications.pop(0)
+        sealed = None
+        if verification.success and repair is not None and seal_path is not None:
+            arguments = repair["arguments"]
+            original = baseline.file(seal_path)
+            if repair["tool"] == "developer.patch_file":
+                content = original.content.decode("utf-8")
+                content = content.replace(
+                    arguments["old_text"], arguments["new_text"], 1
+                ).encode("utf-8")
+            else:
+                content = arguments["content"].encode("utf-8")
+            import hashlib
+            sealed = SealedCandidate(
+                seal_path,
+                content,
+                hashlib.sha256(content).hexdigest(),
+                len(content),
+            )
+        status = (
+            "candidate_verification_passed"
+            if verification.success
+            else (
+                "candidate_verification_timeout"
+                if verification.error_code == "timeout"
+                else "candidate_verification_failed"
+            )
+        )
+        return CandidateVerification(
+            status,
+            verification,
+            sealed,
+            "candidate_applied" if repair is not None else None,
+            True,
+        )
+
 
 def test_missing_approval_does_no_work_even_with_invalid_scope(tmp_path):
     def unexpected(*args, **kwargs):
@@ -153,7 +218,7 @@ def test_initial_verification_passes_without_proposal_or_mutation(tmp_path):
         _request(),
         workspace=_workspace(tmp_path),
         model_call=model,
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.success is True
@@ -173,7 +238,7 @@ def test_realistic_one_repair_session_reaches_green(tmp_path):
     model = _Responses(_patch_response(old_text="return 41", new_text="return 420"))
 
     result = run_developer_session_request(
-        _request(),
+        _request(candidate_files=("example.py", "test_example.py")),
         workspace=_workspace(tmp_path),
         model_call=model,
     )
@@ -185,8 +250,7 @@ def test_realistic_one_repair_session_reaches_green(tmp_path):
     assert source.read_text(encoding="utf-8") == "def answer():\n    return 420\n"
     assert len(model.calls) == 1
     assert tuple(attempt.mutation_status for attempt in result.attempts) == (
-        "applied",
-        None,
+        "promoted",
     )
     assert not (tmp_path / ".git").exists()
 
@@ -202,22 +266,28 @@ def test_realistic_two_repair_session_uses_new_state_and_failure(tmp_path):
     )
     model = _Responses(
         _patch_response(old_text="FIRST = 0", new_text="FIRST = 111"),
-        _patch_response(old_text="SECOND = 0", new_text="SECOND = 222"),
+        _patch_response(
+            old_text="FIRST = 0\nSECOND = 0",
+            new_text="FIRST = 111\nSECOND = 222",
+        ),
     )
 
     result = run_developer_session_request(
-        _request(),
+        _request(candidate_files=("example.py", "test_example.py")),
         workspace=_workspace(tmp_path),
         model_call=model,
     )
 
     assert result.success is True
     assert result.verification_runs == 3
-    assert result.proposals_generated == result.repairs_applied == 2
+    assert result.proposals_generated == result.candidate_repairs_attempted == 2
+    assert result.candidate_repairs_rejected == 1
+    assert result.repairs_applied == result.repairs_promoted == 1
     assert source.read_text(encoding="utf-8") == "FIRST = 111\nSECOND = 222\n"
     assert len(model.calls) == 2
-    assert "FIRST = 111" in model.calls[1][1]
+    assert "FIRST = 111" not in model.calls[1][1]
     assert "SECOND == 222" in model.calls[1][1]
+    assert '"previous_failed_candidates"' in model.calls[1][1]
 
 
 def test_hard_repair_limit_stops_before_third_proposal(tmp_path):
@@ -226,20 +296,23 @@ def test_hard_repair_limit_stops_before_third_proposal(tmp_path):
         _verification(False, "failure one", error_code="command_failed", exit_code=1),
         _verification(False, "failure two", error_code="command_failed", exit_code=1),
         _verification(False, "failure three", error_code="command_failed", exit_code=1),
-    ], mutation=real_execute_tool)
+    ])
     model = _Responses(
         _patch_response(),
-        _patch_response(old_text="VALUE = 2", new_text="VALUE = 3"),
+        _patch_response(old_text="VALUE = 1", new_text="VALUE = 3"),
         AssertionError("third proposal is forbidden"),
     )
 
     result = run_developer_session_request(
-        _request(), workspace=_workspace(tmp_path), model_call=model, _executor=executor
+        _request(), workspace=_workspace(tmp_path), model_call=model,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.status == "repair_limit"
     assert result.verification_runs == 3
-    assert result.proposals_generated == result.repairs_applied == 2
+    assert result.proposals_generated == result.candidate_repairs_attempted == 2
+    assert result.candidate_repairs_rejected == 2
+    assert result.repairs_applied == result.repairs_promoted == 0
     assert len(model.calls) == 2
 
 
@@ -254,12 +327,13 @@ def test_caller_lower_verification_limit_is_enforced(tmp_path):
         _request(max_verification_runs=2),
         workspace=_workspace(tmp_path),
         model_call=_Responses(_patch_response()),
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.status == "verification_limit"
     assert result.verification_runs == 2
-    assert result.repairs_applied == result.proposals_generated == 1
+    assert result.proposals_generated == result.candidate_repairs_attempted == 1
+    assert result.repairs_applied == 0
 
 
 def test_caller_lower_proposal_request_limit_is_enforced(tmp_path):
@@ -273,11 +347,12 @@ def test_caller_lower_proposal_request_limit_is_enforced(tmp_path):
         _request(max_proposal_requests=1),
         workspace=_workspace(tmp_path),
         model_call=_Responses(_patch_response()),
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.status == "proposal_request_limit"
-    assert result.proposals_generated == result.repairs_applied == 1
+    assert result.proposals_generated == result.candidate_repairs_attempted == 1
+    assert result.repairs_applied == 0
 
 
 @pytest.mark.parametrize(
@@ -321,7 +396,7 @@ def test_no_fix_model_failure_and_low_confidence_never_mutate(
         _request(),
         workspace=_workspace(tmp_path),
         model_call=_Responses(response),
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.status == status
@@ -344,7 +419,7 @@ def test_readable_candidate_without_mutation_approval_is_rejected(tmp_path):
         ),
         workspace=_workspace(tmp_path),
         model_call=_Responses(_patch_response(path="other.py")),
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.status == "proposal_outside_mutation_scope"
@@ -373,7 +448,7 @@ def test_unsafe_static_scope_is_rejected_before_execution(tmp_path, path):
     result = run_developer_session_request(
         _request(candidate_files=(path,)),
         workspace=_workspace(tmp_path),
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.success is False
@@ -410,7 +485,7 @@ def test_model_cannot_introduce_protected_or_unlisted_candidate(
         _request(),
         workspace=_workspace(tmp_path),
         model_call=_Responses(_patch_response(path=proposed_path)),
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.status == "path_not_a_candidate"
@@ -425,7 +500,8 @@ def test_verification_policy_rejection_stops_before_model_or_read(tmp_path):
     model = _Responses(AssertionError("model must not run"))
 
     result = run_developer_session_request(
-        _request(), workspace=_workspace(tmp_path), model_call=model, _executor=executor
+        _request(), workspace=_workspace(tmp_path), model_call=model,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.status == "verification_policy_rejected"
@@ -441,7 +517,8 @@ def test_malformed_proposal_uses_only_phase6_bounded_retry(tmp_path):
     model = _Responses("not json", "still not json")
 
     result = run_developer_session_request(
-        _request(), workspace=_workspace(tmp_path), model_call=model, _executor=executor
+        _request(), workspace=_workspace(tmp_path), model_call=model,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.status == "json_parse_failed"
@@ -462,7 +539,7 @@ def test_stale_proposal_conversion_stops_without_mutation(tmp_path, monkeypatch)
         _request(),
         workspace=_workspace(tmp_path),
         model_call=_Responses(_patch_response()),
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.status == "stale_or_invalid_proposal"
@@ -496,10 +573,10 @@ def test_patch_and_write_mutation_rejection_stop(tmp_path, response, error_code)
         _request(candidate_files=candidates, allowed_mutation_paths=allowed),
         workspace=_workspace(tmp_path),
         model_call=_Responses(response),
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
-    assert result.status == "mutation_rejected"
+    assert result.status == "candidate_mutation_failed"
     assert result.repairs_applied == 0
 
 
@@ -517,10 +594,10 @@ def test_operational_mutation_failure_stops_without_reverification(tmp_path):
         _request(),
         workspace=_workspace(tmp_path),
         model_call=_Responses(_patch_response()),
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
-    assert result.status == "mutation_failed"
+    assert result.status == "candidate_mutation_failed"
     assert result.verification_runs == 1
     assert result.repairs_applied == 0
 
@@ -530,7 +607,7 @@ def test_new_file_succeeds_only_at_exact_preauthorized_path(tmp_path):
     executor = _ScriptedExecutor([
         _verification(False, error_code="command_failed", exit_code=1),
         _verification(True),
-    ], mutation=real_execute_tool)
+    ])
 
     result = run_developer_session_request(
         _request(
@@ -539,7 +616,7 @@ def test_new_file_succeeds_only_at_exact_preauthorized_path(tmp_path):
         ),
         workspace=_workspace(tmp_path),
         model_call=_Responses(_write_response()),
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.success is True
@@ -560,31 +637,33 @@ def test_unapproved_new_file_destination_is_rejected(tmp_path):
         ),
         workspace=_workspace(tmp_path),
         model_call=_Responses(_write_response()),
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.status == "proposal_outside_mutation_scope"
     assert not (tmp_path / "created.py").exists()
 
 
-def test_timeout_after_mutation_leaves_authorized_change_and_does_not_rollback(tmp_path):
+def test_candidate_timeout_leaves_original_source_unchanged(tmp_path):
     source = _source(tmp_path)
     executor = _ScriptedExecutor([
         _verification(False, error_code="command_failed", exit_code=1),
         _verification(False, "timed out", error_code="timeout", timed_out=True),
-    ], mutation=real_execute_tool)
+    ])
 
     result = run_developer_session_request(
         _request(),
         workspace=_workspace(tmp_path),
         model_call=_Responses(_patch_response()),
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.status == "verification_timeout"
-    assert result.repairs_applied == 1
-    assert result.changed_paths == ("example.py",)
-    assert source.read_text(encoding="utf-8") == "VALUE = 2\n"
+    assert result.candidate_repairs_attempted == 1
+    assert result.candidate_repairs_rejected == 1
+    assert result.repairs_applied == 0
+    assert result.changed_paths == ()
+    assert source.read_text(encoding="utf-8") == "VALUE = 1\n"
     assert "VALUE = 1" not in repr(result)
     assert "VALUE = 2" not in repr(result)
     assert all(not call[0].startswith("developer.git_") for call in executor.calls)
@@ -597,17 +676,17 @@ def test_verification_command_and_candidate_scope_are_frozen_across_cycles(tmp_p
         _verification(False, "first diagnostic", error_code="command_failed", exit_code=1),
         _verification(False, "second diagnostic", error_code="command_failed", exit_code=1),
         _verification(True),
-    ], mutation=real_execute_tool)
+    ])
     model = _Responses(
         _patch_response(),
-        _patch_response(old_text="VALUE = 2", new_text="VALUE = 3"),
+        _patch_response(old_text="VALUE = 1", new_text="VALUE = 3"),
     )
 
     result = run_developer_session_request(
         _request(verification_argv=command),
         workspace=_workspace(tmp_path),
         model_call=model,
-        _executor=executor,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert result.success is True
@@ -619,6 +698,211 @@ def test_verification_command_and_candidate_scope_are_frozen_across_cycles(tmp_p
     assert all('"candidate_files":["example.py"]' in call[1] for call in model.calls)
     assert "first diagnostic" in model.calls[0][1]
     assert "second diagnostic" in model.calls[1][1]
+    assert '"previous_failed_candidates"' in model.calls[1][1]
+
+
+def test_final_budget_candidate_promotes_without_hidden_fourth_verification(tmp_path):
+    source = _source(tmp_path)
+    executor = _ScriptedExecutor([
+        _verification(False, "initial", error_code="command_failed", exit_code=1),
+        _verification(False, "candidate one", error_code="command_failed", exit_code=1),
+        _verification(True, "candidate two passed"),
+    ])
+    model = _Responses(
+        _patch_response(new_text="VALUE = 200"),
+        _patch_response(new_text="VALUE = 3"),
+    )
+
+    result = run_developer_session_request(
+        _request(),
+        workspace=_workspace(tmp_path),
+        model_call=model,
+        _candidate_verifier=executor.verify_candidate,
+    )
+
+    verification_calls = [
+        call for call in executor.calls if call[0] == "developer.run_command"
+    ]
+    assert result.success is True
+    assert result.verification_runs == MAX_SESSION_VERIFICATION_RUNS == 3
+    assert len(verification_calls) == 3
+    assert result.candidate_repairs_attempted == 2
+    assert result.candidate_repairs_rejected == 1
+    assert result.repairs_promoted == result.repairs_applied == 1
+    assert source.read_text(encoding="utf-8") == "VALUE = 3\n"
+
+
+def test_concurrent_original_change_before_promotion_fails_closed(tmp_path):
+    source = _source(tmp_path)
+    executor = _ScriptedExecutor([
+        _verification(False, error_code="command_failed", exit_code=1),
+        _verification(True),
+    ])
+
+    def change_original_before_return(**kwargs):
+        result = executor.verify_candidate(**kwargs)
+        if kwargs.get("repair") is not None and result.verification.success:
+            source.write_text("VALUE = 999\n", encoding="utf-8")
+        return result
+
+    result = run_developer_session_request(
+        _request(),
+        workspace=_workspace(tmp_path),
+        model_call=_Responses(_patch_response()),
+        _candidate_verifier=change_original_before_return,
+    )
+
+    assert result.status == "approved_file_changed"
+    assert result.repairs_promoted == 0
+    assert result.changed_paths == ()
+    assert result.attempts[-1].disposition == "promotion_rejected"
+    assert result.attempts[-1].original_source_modified is False
+    assert source.read_text(encoding="utf-8") == "VALUE = 999\n"
+
+
+def test_proposal_precondition_is_rechecked_after_candidate_passes(
+    tmp_path, monkeypatch
+):
+    source = _source(tmp_path)
+    session_module = importlib.import_module("core.developer_agent.developer_session")
+    original_convert = session_module.proposal_to_predefined_repair
+    conversion_calls = 0
+
+    def convert_once(*args, **kwargs):
+        nonlocal conversion_calls
+        conversion_calls += 1
+        return original_convert(*args, **kwargs) if conversion_calls == 1 else None
+
+    monkeypatch.setattr(
+        session_module,
+        "proposal_to_predefined_repair",
+        convert_once,
+    )
+    executor = _ScriptedExecutor([
+        _verification(False, error_code="command_failed", exit_code=1),
+        _verification(True),
+    ])
+
+    result = session_module.run_developer_session_request(
+        _request(),
+        workspace=_workspace(tmp_path),
+        model_call=_Responses(_patch_response()),
+        _candidate_verifier=executor.verify_candidate,
+    )
+
+    assert result.status == "proposal_precondition_failed"
+    assert conversion_calls == 2
+    assert result.repairs_promoted == 0
+    assert source.read_text(encoding="utf-8") == "VALUE = 1\n"
+
+
+def test_failed_gradle_verification_cannot_enter_unisolated_repair(tmp_path):
+    source = tmp_path / "Calculator.kt"
+    test = tmp_path / "CalculatorTest.kt"
+    source.write_text("class Calculator\n", encoding="utf-8")
+    test.write_text("class CalculatorTest\n", encoding="utf-8")
+    request = DeveloperSessionRequest(
+        verification_argv=None,
+        candidate_files=("Calculator.kt", "CalculatorTest.kt"),
+        allowed_mutation_paths=("Calculator.kt",),
+        approved=True,
+        verification_spec=VerificationSpec("gradle_test", project_path="."),
+    )
+    def failed_gradle(tool_id, arguments, *, workspace):
+        assert tool_id == "developer.gradle_test"
+        return ToolResult(
+            False,
+            tool_id,
+            "tests failed",
+            error_code="command_failed",
+            metadata={"exit_code": 1},
+        )
+
+    result = run_developer_session_request(
+        request,
+        workspace=_workspace(tmp_path),
+        model_call=lambda *args: (_ for _ in ()).throw(AssertionError()),
+        _executor=failed_gradle,
+        _candidate_verifier=lambda **kwargs: (_ for _ in ()).throw(AssertionError()),
+    )
+
+    assert result.status == "candidate_isolation_unavailable"
+    assert result.verification_runs == 1
+    assert result.proposals_generated == result.candidate_repairs_attempted == 0
+    assert source.read_text(encoding="utf-8") == "class Calculator\n"
+
+
+def test_initial_isolation_failure_is_truthful_and_consumes_no_verification(tmp_path):
+    source = _source(tmp_path)
+
+    def unavailable(**kwargs):
+        return CandidateVerification(
+            "candidate_isolation_unavailable",
+            ToolResult(
+                False,
+                "developer.run_command",
+                "Candidate isolation could not be established",
+                error_code="candidate_isolation_unavailable",
+            ),
+            None,
+            None,
+            True,
+        )
+
+    result = run_developer_session_request(
+        _request(),
+        workspace=_workspace(tmp_path),
+        model_call=lambda *args: (_ for _ in ()).throw(AssertionError()),
+        _candidate_verifier=unavailable,
+    )
+
+    assert result.status == "candidate_isolation_unavailable"
+    assert result.verification_runs == 0
+    assert result.proposals_generated == result.candidate_repairs_attempted == 0
+    assert source.read_text(encoding="utf-8") == "VALUE = 1\n"
+
+
+def test_candidate_isolation_failure_rejects_without_consuming_verification(tmp_path):
+    source = _source(tmp_path)
+    calls = 0
+
+    def unavailable_after_baseline(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return CandidateVerification(
+                "candidate_verification_failed",
+                _verification(False, error_code="command_failed", exit_code=1),
+                None,
+                None,
+                True,
+            )
+        return CandidateVerification(
+            "candidate_isolation_unavailable",
+            ToolResult(
+                False,
+                "developer.run_command",
+                "Candidate isolation could not be established",
+                error_code="candidate_isolation_unavailable",
+            ),
+            None,
+            "candidate_applied",
+            True,
+        )
+
+    result = run_developer_session_request(
+        _request(),
+        workspace=_workspace(tmp_path),
+        model_call=_Responses(_patch_response()),
+        _candidate_verifier=unavailable_after_baseline,
+    )
+
+    assert result.status == "candidate_isolation_unavailable"
+    assert result.verification_runs == 1
+    assert result.candidate_repairs_attempted == 1
+    assert result.candidate_repairs_rejected == 1
+    assert result.repairs_promoted == 0
+    assert source.read_text(encoding="utf-8") == "VALUE = 1\n"
 
 
 def test_large_diagnostic_is_deterministic_bounded_and_marks_truncation():
@@ -660,7 +944,8 @@ def test_upstream_truncation_metadata_is_preserved_without_output_payload_in_res
     }))
 
     result = run_developer_session_request(
-        _request(), workspace=_workspace(tmp_path), model_call=model, _executor=executor
+        _request(), workspace=_workspace(tmp_path), model_call=model,
+        _candidate_verifier=executor.verify_candidate,
     )
 
     assert "diagnostic_truncated=true" in model.calls[0][1]
@@ -686,6 +971,9 @@ def test_result_models_are_immutable_and_contain_only_safe_fields():
         "attempts",
         "changed_paths",
         "stopped_reason",
+        "candidate_repairs_attempted",
+        "candidate_repairs_rejected",
+        "repairs_promoted",
     }
 
 

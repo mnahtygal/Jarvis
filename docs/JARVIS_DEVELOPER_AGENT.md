@@ -824,20 +824,71 @@ This AST gate is defense-in-depth input screening, not an operating-system
 sandbox. Ordinary JSON and workspace file persistence remain available, and the
 existing pytest execution limitations below still apply.
 
-Verification and repair reuse the existing Phase 7 session unchanged. The frozen
+Verification and repair reuse the Phase 7 bounded-session scope and limits. The frozen
 command is `pytest -q` followed by the exact test filenames. Verification runs
 first and stops immediately when green. If red, the existing limits remain two
 repairs, three verification runs total, and two proposal requests. No command
 change, test rewrite, extra file, nested session, package installer, network
-operation, or Git operation is permitted. Pytest may create ordinary
-`.pytest_cache` artifacts; those are verifier artifacts, not manifest files or
-repair scope.
+operation, or Git operation is permitted. Phase 8E verification runs against a
+read-only disposable candidate tree, so `.pytest_cache`, bytecode, and other
+runtime writes cannot be created in the generated project.
 
 If directory or file creation fails partway through, the result reports the
 created filenames and leaves them visible. There is no automatic deletion or
 rollback. Generated source, tests, raw prompts, model output, manifests, and
 diagnostics remain process-local and are not written to Brain status or durable
 memory.
+
+## Phase 8E isolated candidate verification and sealed promotion
+
+Python bounded sessions no longer apply a model proposal to the approved project
+before testing it. The initial verification and each proposed repair run in a
+fresh disposable candidate containing only the approved candidate files. Every
+candidate run consumes one of the unchanged three verification slots; there is no
+post-promotion fourth run.
+
+The verifier uses the fixed root-owned `/usr/bin/bwrap` executable. It creates
+separate user, IPC, PID, network, UTS, and cgroup namespaces where supported,
+drops all capabilities, supplies no stdin, and retains the existing timeout,
+bounded-output, and process-group termination behavior. The sandbox mounts:
+
+- the base Python executable, its standard library, and only the individual
+  platform shared-library files required by Python and installed venv extensions,
+  with merged `/bin` and `/lib` symlinks; unrelated system programs and
+  `/usr/lib/git-core` are not mounted;
+- only the active Jarvis virtual environment's `site-packages` directory read-only
+  at `/opt/jarvis-site-packages` (venv scripts and metadata are not mounted);
+- the disposable candidate tree read-only at `/workspace`;
+- private `/tmp`, home, and Python bytecode locations backed by tmpfs;
+- isolated `/proc` and a minimal `/dev`.
+
+The original workspace, the user's home, SSH and Git credentials, model files,
+Jarvis source, and unrelated files are not mounted. Network access is disabled.
+Pytest plugin autoload and its cache provider are disabled; bytecode is redirected
+to private tmpfs. Failure to establish the required namespace or mounts is a
+fail-closed `candidate_isolation_unavailable` result.
+
+After a candidate passes, Jarvis reads and seals the exact candidate source bytes,
+size, and SHA-256 before destroying the disposable directory. It then revalidates
+the original workspace inode, every approved source/test baseline identity and
+digest, the proposal's sealed exact-match preconditions, and the candidate seal.
+Promotion uses the existing atomic mutation primitive to write those exact passing
+bytes. It does not reapply or regenerate the model's patch. Any mismatch, cleanup
+failure, concurrent original change, or promotion failure leaves the original
+unmodified by Jarvis.
+
+Safe results distinguish proposals generated, candidate repairs attempted,
+candidate repairs rejected, repairs promoted, and verification runs consumed.
+Failed disposable candidates are never described as changes applied to the
+original project. Subsequent model requests receive only bounded attempt metadata
+and a safe failure summary in addition to the already-bounded current diagnostic;
+raw patches and model reasoning are not retained in attempt history.
+
+Gradle verification remains subject to the documented trust boundary. A green
+Gradle session can still finish after its initial fixed verification, but a red
+Gradle test run now stops with `candidate_isolation_unavailable`; it does not enter
+an unisolated repair path. Existing infrastructure failures retain their specific
+verification status and likewise stop before any proposal or mutation.
 
 ## Execution limitations
 
@@ -852,17 +903,20 @@ sequence described above; it does not provide generated self-correction, plannin
 or natural-language invocation. Phase 5 adds only the two dedicated local Git
 checkpoint tools; the generic command tool still cannot stage, commit, or push.
 Phase 6 only proposes and converts repair data; it cannot apply that data. Phase 7
-can apply converted data only within the explicit static session boundary described
-above and stops before any Git checkpoint operation. Phase 8B adds only the fixed
+can promote only verified candidate bytes within the explicit static session
+boundary described above and stops before any Git checkpoint operation. Phase 8B adds only the fixed
 Gradle verification path described above; it does not add generic project-local
 executable access. Phase 8C changes only repair-model generation format and does
 not add execution, mutation, Git, planner, router, or Brain entry points. Phase 8D
 changes only bounded repair context and semantic instructions; it adds no execution
-or autonomy surface.
+or autonomy surface. Phase 8E adds a fixed local isolation and promotion boundary;
+it adds no planner, router, Git, network, or arbitrary-command capability.
 
-This command policy is a constrained developer workflow boundary, not an operating
-system sandbox. An approved pytest command necessarily imports and executes the
-selected workspace tests and local `conftest.py` files. The policy prevents using
+The generic `developer.run_command` policy remains a constrained developer workflow
+boundary, not an operating-system sandbox. An independently approved generic
+pytest command necessarily imports and executes selected workspace tests and local
+`conftest.py` files; Phase 8E bounded sessions do not use that direct execution
+path. The generic policy prevents using
 the command API to select arbitrary interpreters, modules, plugins, executables,
 working directories, or environments; it does not make repository test code
 non-executable. Explicit confirmation and trusted workspace contents are therefore
@@ -899,5 +953,6 @@ executable paths, pytest plugin injection, and Git mutation commands.
 - Phase 8 rerun: one human-controlled Farkle-2 four-of-a-kind repair benchmark
 - Phase 8C: repair-model structured-output reliability hardening
 - Phase 8D: semantic repair quality hardening
+- Phase 8E: isolated candidate verification and exact sealed-byte promotion
 
 No broader phase is defined here.

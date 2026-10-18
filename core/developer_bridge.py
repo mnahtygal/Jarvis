@@ -102,6 +102,11 @@ class DeveloperBridgeResult:
     verification_count: int | None = None
     final_state: str | None = None
     model_invoked: bool = False
+    proposal_count: int | None = None
+    candidate_repair_count: int | None = None
+    candidate_rejected_count: int | None = None
+    promoted_repair_count: int | None = None
+    attempt_summaries: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -857,12 +862,37 @@ def _adapt_session_result(
         )
     paths = ", ".join(result.changed_paths) if result.changed_paths else "none"
     outcome = "passed" if result.success else "did not pass"
+    initial_status = (
+        result.attempts[0].verification_status
+        if result.attempts
+        else result.status
+    )
+    attempt_summaries = tuple(
+        (
+            f"Repair attempt {attempt.candidate_attempt_number}: "
+            f"proposal={attempt.proposal_status or 'none'}, "
+            f"confidence={attempt.proposal_confidence}, "
+            f"candidate={attempt.candidate_verification_status or 'not_run'}, "
+            f"disposition={attempt.disposition or 'none'}, "
+            "original_source_modified="
+            f"{'yes' if attempt.original_source_modified else 'no'}"
+        )
+        for attempt in result.attempts
+        if attempt.candidate_attempt_number is not None
+    )
     response = (
         f"Bounded developer session {outcome}. Verification runs: "
-        f"{result.verification_runs}. Repairs applied: {result.repairs_applied}. "
+        f"{result.verification_runs}. Proposals generated: "
+        f"{result.proposals_generated}. Candidate repairs attempted: "
+        f"{result.candidate_repairs_attempted}. Candidate repairs rejected: "
+        f"{result.candidate_repairs_rejected}. Repairs promoted to original "
+        f"source: {result.repairs_promoted}. Repairs applied: "
+        f"{result.repairs_applied}. Initial verification: {initial_status}. "
         f"Modified paths: {paths}. Final stop reason: {result.stopped_reason}. "
         "Git stage, commit, and push performed: no."
     )
+    if attempt_summaries:
+        response += " " + " ".join(attempt_summaries)
     if result.success:
         status = "executed_success"
     elif result.status in {"repair_limit", "verification_limit"}:
@@ -899,6 +929,9 @@ def _adapt_session_result(
         "invalid_patch_payload",
         "invalid_write_payload",
         "patch_match_not_unique",
+        "candidate_mutation_failed",
+        "duplicate_failed_candidate",
+        "proposal_precondition_failed",
     }:
         status = "proposal_failed"
     else:
@@ -915,6 +948,12 @@ def _adapt_session_result(
         result.repairs_applied,
         result.verification_runs,
         result.status,
+        result.proposals_generated > 0,
+        result.proposals_generated,
+        result.candidate_repairs_attempted,
+        result.candidate_repairs_rejected,
+        result.repairs_promoted,
+        attempt_summaries,
     )
 
 
@@ -937,7 +976,11 @@ def _adapt_greenfield_result(
     response = (
         f"Greenfield project {outcome}. Project: {result.workspace}. "
         f"Files created: {created}. Verification runs: {result.verification_runs}. "
-        f"Repairs applied: {result.repairs_applied}. Repair-modified paths: {changed}. "
+        f"Proposals generated: {result.proposals_generated}. Candidate repairs "
+        f"attempted: {result.candidate_repairs_attempted}. Candidate repairs "
+        f"rejected: {result.candidate_repairs_rejected}. Repairs promoted to "
+        f"original source: {result.repairs_promoted}. Repairs applied: "
+        f"{result.repairs_applied}. Repair-modified paths: {changed}. "
         f"Final stop reason: {result.stopped_reason}. Git initialized, staged, committed, "
         "or pushed: no."
     )
@@ -956,6 +999,10 @@ def _adapt_greenfield_result(
         result.verification_runs,
         result.status,
         True,
+        result.proposals_generated,
+        result.candidate_repairs_attempted,
+        result.candidate_repairs_rejected,
+        result.repairs_promoted,
     )
 
 
@@ -1413,5 +1460,10 @@ def enforce_developer_result_truthfulness(
             result.verification_count,
             "truthfulness_blocked",
             result.model_invoked,
+            result.proposal_count,
+            result.candidate_repair_count,
+            result.candidate_rejected_count,
+            result.promoted_repair_count,
+            result.attempt_summaries,
         )
     return result

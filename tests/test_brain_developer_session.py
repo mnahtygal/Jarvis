@@ -13,6 +13,7 @@ import api
 from core import brain, developer_bridge, orchestrator
 from core.brain_status_v2 import get_brain_v2_status
 from core.developer_agent import developer_session
+from core.developer_agent.candidate_verification import CandidateVerification
 from core.developer_agent.repair_proposal import propose_repair as real_propose_repair
 from core.developer_agent.tool_models import success_result
 from core.developer_agent.workspace import Workspace
@@ -241,11 +242,7 @@ def test_exact_repair_benchmark_approval_uses_canonical_session_once(
     assert len(handler_calls) == 1
     assert handler_calls[0][0].approved is True
     assert handler_calls[0][1] is isolated_workspace
-    verification.assert_called_once_with(
-        "developer.run_command",
-        {"argv": ("pytest", "-q", "test_stock.py")},
-        workspace=isolated_workspace,
-    )
+    verification.assert_not_called()
     model.assert_not_called()
     assert source.read_bytes() == source_before
     assert test.read_bytes() == test_before
@@ -310,16 +307,51 @@ def test_valid_session_is_frozen_and_executes_only_after_approval(
     assert approved.developer_result.verification_kind == "pytest"
     assert approved.developer_result.verification_count == 2
     assert approved.developer_result.repair_count == 1
+    assert approved.developer_result.proposal_count == 1
+    assert approved.developer_result.candidate_repair_count == 1
+    assert approved.developer_result.candidate_rejected_count == 0
+    assert approved.developer_result.promoted_repair_count == 1
+    assert approved.developer_result.attempt_summaries == (
+        "Repair attempt 1: proposal=accepted, confidence=0.95, "
+        "candidate=candidate_verification_passed, disposition=promoted, "
+        "original_source_modified=yes",
+    )
     assert approved.developer_result.final_state == "verification_passed"
     assert source.read_text(encoding="utf-8").endswith("return a + b\n")
     assert test.read_text(encoding="utf-8") == original_test
     assert len(model.calls) == 1
     assert not (isolated_workspace.root / ".git").exists()
     assert "Git stage, commit, and push performed: no" in approved.response
+    assert "Candidate repairs attempted: 1" in approved.response
+    assert "Candidate repairs rejected: 0" in approved.response
+    assert "Repairs promoted to original source: 1" in approved.response
 
     replay = orchestrator.process_request("approve")
     assert replay.developer_error_code == "no_pending_action"
-    assert len(model.calls) == 1
+
+
+def test_isolation_failure_is_not_reported_as_a_proposal_failure():
+    session = developer_session.DeveloperSessionResult(
+        success=False,
+        status="candidate_isolation_unavailable",
+        verification_runs=0,
+        proposals_generated=0,
+        repairs_applied=0,
+        attempts=(),
+        changed_paths=(),
+        stopped_reason="candidate_isolation_unavailable",
+    )
+
+    adapted = developer_bridge._adapt_session_result(
+        session,
+        (),
+        "run_command",
+    )
+
+    assert adapted.status == "executed_failed"
+    assert adapted.proposal_count == 0
+    assert adapted.candidate_repair_count == 0
+    assert adapted.model_invoked is False
 
 
 def test_initially_green_session_verifies_once_without_model_or_mutation(
@@ -396,7 +428,11 @@ def test_two_repairs_then_green_never_exceeds_hard_limits(
     model = _install_model(
         monkeypatch,
         _patch_response("calculator.py", "FIRST = 0", "FIRST = 1"),
-        _patch_response("calculator.py", "SECOND = 0", "SECOND = 2"),
+        _patch_response(
+            "calculator.py",
+            "FIRST = 0\nSECOND = 0",
+            "FIRST = 1\nSECOND = 2",
+        ),
     )
 
     orchestrator.process_request(_request())
@@ -404,7 +440,10 @@ def test_two_repairs_then_green_never_exceeds_hard_limits(
 
     assert result.developer_status == "executed_success"
     assert result.developer_result.verification_count == 3
-    assert result.developer_result.repair_count == 2
+    assert result.developer_result.repair_count == 1
+    assert result.developer_result.candidate_repair_count == 2
+    assert result.developer_result.candidate_rejected_count == 1
+    assert result.developer_result.promoted_repair_count == 1
     assert len(model.calls) == 2
 
 
@@ -416,7 +455,7 @@ def test_two_failed_repairs_stop_without_third_mutation(
     model = _install_model(
         monkeypatch,
         _patch_response("calculator.py", "return a - b", "return a * b"),
-        _patch_response("calculator.py", "return a * b", "return a // b"),
+        _patch_response("calculator.py", "return a - b", "return a // b"),
     )
 
     orchestrator.process_request(_request())
@@ -425,11 +464,13 @@ def test_two_failed_repairs_stop_without_third_mutation(
     assert result.developer_status == "repair_limit"
     assert result.developer_result.final_state == "repair_limit"
     assert result.developer_result.verification_count == 3
-    assert result.developer_result.repair_count == 2
+    assert result.developer_result.repair_count == 0
+    assert result.developer_result.candidate_repair_count == 2
+    assert result.developer_result.candidate_rejected_count == 2
     assert len(model.calls) == 2
-    assert source.read_text(encoding="utf-8").endswith("return a // b\n")
+    assert source.read_text(encoding="utf-8").endswith("return a - b\n")
     assert test.read_bytes() == test_before
-    assert "Modified paths: calculator.py" in result.response
+    assert "Modified paths: none" in result.response
 
 
 def test_test_file_proposal_is_rejected_without_test_mutation(
@@ -780,16 +821,26 @@ def test_two_concurrent_session_approvals_execute_at_most_once(
     release = threading.Event()
     results = []
 
-    def execute(tool_id, arguments, *, workspace):
+    def verify_candidate(**kwargs):
         started.set()
         assert release.wait(timeout=5)
-        return success_result(
-            tool_id,
-            "passed",
-            metadata={"command_family": "pytest", "exit_code": 0},
+        return CandidateVerification(
+            "candidate_verification_passed",
+            success_result(
+                "developer.run_command",
+                "passed",
+                metadata={"command_family": "pytest", "exit_code": 0},
+            ),
+            None,
+            None,
+            True,
         )
 
-    monkeypatch.setattr(developer_session, "execute_tool", execute)
+    monkeypatch.setattr(
+        developer_session,
+        "verify_disposable_candidate",
+        verify_candidate,
+    )
     orchestrator.process_request(_request())
     first = threading.Thread(
         target=lambda: results.append(orchestrator.process_request("approve")),

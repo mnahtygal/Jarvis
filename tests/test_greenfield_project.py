@@ -362,11 +362,13 @@ def test_two_repairs_then_red_stops_and_retains_visible_state(projects_root, mon
 
     assert result.developer_status == "project_not_verified"
     assert result.developer_result.verification_count == 3
-    assert result.developer_result.repair_count == 2
+    assert result.developer_result.repair_count == 0
+    assert result.developer_result.candidate_repair_count == 2
+    assert result.developer_result.candidate_rejected_count == 2
+    assert result.developer_result.promoted_repair_count == 0
     assert result.developer_error_code == "repair_limit"
     assert len(repairs.calls) == 2
-    assert "FIRST = 1" in (target / "mathlib.py").read_text(encoding="utf-8")
-    assert "SECOND = 2" in (target / "mathlib.py").read_text(encoding="utf-8")
+    assert (target / "mathlib.py").read_text(encoding="utf-8") == source
     assert (target / "test_mathlib.py").read_text(encoding="utf-8") == test_content
     assert not (target / ".git").exists()
 

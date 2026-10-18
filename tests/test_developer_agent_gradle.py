@@ -417,7 +417,7 @@ def test_existing_pytest_evidence_and_run_command_policy_are_unchanged(tmp_path)
     assert rejected_gradle.error_code == "executable_not_allowed"
 
 
-def test_phase7_uses_same_frozen_gradle_spec_on_every_attempt(tmp_path):
+def test_phase7_failed_gradle_stops_before_unisolated_repair(tmp_path):
     (tmp_path / "example.py").write_text("VALUE = 1\n", encoding="utf-8")
     calls: list[tuple[str, dict[str, object]]] = []
     verifications = [
@@ -470,11 +470,15 @@ def test_phase7_uses_same_frozen_gradle_spec_on_every_attempt(tmp_path):
     )
 
     verification_calls = [call for call in calls if call[0] == "developer.gradle_test"]
-    assert result.success is True
+    assert result.success is False
+    assert result.status == "candidate_isolation_unavailable"
+    assert result.verification_runs == 1
+    assert result.proposals_generated == result.repairs_applied == 0
     assert verification_calls == [
         ("developer.gradle_test", {"project_path": ".", "approved": True}),
-        ("developer.gradle_test", {"project_path": ".", "approved": True}),
     ]
+    assert calls == verification_calls
+    assert (tmp_path / "example.py").read_text(encoding="utf-8") == "VALUE = 1\n"
     assert all("task" not in arguments and "argv" not in arguments for _, arguments in calls)
     assert all(not tool_id.startswith("developer.git_") for tool_id, _ in calls)
 
