@@ -1,153 +1,92 @@
-# PROMPTS.md
-
 # Jarvis Codex Prompt Library
 
-This document contains standardized prompts for OpenAI Codex when working on the Jarvis repository.
+Last updated: 2026-10-19
 
-## General Rules
+Use these templates for focused repository work. Current runtime safety and
+Developer Agent behavior are documented in `docs/JARVIS_DEVELOPER_AGENT.md`.
 
-Always begin prompts with:
-
-> Follow AGENTS.md and the project documentation.
-
-Unless explicitly requested:
-- Do not commit.
-- Preserve existing behavior.
-- Make the smallest practical change.
-- Update documentation if appropriate.
-- Run validation.
-- Show the complete diff.
-
-Validation:
-```
-python -m compileall .
-npm run lint
-npm run build
-```
-
-## New Feature
+## Standard Repository Prompt
 
 ```text
-Implement the following feature following AGENTS.md.
+Follow AGENTS.md and the current canonical documentation.
 
 Goal:
-<describe feature>
+<describe the task>
 
 Requirements:
-- Preserve existing behavior.
-- Keep the implementation modular.
-- Update documentation if required.
+- Inspect the relevant implementation first.
+- Preserve working behavior.
+- Make the smallest practical change.
+- Preserve existing safety boundaries.
+- Run focused validation and git diff --check.
+- Report the root cause, changed files, and validation results.
 
-Validation:
-- python -m compileall .
-- npm run lint
-- npm run build
-
-Show the complete diff before committing.
-Do not commit.
+Leave commit/push to the requested workflow.
 ```
 
-## Bug Fix
+## Read-Only Architecture Review
 
 ```text
-Fix the following bug following AGENTS.md.
+Follow AGENTS.md and the current canonical documentation.
 
-Problem:
-<describe issue>
-
-Requirements:
-- Find the root cause.
-- Preserve existing functionality.
-- Keep the fix minimal.
-
-Run validation.
-Show the diff.
-Do not commit.
-```
-
-## Architecture Review
-
-```text
-Review the implementation.
-
-Do not modify code.
+Review:
+<scope>
 
 Report:
-- Current architecture
-- Strengths
-- Weaknesses
-- Technical debt
-- Recommendations
-```
+- current architecture
+- trust boundaries
+- invariants
+- failure modes
+- concrete evidence
+- smallest recommended change
 
-## Refactor
-
-```text
-Refactor the implementation.
-
-Requirements:
-- No behavior changes.
-- Improve readability.
-- Reduce duplication.
-- Preserve public interfaces.
-
-Run validation.
-Show the diff.
-Do not commit.
+This is a review-only task.
 ```
 
 ## Documentation Update
 
 ```text
-Update repository documentation.
+Follow AGENTS.md and the current canonical documentation.
 
-Review existing docs first.
-Update only what is affected.
+Update the canonical documentation for the completed behavior.
+
+Keep dated checkpoint files historical.
 Do not invent functionality.
-Show the documentation diff.
-Do not commit.
+Update only the smallest current-document set required.
+Run git diff --check and report the documentation diff.
 ```
 
-## Vision Review
+## Thor Host-Isolation Work
+
+Treat repository changes and host installation as separate steps. Repository work
+should validate source, parser syntax, launcher tests, hashes, and diffs before any
+root-owned artifact is replaced or any AppArmor profile is reloaded. Host-specific
+behavior must be verified on Thor before the milestone is declared complete.
+
+## Jarvis Runtime Bounded-Repair Prompt
+
+This exact compact form is useful when testing deterministic Brain recognition:
 
 ```text
-Review the Vision Lab subsystem.
-
-Do not modify code.
-
-Identify:
-- Camera flow
-- OpenCV usage
-- Vision model usage
-- API endpoints
-- UI components
-- Recommendations
+Run a bounded developer session on /home/mnahtygal/projects/jarvis-repair-challenge. Source file: stock.py Test file: test_stock.py Verification: pytest -q test_stock.py Only stock.py may be modified. test_stock.py must remain read-only. Ask for approval before making any change. Do not use Git.
 ```
 
-## Release Checklist
+Expected approval turn:
 
 ```text
-Before completing:
-
-✓ compile passes
-✓ lint passes
-✓ build passes
-✓ documentation updated
-✓ diff reviewed
-
-Do not commit.
+approve
 ```
 
-## Jarvis Workflow
+The Developer Agent recognizer is intentionally strict and has a bounded request
+length, so long free-form prose is not equivalent to the canonical form.
 
-1. Architect with ChatGPT.
+## Workflow
+
+1. Architect/review with ChatGPT.
 2. Implement with Codex.
-3. Review the diff.
-4. Test on Thor.
-5. Update documentation.
-6. Commit.
-7. Push.
-
-**Motto**
+3. Inspect the diff.
+4. Validate on Thor when host-specific.
+5. Update canonical documentation.
+6. Checkpoint in Git when appropriate.
 
 > Architect with ChatGPT. Build with Codex. Validate on Thor.
