@@ -1,217 +1,116 @@
-# VERSION.md
-
 # Jarvis Version History
 
-This document tracks major project milestones rather than individual Git commits.
+Last updated: 2026-10-19
 
----
+This file tracks major product milestones rather than every Git commit.
 
-# Current Snapshot
+## Current Snapshot
 
-**Version:** 2.3.0-dev
+**Version:** 2.3.0-dev  
+**Primary product phase:** Phase 2 — Maker & Workshop Assistant  
+**Parallel engineering milestone:** Developer Agent bounded repair on Thor
 
-**Codename:** 2D Object Measurement
+### Current platform
 
-**Sprint:** Phase 2 Maker & Workshop Assistant
+- Ubuntu 24.04 on NVIDIA Jetson AGX Thor
+- Flask API and React/Vite UI
+- Qwen3 30B text model via llama.cpp
+- Gemma 3 4B Vision via llama.cpp
+- PostgreSQL + pgvector
+- Brain v2 deterministic orchestration
+- Controlled Developer Agent with AppArmor/Bubblewrap candidate isolation
 
-**Status:** Phase 2 active
+### 2026-10-19 Developer Agent milestone
 
-Phase 2.3B implementation complete; physical measurement validation remains
+Completed and independently verified on Thor:
 
-## Platform
+- Brain v2 recognized the canonical explicit-workspace bounded-session request.
+- Jarvis required an exact separate `approve` turn before execution.
+- Initial project verification failed as expected.
+- The local repair model generated one accepted proposal at confidence 0.8.
+- The proposal was applied only to a disposable candidate workspace.
+- Candidate verification passed under the live AppArmor/Bubblewrap isolation path.
+- Jarvis sealed the exact passing bytes and promoted only those bytes to the
+  original source.
+- The session consumed 2 of the maximum 3 verification runs.
+- Git stage, commit, and push were not invoked.
+- Independent project verification completed with **6 passed**.
 
-- Ubuntu 24.04 LTS
-- NVIDIA Jetson AGX Thor
-- Python
-- Flask
-- React
-- TypeScript
-- Vite
-- PostgreSQL
-- pgvector
-- llama.cpp
+The repaired benchmark logic changed only `stock.py`; `test_stock.py` remained
+read-only.
 
-## Current Milestone
+### Host isolation milestone
 
-Single-object rotated measurement and visual overlay implemented
+Thor now uses the reviewed native/API entry and AppArmor transition chain:
 
-Vision Lab Accuracy v2 adds grid/background suppression, candidate consensus
-scoring, structured outcomes, and expanded diagnostics. It uses the C920
-calibration, provenance, and rectified-image scale committed in `1bb9787`.
+```text
+jarvis-api-entry
+  -> candidate_userns
+  -> candidate_runtime
+```
 
-## Next Milestone
+The final live candidate-isolation suite completed with **10 passed** before the
+repair benchmark was rerun.
 
-Phase 2.3B  
-Validate measurements against known physical reference objects
+## Maker & Workshop Track
 
----
+### 2.1 — Foundation — Complete
 
-# Version 2.1.0
-**Status:** Complete
+- Local llama.cpp text and vision serving
+- Flask API
+- React/Vite dashboard
+- PostgreSQL + pgvector memory
+- voice and vision pipelines
+- GitHub-synchronized development workflow
 
-## Phase
-Phase 2 – Professional Architecture
+### 2.2 — Calibration Engine — Complete foundation
 
-## Completed
-### Foundation
-- ✅ Jetson AGX Thor development environment
-- ✅ Local llama.cpp model serving
-- ✅ Qwen3 30B (Text)
-- ✅ Gemma 3 4B Vision
-- ✅ Flask API
-- ✅ React/Vite Dashboard
-- ✅ PostgreSQL + pgvector memory
-- ✅ Voice pipeline
-- ✅ Vision pipeline
-- ✅ GitHub integration
-- ✅ Comprehensive documentation
+- camera diagnostics and role-based selection
+- Scan Mat stabilization
+- calibration API/profile foundation
+- pixel-to-mm conversion
+- confidence/diagnostic surfaces
 
-### Vision Lab
-- ✅ Camera capture
-- ✅ Local vision analysis
-- ✅ Scan Mat Mode
-- ✅ OpenCV mat detection
-- ✅ Perspective correction
-- ✅ Raw image display
-- ✅ Annotated image display
-- ✅ Rectified image display
+### 2.3 — Measurement Engine — In progress
 
-### Engineering
-- ✅ AGENTS.md
-- ✅ Architecture documentation
-- ✅ ADRs (Architecture Decision Records)
-- ✅ CODEX_PROMPTS.md
-- ✅ Standard AI-assisted development workflow
+Implemented:
 
-### Professional Architecture
-- ✅ Boot V3 startup system
-- ✅ Ubuntu autostart environment
-- ✅ Mission Control dashboard
-- ✅ React pages architecture
-- ✅ Shared component architecture
-- ✅ Custom hooks architecture
-- ✅ Frontend services layer
-- ✅ Frontend configuration layer
-- ✅ Repository cleanup
-- ✅ Documentation Sprint 1.0
-- ✅ Professional Git workflow
-- ✅ VS Code + Codex development workflow
+- measurement API and Vision Lab UI
+- role-based C920 workbench and Insta360 face camera
+- Scan Mat 609.6 × 457.2 mm workflow
+- single-object rotated measurement
+- mask/overlay artifacts
+- anisotropic X/Y calibration math
+- Accuracy v2 segmentation/scoring diagnostics
+- mm/in display
 
----
+Remaining:
 
-# Version 2.2.0
-**Status:** Complete
+- physical ruler/caliper validation against known references
+- multiple objects and internal features
+- diameter-specific fitting
+- measurement history and project association
 
-## Calibration Engine
-- ✅ 2.2A Camera Diagnostics & Config Fix
-- ✅ 2.2B Manual Overhead Scan Mat Stabilization
-- ✅ 2.2C UVC Extension Unit Investigation
-- ✅ Calibration engine foundation
-- ✅ Calibration API
-- ✅ Calibration profile storage
-- ✅ Interactive calibration UI
-- ✅ Pixel-to-mm conversion
-- ✅ Calibration confidence score
-- ☐ Calibration overlay
+## Planned Maker Milestones
 
----
+### 2.4 — OpenSCAD starter generation
 
-# Version 2.3.0
-**Status:** In Progress
+Generate conservative, editable starter geometry from validated measurements.
 
-## Measurement Engine
-- ✅ 2.3A Measurement Engine foundation
-- ✅ Measurement API
-- ✅ Vision Lab measurement UI
-- ✅ Bounding-box measurement v0
-- ✅ Vision Lab multi-camera selector
-- ✅ Role-based Logitech C920 workbench camera
-- ✅ Role-based Insta360 Link face camera
-- ✅ Dynamic V4L2 camera resolution
-- ✅ Samson Q2U PipeWire preference
-- ✅ Scan Mat stabilization at 609.6 × 457.2 mm
-- ✅ Reliable API/UI restart lifecycle with API readiness checks
-- ✅ 2.3B single-object rotated measurement and overlay
-- ✅ Candidate-scored object isolation with border rejection
-- ✅ Binary mask and measurement overlay artifacts
-- ✅ Anisotropic X/Y rotated-edge calibration math
-- ✅ Vision Lab millimeter/inch display
-- ✅ Vision Lab Accuracy v2 deterministic segmentation and scoring
-- ✅ Rectified-image measurement scale from C920 provenance checkpoint `1bb9787`
-- ☐ Measurement validation against known objects
-- ☐ Multiple-object and internal-feature measurement
-- ☐ Diameter estimation
-- ☐ Measurement history
+### 2.5 — Maker Lab
 
-## Sprint Completed
-- ✅ React pages/components/hooks/services/config structure
-- ✅ Professional frontend architecture
-- ✅ API service layer
-- ✅ Hook extraction for dashboard, API health, calibration, and measurement
-- ✅ Mission Control read-only operations view
-- ✅ Vision Lab calibration, diagnostics, and measurement workflow
-- ✅ Camera diagnostics and manual scan station profile
-- ✅ Insta360 Link UVC Extension Unit investigation documented
-- ✅ Scan Mat diagnostics
-
----
-
-# Version 2.4.0
-**Status:** Planned
-
-## OpenSCAD Generation
-- ☐ Primitive detection
-- ☐ Parameter extraction
-- ☐ Starter OpenSCAD generation
-- ☐ Editable model output
-
----
-
-# Version 2.5.0
-**Status:** Planned
-
-## Maker Lab
-- ☐ Project workspace
-- ☐ Scan history
-- ☐ Project memory
-- ☐ CAD comparison
-- ☐ Export workflows
-
----
-
-# Version 3.0.0
-**Status:** Vision
-
-## Engineering Assistant
-- Local software engineering assistant
-- Electronics assistant
-- Raspberry Pi assistant
-- 3D printing assistant
-- Laser engraving assistant
-- SDR assistant
-- Data engineering assistant
-- GM engineering toolkit
-
----
+Project-oriented scan history, artifacts, notes, CAD comparison, printing,
+laser/electronics/Raspberry Pi/SDR workflows.
 
 ## Release Philosophy
 
-Every milestone should meet the following criteria before release:
+A milestone is not complete until:
 
-- Feature implemented
-- Documentation updated
-- Validation completed
-- Manual testing on Thor
-- Git review completed
-- Clean commit history
-- GitHub synchronized
+- implementation is present
+- relevant tests are green
+- Thor behavior is verified when host-specific
+- documentation is current
+- diffs are reviewed
+- GitHub is synchronized
 
----
-
-*"Architect with ChatGPT.
-
-Build with Codex.
-
-Validate on Thor.
-
-Document everything."*
+> Architect with ChatGPT. Build with Codex. Validate on Thor.
