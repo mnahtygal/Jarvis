@@ -1,5 +1,32 @@
 # Jarvis Changelog
 
+## 2026-10-19 — Developer Agent isolated repair milestone
+
+### Added / hardened
+
+- Added Thor-native API and candidate sandbox launchers under `packaging/apparmor/`.
+- Added an enforced AppArmor transition chain for API, user-namespace setup, and candidate runtime.
+- Kept the host-wide unprivileged-userns restriction enabled.
+- Added disposable candidate verification before original source mutation.
+- Added exact passing-byte sealing and promotion after successful isolated tests.
+
+### Fixed
+
+- Fixed canonical bounded-session recognition and approval flow.
+- Fixed the native API launcher Python import path while keeping a cleared, fixed environment.
+- Fixed Thor AppArmor child transitions and Bubblewrap mount flag matching.
+
+### Verified on Thor
+
+- Live candidate isolation suite: **10 passed**.
+- Existing-project stock repair session: one proposal, one isolated candidate, one promotion, two verification runs.
+- Only `stock.py` was modified; no Git stage/commit/push occurred.
+- Independent final benchmark verification: **6 passed**.
+
+### Documentation
+
+- Refreshed the canonical documentation set and separated current operating docs from historical checkpoints.
+
 This changelog summarizes major project milestones. It is not yet tied to formal tagged releases.
 
 ## Unreleased - Vision Lab Accuracy v2
