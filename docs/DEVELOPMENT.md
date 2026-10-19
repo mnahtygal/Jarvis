@@ -1,247 +1,167 @@
 # Jarvis Development Guide
 
-Last updated: 2026-07-04
+Last updated: 2026-10-19
 
-This guide is for developing Jarvis on Thor or another Ubuntu workstation. Jarvis is local-first: avoid adding cloud dependencies, hidden service assumptions, or large frameworks without discussion.
+Jarvis is developed primarily on Thor. Keep changes local-first, reviewable, and
+bounded. Do not add cloud dependencies, package installers, or broader agent
+authority as incidental cleanup.
 
-## Ubuntu Setup
-
-Recommended platform:
-
-| Item | Current target |
-| --- | --- |
-| OS | Ubuntu 24.04 LTS |
-| Host | NVIDIA Jetson AGX Thor |
-| Python | Project virtual environment in `.venv/` |
-| Node | Node/npm for Vite UI |
-| Database | PostgreSQL + pgvector |
-| Model runtime | llama.cpp |
-
-Common system tools:
-
-```bash
-sudo apt update
-sudo apt install git curl build-essential python3 python3-venv python3-pip ffmpeg
-```
-
-Install PostgreSQL and pgvector using the project/host procedure already established for Thor. Do not replace PostgreSQL + pgvector with another memory system.
-
-## Python
-
-Use the local virtual environment:
+## Normal Thor Workflow
 
 ```bash
 cd ~/jarvis
-source .venv/bin/activate
-python api.py
+jarvis status
+jarvis start
+jarvis restart
+jarvis ui
 ```
 
-Required Python check:
+On Thor, use the service scripts/CLI for normal operation. Do **not** replace the
+normal API startup path with `python api.py`: the installed native
+`/usr/libexec/jarvis-api-entry` is what attaches the API to the reviewed AppArmor
+policy used by Developer Agent isolation.
+
+## Python Checks
+
+Use the repository virtual environment:
 
 ```bash
 cd ~/jarvis
 .venv/bin/python -m compileall -q api.py core skills audio tools
+.venv/bin/python -m pytest -q
 ```
 
-## Node / npm
+Run narrower tests first while iterating, then the broader relevant suite before a
+checkpoint.
 
-The React app is in `ui-app/`.
-
-```bash
-cd ~/jarvis/ui-app
-npm install
-npm run dev
-```
-
-Build check:
-
-```bash
-cd ~/jarvis/ui-app
-npm run build
-```
-
-Lint check, when available:
+## UI Checks
 
 ```bash
 cd ~/jarvis/ui-app
 npm run lint
-```
-
-## VS Code
-
-Boot V3 opens VS Code to `~/jarvis` if it is not already running. Recommended workflow:
-
-1. Open the repo root.
-2. Keep backend, UI, scripts, and docs edits in focused changes.
-3. Use integrated terminals for API, UI, and checks.
-4. Review diffs before staging.
-
-## Git Workflow
-
-Jarvis should stay GitHub-synchronized and recoverable.
-
-Recommended flow:
-
-```bash
-git status --short
-git diff
-git add <focused files>
-git commit -m "Add focused change summary"
-```
-
-Rules:
-
-- Keep commits focused.
-- Do not commit secrets, `.env`, model files, runtime artifacts, or logs.
-- Do not commit generated camera artifacts under `runtime/`.
-- Do not commit `ui-app/dist/`.
-- Do not rewrite working features unless explicitly requested.
-- Do not commit without human approval when working as an agent.
-
-## Starting Jarvis
-
-Start the full local stack:
-
-```bash
-cd ~/jarvis
-./scripts/start-jarvis.sh
-```
-
-Run Boot V3:
-
-```bash
-cd ~/jarvis
-./scripts/startup.sh
-```
-
-Using the CLI wrapper:
-
-```bash
-jarvis start
-jarvis startup
-jarvis boot
-jarvis status
-jarvis logs
-```
-
-## Starting the API Manually
-
-```bash
-cd ~/jarvis
-source .venv/bin/activate
-python api.py
-```
-
-API URL:
-
-```text
-http://127.0.0.1:5000
-```
-
-Health check:
-
-```bash
-curl http://127.0.0.1:5000/health
-```
-
-## Building the UI
-
-```bash
-cd ~/jarvis/ui-app
 npm run build
 ```
 
-Run the dev server:
+Use `npm run dev` only when manually developing the UI.
+
+## Git Workflow
+
+Keep checkpoints focused:
 
 ```bash
-cd ~/jarvis/ui-app
-npm run dev -- --host 0.0.0.0
+git status -sb
+git diff --check
+git diff
+git add <focused paths>
+git commit -m "Focused summary"
+git push origin main
 ```
 
-UI URL:
+Do not commit secrets, model files, runtime artifacts, logs, or generated camera
+outputs.
+
+## Developer Agent Development
+
+The Developer Agent is a safety boundary, not a general shell.
+
+When changing it:
+
+1. preserve protected files and sensitive-path rules
+2. keep fixed tool IDs and fixed command grammar
+3. keep exact approval semantics
+4. keep static session scope
+5. preserve verification/repair ceilings unless separately reviewed
+6. never make tests writable in a repair session
+7. preserve candidate-before-original mutation ordering
+8. preserve exact passing-byte sealing/promotion
+9. run AppArmor/native launcher tests for host-isolation changes
+10. verify on Thor before declaring host behavior complete
+
+Protected files include:
+
+- `testbrain.py`
+- `audio_pipeline_tester.py`
+- `audio_pipeline_tester_jarvis.py`
+- `audio_pipeline_tester_jarvis_v2.py`
+
+Do not install Pillow as part of Jarvis development.
+
+## Canonical Bounded Python Session Request
+
+The Brain bridge intentionally recognizes a strict compact grammar. The explicit
+workspace form is:
 
 ```text
-http://localhost:5173
+Run a bounded developer session on /absolute/workspace. Source file: source.py Test file: test_source.py Verification: pytest -q test_source.py Only source.py may be modified. test_source.py must remain read-only. Ask for approval before making any change. Do not use Git.
 ```
 
-## Useful CLI Commands
+The developer bridge also has a request-length ceiling. Long prose descriptions
+should not be used as a substitute for this canonical form.
 
-| Command | Purpose |
-| --- | --- |
-| `jarvis start` | Start Jarvis services |
-| `jarvis startup` / `jarvis boot` | Run Boot V3 |
-| `jarvis status` / `jarvis health` | Run health helper |
-| `jarvis logs` | Follow startup logs |
-| `jarvis edit` | Open VS Code |
-| `jarvis ui` | Open UI |
-| `jarvis status` | Check API, UI, text LLM, vision LLM, API PID/age, and logs |
-| `./scripts/jarvis-smoke-test.sh` | Run end-to-end smoke checks |
+Jarvis should respond with `confirmation_required`. Only a separate exact:
 
-## Repository Conventions
+```text
+approve
+```
 
-### Backend
+authorizes that one pending action.
 
-- Keep Flask route handlers thin.
-- Put reusable logic in `skills/`, `core/`, or `tools/`.
-- Return useful JSON errors for hardware, model, database, and file operations.
-- Prefer `pathlib.Path`.
-- Do not hardcode secrets.
+Current hard maxima:
 
-### Frontend
+- 2 repairs
+- 3 verification runs total
+- 2 proposal requests
 
-- Keep using React + Vite.
-- Keep page-level components in `ui-app/src/pages/`.
-- Keep reusable visual components in `ui-app/src/components/`.
-- Put reusable state/effect logic in `ui-app/src/hooks/`.
-- Put HTTP calls in `ui-app/src/services/jarvisApi.ts`.
-- Put frontend constants in `ui-app/src/config/appConfig.ts`.
-- Keep shared dashboard types in `ui-app/src/types/dashboard.ts`.
-- Keep calibration and measurement UI state in reusable hooks.
-- Do not add React Router until the app actually needs route-level browser navigation.
+## Host Isolation Validation
 
-### Documentation
+After AppArmor/native-launcher changes, the live Thor verification is:
 
-Update docs when:
+```bash
+/usr/libexec/jarvis-api-entry --verify-candidate-isolation
+```
 
-- API routes change.
-- UI workflow changes.
-- Boot/startup behavior changes.
-- Folder structure changes.
-- Scan Mat outputs change.
-- Calibration, camera profile, or measurement behavior changes.
-- Memory behavior changes.
+The 2026-10-19 verified baseline is:
 
-### Vision Lab Development Notes
+```text
+10 passed
+```
 
-Vision Lab is the primary UI for camera and workshop workflows. Preserve these behavior boundaries:
+Check fresh kernel denials after policy changes rather than guessing:
 
-- Scan Mat detection should keep raw, annotated, and rectified artifacts working.
-- Scan Mat diagnostics should remain backward-compatible additions to the result payload.
-- Calibration uses the latest scan corners and known real-world mat dimensions.
-- Calibration values are stored in the active camera profile.
-- Measurement currently uses the latest rectified scan image and `largest_contour_bbox_v0`.
-- Measurement results must include calibration context, confidence, and diagnostics.
-- Do not claim precision beyond calibration quality.
-- Measurement Overlay is the next Phase 2.3B step; do not mix it into unrelated cleanup.
+```bash
+sudo journalctl -k --since "5 minutes ago" --no-pager |   grep -Ei 'apparmor|DENIED|jarvis-api-entry|candidate_userns|candidate_runtime|bwrap|unshare|mount|pivot|umount|userns'
+```
 
-## Professional Development Workflow
+Keep `kernel.apparmor_restrict_unprivileged_userns=1`. Do not globally disable
+the host restriction to make development easier.
 
-1. Read the relevant files first.
-2. Make the smallest safe change.
-3. Preserve behavior unless the task says otherwise.
-4. Run relevant checks.
-5. Review the diff.
-6. Update docs for behavior, workflow, or architecture changes.
-7. Commit only after approval.
+## Repair Benchmark
 
-## Current Sprint State
+The existing-project Python repair benchmark lives outside the repository at:
 
-The current Phase 2 foundation includes:
+```text
+/home/mnahtygal/projects/jarvis-repair-challenge
+```
 
-- Mission Control is read-only and backed by `/api/status/dashboard`.
-- Frontend code is organized into pages, components, hooks, services, config, and types.
-- Role-based Logitech C920 workbench and Insta360 Link face cameras are present.
-- V4L2 camera paths and the preferred Samson Q2U microphone are resolved dynamically.
-- Scan Mat, calibration, and bounding-box measurement foundations are present.
-- Phase 2.3A Measurement Engine foundation is complete.
-- Automatic object measurement, overlays, and validation are next.
+On 2026-10-19 Jarvis completed it successfully:
+
+- initial verification failed
+- one repair proposal accepted
+- one isolated candidate passed
+- exact passing bytes promoted to `stock.py`
+- final independent verification: 6 passed
+- `test_stock.py` unchanged
+- no Git operation
+
+Do not silently rewrite the benchmark when testing repair behavior.
+
+## Documentation
+
+Current canonical documentation starts at `docs/README.md`. Dated checkpoint
+files are historical records and should not be rewritten merely because current
+behavior changed.
+
+## General Engineering Rule
+
+Read first, change the smallest necessary surface, validate the behavior that
+matters, inspect the diff, and only then checkpoint.
