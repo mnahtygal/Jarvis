@@ -20,8 +20,17 @@ profile jarvis-api-entry /usr/libexec/jarvis-api-entry {
     /usr/bin/unshare ix,
     /usr/bin/bwrap Px -> jarvis-api-entry//candidate_userns//candidate_runtime,
 
-    profile candidate_runtime {
+    profile candidate_runtime flags=(attach_disconnected.path=/run/jarvis-candidate-runtime/) {
       allow all,
+      mount options=(rw rslave) -> /,
+      mount fstype=tmpfs options=(rw nosuid nodev),
+      mount options=(rw rbind),
+      mount fstype=proc options=(rw nosuid nodev noexec),
+      mount fstype=devpts options=(rw nosuid noexec),
+      mount options=(remount ro bind),
+      mount options=(rw rprivate),
+      umount,
+      pivot_root oldroot=/tmp/oldroot/ /tmp/,
       audit deny change_profile,
       audit deny userns create,
     }

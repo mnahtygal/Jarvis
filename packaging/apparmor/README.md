@@ -84,6 +84,26 @@ Following that magic link with `stat(2)` produces a disconnected AppArmor path;
 enabling the unsafe, profile-wide `attach_disconnected` flag is neither necessary
 nor appropriate.
 
+Bubblewrap necessarily creates and pivots through a private mount namespace. Its
+fixed setup performs recursive slave propagation on `/`, creates a tmpfs staging
+root, recursively bind-mounts only the compiled runtime manifest and candidate
+FD, mounts proc/dev/devpts/private tmpfs instances, remounts the candidate and
+site-packages binds read-only, pivots into the new root, marks the old root
+private, and lazily unmounts it. AppArmor 4 mediates those rewritten mount paths
+as disconnected objects after the namespace and pivot operations.
+
+Only `candidate_runtime` therefore uses
+`attach_disconnected.path=/run/jarvis-candidate-runtime/` and explicit
+mount-operation rules for root `rslave`, tmpfs, recursive binds, proc, devpts,
+read-only bind remounts, and old-root `rprivate`, plus lazy unmount and the exact
+`/tmp` staging-root pivot. There is no unrestricted `mount,` rule. The dedicated
+attachment prefix avoids
+aliasing disconnected paths with ordinary `/` paths and makes any later audit
+names distinguishable. These AppArmor permissions do not grant Linux
+`CAP_SYS_ADMIN`: the fixed Bubblewrap process uses its capability only while
+constructing the namespace, then `--cap-drop ALL` removes it before pytest.
+Bubblewrap's fixed mount list remains the filesystem visibility boundary.
+
 Neither `allow all,` nor AppArmor provides the candidate filesystem sandbox.
 Bubblewrap remains the filesystem, PID, IPC, UTS, capability, and
 disconnected-network sandbox. This profile is only a selective user-namespace

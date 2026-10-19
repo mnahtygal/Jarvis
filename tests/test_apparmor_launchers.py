@@ -68,6 +68,20 @@ def test_apparmor_userns_gate_uses_enforced_transition_domains():
         "/usr/bin/bwrap Px -> "
         "jarvis-api-entry//candidate_userns//candidate_runtime," in profile
     )
+    assert (
+        "profile candidate_runtime "
+        "flags=(attach_disconnected.path=/run/jarvis-candidate-runtime/)" in profile
+    )
+    assert "      mount options=(rw rslave) -> /," in profile
+    assert "      mount fstype=tmpfs options=(rw nosuid nodev)," in profile
+    assert "      mount options=(rw rbind)," in profile
+    assert "      mount fstype=proc options=(rw nosuid nodev noexec)," in profile
+    assert "      mount fstype=devpts options=(rw nosuid noexec)," in profile
+    assert "      mount options=(remount ro bind)," in profile
+    assert "      mount options=(rw rprivate)," in profile
+    assert "\n      mount,\n" not in profile
+    assert "      umount," in profile
+    assert "      pivot_root oldroot=/tmp/oldroot/ /tmp/," in profile
 
 
 @pytest.mark.parametrize("argument", ["--shell", "--help", "anything"])
