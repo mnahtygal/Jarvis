@@ -41,30 +41,37 @@ accepted.
 ## AppArmor design
 
 The only global attachment is the exact installed
-`/usr/libexec/jarvis-api-entry`. Its `default_allow` profile explicitly denies
-user-namespace creation. Executing the exact candidate launcher through the
-profile's `Cx` rule enters a local child profile that alone has `userns create`.
-That permission is inherited by the fixed `/usr/bin/unshare` execution. Executing
-the exact `/usr/bin/bwrap` then enters a second local child profile that again
-denies user-namespace creation.
+`/usr/libexec/jarvis-api-entry`. It is an enforced profile with an explicit
+`allow all,` compatibility rule and an explicit denial of user-namespace
+creation. Executing the exact candidate launcher through the profile's `Cx` rule
+enters a local child profile that alone has `userns create`. That permission is
+inherited by the fixed `/usr/bin/unshare` execution. Executing the exact
+`/usr/bin/bwrap` then enters a second local child profile that again denies
+user-namespace creation.
 
-`flags=(default_allow)` is used instead of the originally proposed
-`flags=(unconfined)`. Thor's AppArmor 4 parser supports default-allow profiles,
-which retain explicit deny rules and controlled domain transitions. That makes it
-possible to deny `userns create` in the API and post-unshare runtime domains while
-granting it only in the short launcher/unshare domain.
+Do not replace these enforced profiles with `flags=(default_allow)`. Thor's
+AppArmor 4.0.1 parser accepts that flag, but on Thor's kernel it is implemented
+as an unconfined-mode profile. The resulting `jarvis-api-entry (unconfined)`
+domain did not take the directed local-child execution transition, so the
+candidate launcher and `/usr/bin/unshare` inherited the parent label and userns
+creation was denied. Parser acceptance did not validate that runtime delegation.
 
-Neither `default_allow` nor AppArmor provides the candidate filesystem sandbox.
-Default-allow is intentionally used to avoid creating a large, fragile host file
-policy for the existing API, Python venv, hardware, database sockets, and
-Bubblewrap mount setup. Bubblewrap remains the filesystem, PID, IPC, UTS,
-capability, and disconnected-network sandbox. The profile is only a selective
-user-namespace gate plus exact executable transitions.
+The explicit `allow all,` rules retain the intended compatibility behavior for
+the existing API, Python venv, hardware, database sockets, and Bubblewrap setup
+without using an unconfined-mode label. Exact execution rules are more specific:
+the candidate launcher transitions from the parent to `candidate_userns`, and
+Bubblewrap transitions from there to `candidate_runtime`. Explicit deny rules
+remove `userns create` from the parent and runtime domains. All three domains
+also deny the self-directed `change_profile` API, so the broad compatibility
+rule cannot be used to bypass the fixed exec-transition chain or return from
+`candidate_runtime` to `candidate_userns`.
 
-An enforced default-deny profile could express the same `userns` gate, but it
-would also require a comprehensive and machine-sensitive policy for every Jarvis
-API and dynamic Python access. That is a separate confinement project and is not
-a safe prerequisite for restoring this one fixed sandbox primitive.
+Neither `allow all,` nor AppArmor provides the candidate filesystem sandbox.
+Bubblewrap remains the filesystem, PID, IPC, UTS, capability, and
+disconnected-network sandbox. This profile is only a selective user-namespace
+gate plus exact executable transitions. A complete default-deny policy for every
+Jarvis API and dynamic Python access would be a separate, machine-sensitive
+confinement project.
 
 ## Build and syntax check
 

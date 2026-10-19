@@ -10,6 +10,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 PACKAGING_ROOT = REPOSITORY_ROOT / "packaging/apparmor"
 API_ENTRY = PACKAGING_ROOT / "jarvis-api-entry"
 CANDIDATE_SANDBOX = PACKAGING_ROOT / "jarvis-candidate-sandbox"
+APPARMOR_PROFILE = PACKAGING_ROOT / "usr.libexec.jarvis-api-entry"
 
 
 def _run(argv: list[str], *, pass_fds: tuple[int, ...] = ()) -> subprocess.CompletedProcess[str]:
@@ -46,6 +47,21 @@ def test_api_launcher_uses_only_fixed_repository_pythonpath():
     assert 'setenv("PYTHONPATH", REPOSITORY_PYTHONPATH, 1)' in source
     assert 'PYTHON_PATH, "-I"' not in source
     assert "clearenv()" in source
+
+
+def test_apparmor_userns_gate_uses_enforced_transition_domains():
+    profile = APPARMOR_PROFILE.read_text(encoding="utf-8")
+
+    assert "flags=(default_allow)" not in profile
+    assert profile.count("allow all,") == 3
+    assert profile.count("audit deny change_profile,") == 3
+    assert profile.count("audit deny userns create,") == 2
+    assert profile.count("userns create,") == 3
+    assert (
+        "/usr/libexec/jarvis-candidate-sandbox Cx -> candidate_userns," in profile
+    )
+    assert "/usr/bin/unshare ix," in profile
+    assert "/usr/bin/bwrap Cx -> candidate_runtime," in profile
 
 
 @pytest.mark.parametrize("argument", ["--shell", "--help", "anything"])
