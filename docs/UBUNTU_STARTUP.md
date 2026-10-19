@@ -1,280 +1,165 @@
-# Ubuntu Startup On Thor
+# Ubuntu Startup on Thor
 
-Last updated: 2026-07-12
+Last updated: 2026-10-19
 
-This document describes how Jarvis starts on the Ubuntu environment used by Thor.
+This document describes the current Thor service lifecycle, including the hardened
+API entrypoint required by Developer Agent candidate isolation.
 
-## Purpose
-
-The startup system turns Thor into a repeatable local AI workstation. It starts Jarvis services, checks core endpoints, opens the workspace, and leaves browser session restoration to Firefox.
-
-## Startup Diagram
+## Normal Service Flow
 
 ```text
-Ubuntu login
-  |
-  v
-~/.config/autostart/thor-jarvis-startup.desktop
-  |
-  v
-~/jarvis/scripts/startup.sh
-  |
-  v
-~/jarvis/core/boot/boot-v3.sh
-  |
-  +--> ~/jarvis/scripts/start-jarvis.sh
-  |      |
-  |      +--> llama.cpp text server :8080
-  |      +--> llama.cpp vision server :8081
-  |      +--> Flask API :5000
-  |      +--> React/Vite UI :5173
-  |
-  +--> wait for UI
-  +--> check UI, text LLM, vision LLM
-  +--> show running llama-server processes
-  +--> show uptime, memory, disk
-  +--> open VS Code
-  +--> skip Firefox launch
+Ubuntu / manual start
+  -> scripts/start-jarvis.sh
+       -> text llama.cpp :8080
+       -> vision llama.cpp :8081
+       -> /usr/libexec/jarvis-api-entry :5000
+       -> Vite UI :5173
 ```
 
-## Autostart Desktop Entry
+The model servers are preserved when already healthy. `jarvis restart` normally
+restarts API/UI source while keeping healthy model servers alive.
 
-Thor uses an Ubuntu autostart desktop entry:
+## API Entrypoint
+
+On Thor, `scripts/start-jarvis.sh` prefers:
 
 ```text
-~/.config/autostart/thor-jarvis-startup.desktop
+/usr/libexec/jarvis-api-entry
 ```
 
-Expected purpose:
+That root-owned native launcher:
+
+- clears inherited environment
+- sets a fixed safe runtime environment
+- launches the fixed Jarvis virtual-environment Python and `api.py`
+- provides a fixed `--verify-candidate-isolation` mode
+- attaches the API to the reviewed AppArmor profile by executable path
+
+The script retains a direct-Python fallback only for environments where the native
+entrypoint is not installed. Thor normal operation should use the native entry.
+
+## AppArmor Profiles
+
+Installed policy:
 
 ```text
-Run ~/jarvis/scripts/startup.sh when the desktop session starts.
+/etc/apparmor.d/usr.libexec.jarvis-api-entry
 ```
 
-The exact desktop-entry file lives outside the repository in the user's Ubuntu profile.
-
-## startup.sh
-
-Repository path:
+Expected loaded profiles:
 
 ```text
-scripts/startup.sh
+jarvis-api-entry
+jarvis-api-entry//candidate_userns
+jarvis-api-entry//candidate_userns//candidate_runtime
 ```
 
-Purpose:
+The parent API profile denies user namespace creation. Executing the fixed
+candidate launcher transitions into `candidate_userns`, where the fixed
+`unshare` call may create the user/network namespace. Executing Bubblewrap then
+transitions into `candidate_runtime`, which again denies user namespace creation
+and profile changes.
+
+The runtime profile grants only the mount operations Bubblewrap needs to construct
+the already-reviewed sandbox, including exact propagation flags observed on Thor.
+
+## Native Artifacts
+
+Installed executables:
 
 ```text
-Launch the Boot V3 sequence.
+/usr/libexec/jarvis-api-entry
+/usr/libexec/jarvis-candidate-sandbox
 ```
 
-Current behavior:
+Reviewed source/build/policy files live in:
+
+```text
+packaging/apparmor/
+```
+
+Rebuild/install only after source and profile review.
+
+## Service Addresses
+
+| Port | Service |
+| --- | --- |
+| 8080 | Qwen text llama.cpp server |
+| 8081 | Gemma vision llama.cpp server |
+| 5000 | Flask API |
+| 5173 | Vite UI |
+
+The API binds loopback at `127.0.0.1:5000`.
+
+## Common Commands
 
 ```bash
-bash "$HOME/jarvis/core/boot/boot-v3.sh"
+jarvis start
+jarvis stop
+jarvis restart
+jarvis status
+jarvis ui
 ```
 
-## boot-v3.sh
-
-Repository path:
-
-```text
-core/boot/boot-v3.sh
-```
-
-Purpose:
-
-- print the Thor AI Workstation banner
-- start Jarvis services
-- run service checks
-- report running models
-- report system resources
-- open VS Code
-- intentionally skip Firefox launch
-- log boot output to `~/jarvis/logs/boot-v3.log`
-
-Boot V3 does not launch Firefox.
-
-Why:
-
-- Firefox already restores its own previous session.
-- Launching Firefox from boot scripts can create duplicate windows.
-- Browser state belongs to Firefox, not the Jarvis boot script.
-- Boot V3 should focus on services, checks, and workspace readiness.
-
-Current Boot V3 message:
-
-```text
-Firefox launch skipped - session restore handles pinned tabs
-```
-
-## start-jarvis.sh
-
-Repository path:
-
-```text
-scripts/start-jarvis.sh
-```
-
-Purpose:
-
-Start the local Jarvis service stack if ports are free. The API is launched with
-`~/jarvis/.venv/bin/python ~/jarvis/api.py`, recorded in
-`/tmp/jarvis-api.pid`, logged to `/tmp/jarvis-api.log`, and must pass
-`GET /health` before startup reports success. The UI keeps its existing Vite
-startup behavior and logs to `/tmp/jarvis_ui.log`.
-
-Current startup targets:
-
-| Port | Service | Purpose |
-| --- | --- | --- |
-| `8080` | Qwen3 llama.cpp server | text brain |
-| `8081` | GemmaVision llama.cpp server | vision model |
-| `5000` | Flask API | backend routes |
-| `5173` | Vite dev server | React UI |
-
-Logs are written under `/tmp/` by `nohup`.
-
-## Jarvis CLI
-
-Repository path:
-
-```text
-scripts/jarvis
-```
-
-Common commands:
-
-| Command | Purpose |
-| --- | --- |
-| `jarvis startup` | Run full Thor startup |
-| `jarvis boot` | Alias for Boot V3 startup |
-| `jarvis start` | Start Jarvis services |
-| `jarvis stop` | Stop the repo-specific Jarvis API and UI; preserve model servers |
-| `jarvis status` | Run health checks |
-| `jarvis restart` | Restart API and UI source; preserve healthy model servers |
-| `jarvis logs` | Follow startup log |
-| `jarvis edit` | Open VS Code |
-| `jarvis ui` | Open UI in Firefox |
-
-## VS Code Startup
-
-Boot V3 opens VS Code to:
-
-```text
-~/jarvis
-```
-
-It checks for an existing VS Code process targeting the repo first. If VS Code is already running, Boot V3 reports that instead of opening another workspace.
-
-## Firefox Session Restore
-
-Boot V3 intentionally does not open Firefox. Firefox should restore pinned tabs and previous windows using its own session restore.
-
-If the UI is not visible after boot:
-
-1. Confirm the UI is running at `http://localhost:5173`.
-2. Open Firefox manually if session restore did not restore the UI.
-3. Do not add Firefox launch back into Boot V3 unless the startup design changes.
+Logs/PIDs remain under `/tmp`, including `/tmp/jarvis-api.log` and
+`/tmp/jarvis-api.pid`.
 
 ## Health Checks
 
-Useful checks:
-
 ```bash
 curl http://127.0.0.1:5000/health
 curl http://127.0.0.1:8080/health
 curl http://127.0.0.1:8081/health
-curl http://127.0.0.1:5000/api/status/dashboard
+curl http://127.0.0.1:5000/api/cameras
 ```
 
-CLI checks:
+## Candidate Isolation Verification
+
+After any launcher/AppArmor change:
 
 ```bash
-jarvis status
-./scripts/jarvis-smoke-test.sh
-pgrep -af '/home/mnahtygal/jarvis/.venv/bin/python /home/mnahtygal/jarvis/api.py'
-cat /tmp/jarvis-api.pid
-tail -n 100 /tmp/jarvis-api.log
+/usr/libexec/jarvis-api-entry --verify-candidate-isolation
 ```
 
-`jarvis status` checks the API, UI, text LLM, and vision LLM over HTTP. API
-readiness is determined by a successful `GET http://127.0.0.1:5000/health`;
-camera hardware is not required for that readiness check.
+The 2026-10-19 live Thor baseline is:
 
-After readiness, startup also requests `GET /api/cameras` to confirm that the
-loaded API includes the current camera-role routes. That check is informative:
-unplugged cameras may be reported unavailable without making API health fail.
+```text
+10 passed
+```
 
-Camera paths are dynamically resolved from V4L2 names. Do not use a remembered
-`/dev/video0` or `/dev/video2` number as a permanent workbench/face mapping.
-
-## Running Services And Ports
-
-| Port | Expected process |
-| --- | --- |
-| `8080` | llama.cpp text server |
-| `8081` | llama.cpp vision server |
-| `5000` | Flask API |
-| `5173` | Vite UI |
-
-Check ports:
+Fresh AppArmor diagnostics:
 
 ```bash
-ss -ltn
+sudo journalctl -k --since "5 minutes ago" --no-pager |   grep -Ei 'apparmor|DENIED|jarvis-api-entry|candidate_userns|candidate_runtime|bwrap|unshare|mount|pivot|umount|userns'
 ```
 
-Check llama processes:
+Unrelated Firefox/Chromium snap denials may appear. Evaluate the profile name
+before treating an audit record as a Jarvis failure.
+
+## Important Host Rule
+
+Keep:
+
+```text
+kernel.apparmor_restrict_unprivileged_userns = 1
+```
+
+Do not globally disable this restriction. Jarvis receives the required user
+namespace permission only through its reviewed AppArmor transition.
+
+## Rollback
+
+If the hardened entrypoint/policy must be removed:
 
 ```bash
-pgrep -af "llama-server"
+jarvis stop
+sudo apparmor_parser -R /etc/apparmor.d/usr.libexec.jarvis-api-entry
+sudo rm /etc/apparmor.d/usr.libexec.jarvis-api-entry
+sudo rm /usr/libexec/jarvis-candidate-sandbox
+sudo rm /usr/libexec/jarvis-api-entry
+jarvis start
 ```
 
-## Troubleshooting
-
-### UI does not respond
-
-```bash
-curl http://localhost:5173
-jarvis logs
-```
-
-Then restart the UI or startup flow as appropriate.
-
-### API is offline
-
-```bash
-curl http://127.0.0.1:5000/health
-cd ~/jarvis
-source .venv/bin/activate
-python api.py
-```
-
-### Text or vision model is offline
-
-```bash
-curl http://127.0.0.1:8080/health
-curl http://127.0.0.1:8081/health
-pgrep -af "llama-server"
-```
-
-Use:
-
-```bash
-./scripts/start-jarvis.sh
-```
-
-### Device status is not ready
-
-Check:
-
-- Dell dock power
-- Samson Q2U USB/audio visibility
-- Insta360 Link visibility
-- `/dev/video*`
-- PipeWire source status
-
-Dashboard device status is available through:
-
-```bash
-curl http://127.0.0.1:5000/api/status/devices
-```
+The repository startup script then falls back to direct Python. Developer Agent
+isolated candidate repair should be considered unavailable until the hardened path
+is restored and verified.
