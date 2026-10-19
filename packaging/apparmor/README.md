@@ -66,6 +66,24 @@ also deny the self-directed `change_profile` API, so the broad compatibility
 rule cannot be used to bypass the fixed exec-transition chain or return from
 `candidate_runtime` to `candidate_userns`.
 
+The nested Bubblewrap transition deliberately uses a fully qualified `Px`
+target. On Thor AppArmor 4.0.1, a relative `Cx -> candidate_runtime` inside the
+already-local `candidate_userns` profile is resolved as
+`candidate_userns//candidate_runtime`, not as the loaded three-level child.
+Uppercase `Px` preserves environment scrubbing while selecting the exact loaded
+`jarvis-api-entry//candidate_userns//candidate_runtime` profile.
+
+Thor does not expand `allow all,` into its mediated network permissions. The API
+profile therefore explicitly permits only the IPv4 stream and datagram families
+used by the loopback API/model clients and the fixed isolation verification, plus
+creation of Unix stream sockets. Later Unix socket operations remain mediated
+and require separate evidence before being broadened.
+
+The verification compares `/proc/self/ns/net` identities with `readlink(2)`.
+Following that magic link with `stat(2)` produces a disconnected AppArmor path;
+enabling the unsafe, profile-wide `attach_disconnected` flag is neither necessary
+nor appropriate.
+
 Neither `allow all,` nor AppArmor provides the candidate filesystem sandbox.
 Bubblewrap remains the filesystem, PID, IPC, UTS, capability, and
 disconnected-network sandbox. This profile is only a selective user-namespace

@@ -190,7 +190,7 @@ def test_candidate_tree_is_read_only_and_home_is_not_exposed(tmp_path):
 
 def test_candidate_network_namespace_cannot_reach_host_lan_or_external(tmp_path):
     workspace, _, test = _fixture(tmp_path)
-    host_netns_inode = Path("/proc/self/ns/net").stat().st_ino
+    host_netns_identity = os.readlink("/proc/self/ns/net")
     route_probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         route_probe.connect(("198.51.100.1", 9))
@@ -215,7 +215,7 @@ def test_candidate_network_namespace_cannot_reach_host_lan_or_external(tmp_path)
         "    except OSError:\n"
         "        return True\n\n"
         "def test_network_isolation():\n"
-        f"    assert os.stat('/proc/self/ns/net').st_ino != {host_netns_inode}\n"
+        f"    assert os.readlink('/proc/self/ns/net') != {host_netns_identity!r}\n"
         f"    assert connection_is_blocked('127.0.0.1', {port})\n"
         f"    assert connection_is_blocked('{lan_address}', {port})\n"
         "    assert connection_is_blocked('1.1.1.1', 53)\n",

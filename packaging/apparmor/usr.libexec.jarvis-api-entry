@@ -4,6 +4,9 @@ abi <abi/4.0>,
 
 profile jarvis-api-entry /usr/libexec/jarvis-api-entry {
   allow all,
+  network inet stream,
+  network inet dgram,
+  unix (create) type=stream,
   audit deny change_profile,
   audit deny userns create,
 
@@ -15,7 +18,7 @@ profile jarvis-api-entry /usr/libexec/jarvis-api-entry {
     userns create,
 
     /usr/bin/unshare ix,
-    /usr/bin/bwrap Cx -> candidate_runtime,
+    /usr/bin/bwrap Px -> jarvis-api-entry//candidate_userns//candidate_runtime,
 
     profile candidate_runtime {
       allow all,

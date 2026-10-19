@@ -57,11 +57,17 @@ def test_apparmor_userns_gate_uses_enforced_transition_domains():
     assert profile.count("audit deny change_profile,") == 3
     assert profile.count("audit deny userns create,") == 2
     assert profile.count("userns create,") == 3
+    assert "network inet stream," in profile
+    assert "network inet dgram," in profile
+    assert "unix (create) type=stream," in profile
     assert (
         "/usr/libexec/jarvis-candidate-sandbox Cx -> candidate_userns," in profile
     )
     assert "/usr/bin/unshare ix," in profile
-    assert "/usr/bin/bwrap Cx -> candidate_runtime," in profile
+    assert (
+        "/usr/bin/bwrap Px -> "
+        "jarvis-api-entry//candidate_userns//candidate_runtime," in profile
+    )
 
 
 @pytest.mark.parametrize("argument", ["--shell", "--help", "anything"])
