@@ -40,6 +40,14 @@ def test_launchers_are_native_elf_executables():
     assert CANDIDATE_SANDBOX.read_bytes()[:4] == b"\x7fELF"
 
 
+def test_api_launcher_uses_only_fixed_repository_pythonpath():
+    source = (PACKAGING_ROOT / "src/jarvis-api-entry.c").read_text(encoding="utf-8")
+    assert '#define REPOSITORY_PYTHONPATH REPOSITORY_ROOT' in source
+    assert 'setenv("PYTHONPATH", REPOSITORY_PYTHONPATH, 1)' in source
+    assert 'PYTHON_PATH, "-I"' not in source
+    assert "clearenv()" in source
+
+
 @pytest.mark.parametrize("argument", ["--shell", "--help", "anything"])
 def test_api_launcher_rejects_unknown_arguments(argument):
     result = _run([str(API_ENTRY), argument])

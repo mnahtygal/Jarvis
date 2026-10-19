@@ -10,6 +10,7 @@
 #define PYTHON_PATH REPOSITORY_ROOT "/.venv/bin/python"
 #define API_PATH REPOSITORY_ROOT "/api.py"
 #define ISOLATION_TEST_PATH REPOSITORY_ROOT "/tests/test_developer_agent_candidate_verification.py"
+#define REPOSITORY_PYTHONPATH REPOSITORY_ROOT
 
 static int set_fixed_environment(void) {
     if (clearenv() != 0) {
@@ -19,6 +20,7 @@ static int set_fixed_environment(void) {
         setenv("LANG", "C.UTF-8", 1) != 0 ||
         setenv("LC_ALL", "C.UTF-8", 1) != 0 ||
         setenv("PATH", "/usr/bin:/bin", 1) != 0 ||
+        setenv("PYTHONPATH", REPOSITORY_PYTHONPATH, 1) != 0 ||
         setenv("PYTHONNOUSERSITE", "1", 1) != 0 ||
         setenv("PYTHONSAFEPATH", "1", 1) != 0) {
         return -1;
@@ -27,10 +29,9 @@ static int set_fixed_environment(void) {
 }
 
 int main(int argc, char **argv) {
-    char *const api_argv[] = {PYTHON_PATH, "-I", API_PATH, NULL};
+    char *const api_argv[] = {PYTHON_PATH, API_PATH, NULL};
     char *const verify_argv[] = {
         PYTHON_PATH,
-        "-I",
         "-m",
         "pytest",
         "-q",

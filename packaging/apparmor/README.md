@@ -12,9 +12,11 @@ leaving `kernel.apparmor_restrict_unprivileged_userns=1` enabled.
 - `--verify-candidate-isolation`: execute the fixed candidate-isolation test
   module.
 
-It clears the inherited environment and supplies a small fixed environment. It
-does not accept an executable, command, Python text, environment block, mount,
-namespace option, or any other argument.
+It clears the inherited environment and supplies a small fixed environment. The
+only Python import path is the compile-time fixed `/home/mnahtygal/jarvis` value;
+safe-path and no-user-site protections remain enabled. It does not accept an
+executable, command, Python text, environment block, mount, namespace option, or
+any other argument.
 
 `jarvis-candidate-sandbox` is a native executable accepting only:
 
