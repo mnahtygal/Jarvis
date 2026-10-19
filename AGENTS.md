@@ -1,77 +1,88 @@
 # Jarvis AI Engineering Playbook
 
+Last updated: 2026-10-19
+
 ## Mission
 
-Jarvis is a local-first AI engineering assistant built to help with software development, 3D printing, laser engraving, electronics, Raspberry Pi projects, SDR, data engineering, and workshop tasks.
+Jarvis is a local-first AI engineering assistant for software development,
+workshop tasks, 3D printing, laser engraving, electronics, Raspberry Pi projects,
+SDR, data engineering, and related engineering work.
 
-Reliability, maintainability, and local operation always take priority over flashy features.
+Reliability, maintainability, safety, and local operation take priority over
+flashy features.
 
-## Current Phase
+## Current Workstreams
 
-Phase 2: Maker & Workshop Assistant
+Jarvis has two active tracks:
 
-Primary focus:
+1. **Maker & Workshop Assistant**
+   - validate Scan Mat measurement accuracy against physical references
+   - continue measurement, scan history, OpenSCAD, and Maker Lab work
 
-1. Finish Scan Mat workflow.
-2. Add accurate calibration and measurement.
-3. Add object recognition and comparison.
-4. Generate OpenSCAD starter models from scans.
-5. Build Maker Lab workflows.
-6. Add persistent scan history and project memory.
-7. Introduce practical agentic engineering workflows.
+2. **Developer Agent**
+   - preserve the now-working bounded repair path
+   - improve ergonomics and diagnostics without widening authority
+   - add additional controlled benchmarks before broader mutation scope
 
-Do not jump ahead to automation, robotics, cloud sync, or complex agent behavior until the Scan Mat and Maker Lab foundations are stable.
+Do not jump from the successful repair benchmark to unrestricted shell access,
+package installation, autonomous Git push, recursive agents, or broad multi-file
+mutation.
 
 ## Core Principles
 
 Jarvis must remain:
 
-- Local-first
-- Offline-capable
-- Modular
-- Maintainable
-- Understandable
-- Testable
-- Recoverable
+- local-first
+- offline-capable
+- modular
+- maintainable
+- understandable
+- testable
+- recoverable
 - GitHub-synchronized
+- explicit about trust boundaries
 
 Prefer simple, boring, reliable code over clever code.
 
 ## Non-Negotiables
 
-Do not introduce cloud dependencies unless explicitly requested.
+- Do not introduce cloud dependencies unless explicitly requested.
+- Do not replace PostgreSQL + pgvector without explicit architectural approval.
+- Do not remove or rewrite working features without a clear reason.
+- Do not break existing API routes without compatibility/migration notes.
+- Do not add large frameworks casually.
+- Do not hide failures.
+- Do not make undocumented architecture or security changes.
+- Do not install Pillow.
+- Do not weaken host-wide AppArmor user-namespace restrictions to make tests pass.
 
-Do not replace PostgreSQL + pgvector with another memory/vector system.
+Protected files include:
 
-Do not remove or rewrite working features unless explicitly requested.
-
-Do not break existing API routes without adding compatibility or migration notes.
-
-Do not add large frameworks without discussion.
-
-Do not hide failures. Return useful errors and log enough context to debug.
-
-Do not make undocumented architecture changes.
+- `testbrain.py`
+- `audio_pipeline_tester.py`
+- `audio_pipeline_tester_jarvis.py`
+- `audio_pipeline_tester_jarvis_v2.py`
 
 ## Preferred Development Workflow
 
-1. Inspect the existing repo before changing code.
-2. Make the smallest safe change that accomplishes the task.
-3. Preserve existing behavior unless the task explicitly says otherwise.
-4. Run relevant checks.
-5. Show the diff before commit.
-6. Update documentation when behavior, endpoints, folders, or workflow changes.
-7. Commit only after human approval.
+1. Inspect the existing implementation and canonical docs.
+2. Make the smallest safe change.
+3. Preserve behavior and safety invariants unless the task explicitly changes them.
+4. Run focused checks first.
+5. Run the relevant broader checks.
+6. Review `git diff --check`, status, and the actual diff.
+7. Update the smallest canonical documentation set.
+8. Commit/push only when the workflow calls for it.
 
 ## Required Checks
 
-For Python changes:
+Python:
 
 ```bash
 .venv/bin/python -m compileall -q api.py core skills audio tools
 ```
 
-For UI changes:
+UI:
 
 ```bash
 cd ui-app
@@ -79,204 +90,94 @@ npm run lint
 npm run build
 ```
 
-If a check cannot run, explain exactly why.
+Developer Agent host-isolation changes also require live Thor verification:
+
+```bash
+/usr/libexec/jarvis-api-entry --verify-candidate-isolation
+```
+
+Codex-only success is not enough for host-policy behavior.
 
 ## Repository Areas
 
-Common structure:
-
 ```text
-api.py                  Flask API entry point
-core/                   Brain, router, memory, sessions
-skills/                 Tool/skill modules including camera, vision, scan mat, llama.cpp
-ui-app/                 React/Vite dashboard
-scripts/                Operational scripts
-tools/                  Dev, benchmark, health, and utility tools
-docs/                   Project documentation
+api.py                         Flask API
+core/                          Brain v2, router, memory, Developer Agent
+core/developer_agent/          Controlled developer tooling/session logic
+packaging/apparmor/            Thor native launchers and AppArmor profile
+skills/                        Camera, vision, measurement, runtime/status skills
+ui-app/                        React/Vite UI
+scripts/                       Operational scripts
+tools/                         Benchmarks and utilities
+docs/                          Canonical docs plus historical records
 ```
 
-## Backend Rules
+## Developer Agent Rules
 
-Use clear Flask route names.
+Treat the Developer Agent as a safety boundary.
 
-Keep route handlers thin. Put reusable logic in `skills/`, `core/`, or `tools/`.
+Preserve:
 
-Prefer `pathlib.Path` over string path manipulation.
+- fixed tool registry
+- deterministic request grammar
+- separate exact approval
+- static source/test/verification scope
+- bounded model/context/payload sizes
+- protected/sensitive path refusal
+- two-repair / three-verification / two-proposal ceilings
+- test read-only behavior
+- candidate-before-original mutation ordering
+- AppArmor/Bubblewrap isolation
+- exact passing-byte seal/promotion
+- no automatic Git stage/commit/push
 
-Prefer type hints for new Python functions.
+The generic command tool is not a shell.
 
-Use structured JSON responses for API calls.
+The current successful bounded repair milestone does not authorize broader autonomy.
 
-Every endpoint that performs hardware, model, camera, database, or file operations should return useful failure details.
+## Vision / Measurement Rules
 
-Do not hardcode secrets, passwords, or machine-specific paths unless they are private local defaults and clearly documented.
+Vision Lab is the main camera/workshop surface.
 
-## Frontend Rules
+Preserve:
 
-Use React + Vite only.
+- raw image
+- annotated detection image
+- rectified image
+- metadata/diagnostics
+- calibration provenance
+- explicit confidence/failure states
 
-Keep the dashboard simple and workshop-friendly.
-
-Do not introduce Next.js or a new UI framework without approval.
-
-Use dark UI styling consistent with the existing app.
-
-Preserve existing dashboard behavior.
-
-Avoid huge components when a small child component would improve readability.
-
-Use React hooks correctly and keep lint clean.
-
-## Vision Lab Rules
-
-Vision Lab is the primary UI for camera and scan workflows.
-
-For Scan Mat work, always preserve these outputs when possible:
-
-- Raw captured image
-- Annotated OpenCV detection image
-- Rectified top-down image
-- Metadata JSON
-
-Never trust measurements until calibration is proven.
-
-Do not add OpenSCAD generation until raw, annotated, rectified, and calibrated measurement outputs are stable.
-
-## Scan Mat Rules
-
-The workshop mat is 18 x 24 inches.
-
-Scan Mat Mode should eventually support:
-
-- Mat detection
-- Perspective correction
-- Pixel-to-inch/mm calibration
-- Object bounding boxes
-- Measurement overlays
-- Scan history
-- OpenSCAD starter generation
-
-Current priority is display and stabilization, not advanced modeling.
-
-## Measurement Rules
-
-All measurements must record:
-
-- Unit used
-- Calibration source
-- Pixel-to-unit ratio
-- Confidence or quality indicator where possible
-- Raw image reference
-- Rectified image reference
-
-Never present measurements as precise unless calibration quality supports it.
+Do not present measurement output as precise until physical validation supports it.
 
 ## Memory Rules
 
-Semantic memory lives in PostgreSQL + pgvector.
-
-Do not introduce Chroma, FAISS, Pinecone, cloud vector search, or another memory system unless explicitly requested.
-
-Project memory should be practical and inspectable.
-
-Prefer storing structured records for scans, projects, generated models, decisions, and notes.
-
-## Maker Lab Rules
-
-Maker Lab should support real workshop workflows:
-
-- 3D printing
-- OpenSCAD generation
-- laser engraving prep
-- electronics notes
-- Raspberry Pi builds
-- SDR projects
-- part comparison
-- repair notes
-
-Keep Maker Lab features grounded in files, scans, measurements, and project memory.
-
-## OpenSCAD Rules
-
-Generated OpenSCAD should be starter geometry, not guaranteed final CAD.
-
-Prefer simple primitives, named parameters, and comments.
-
-Generated models should include:
-
-- Units
-- Source scan ID if available
-- Assumptions
-- Editable dimensions
-- Clear TODO comments
-
-Do not claim generated models are production-ready.
+Persistent memory uses PostgreSQL and PostgreSQL + pgvector. Keep project memory
+practical and inspectable.
 
 ## Documentation Rules
 
-Update docs when:
+Canonical current docs are indexed in `docs/README.md`.
 
-- API routes change
-- folder structure changes
-- Scan Mat outputs change
-- setup steps change
-- model ports change
-- memory behavior changes
-- UI workflow changes
+Update canonical docs when behavior changes. Keep dated checkpoint/experiment files
+historical; do not rewrite history just to make old documents agree with today.
 
-Docs should be useful to Marty returning to the project days or weeks later.
-
-## Model Architecture
-
-Current local model layout:
-
-- Qwen3 30B text model on port 8080
-- Gemma 3 4B Vision model on port 8081
-- Flask API on port 5000
-- React/Vite dashboard
-- PostgreSQL + pgvector memory
-
-Preserve this architecture unless explicitly asked to change it.
-
-## Security Rules
-
-Local-first does not mean careless.
-
-Avoid committing:
-
-- passwords
-- tokens
-- private keys
-- `.env` files
-- personal data dumps
-- large generated artifacts
-
-Move configurable secrets to environment variables.
+Docs should let Marty return days or weeks later and understand what is actually
+true now.
 
 ## Git Rules
 
-Keep commits focused.
-
-Good commit messages:
-
-```text
-Add Scan Mat image display support
-Fix Vision Lab lint issue
-Document Phase 2 Maker Lab roadmap
-Add scan output metadata schema
-```
-
-Avoid giant mixed commits.
+Keep commits focused. Avoid secrets, credentials, `.env`, model files, logs,
+large generated artifacts, or runtime camera output.
 
 ## Agent Behavior
 
 When acting as an AI coding agent:
 
-- Read relevant files first.
-- State assumptions.
-- Make minimal changes.
-- Run checks.
-- Show the diff.
-- Do not commit unless asked.
-- Do not push unless asked.
-
+- read relevant files first
+- distinguish evidence from assumptions
+- make minimal changes
+- preserve trust boundaries
+- run checks
+- report the real result
+- never claim a host-specific success that was not verified on the host
