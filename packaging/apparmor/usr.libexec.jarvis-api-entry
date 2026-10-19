@@ -28,7 +28,7 @@ profile jarvis-api-entry /usr/libexec/jarvis-api-entry {
       mount fstype=proc options=(rw nosuid nodev noexec),
       mount fstype=devpts options=(rw nosuid noexec),
       mount options=(remount ro bind),
-      mount options=(rw rprivate),
+      mount options=(rw silent rprivate) -> /oldroot/,
       umount,
       pivot_root oldroot=/tmp/oldroot/ /tmp/,
       audit deny change_profile,

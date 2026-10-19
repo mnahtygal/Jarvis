@@ -78,7 +78,7 @@ def test_apparmor_userns_gate_uses_enforced_transition_domains():
     assert "      mount fstype=proc options=(rw nosuid nodev noexec)," in profile
     assert "      mount fstype=devpts options=(rw nosuid noexec)," in profile
     assert "      mount options=(remount ro bind)," in profile
-    assert "      mount options=(rw rprivate)," in profile
+    assert "      mount options=(rw silent rprivate) -> /oldroot/," in profile
     assert "\n      mount,\n" not in profile
     assert "      umount," in profile
     assert "      pivot_root oldroot=/tmp/oldroot/ /tmp/," in profile
