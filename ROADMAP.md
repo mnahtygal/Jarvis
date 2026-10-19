@@ -1,134 +1,101 @@
 # Jarvis Roadmap
 
-## Phase 1: Foundation — Completed
+Last updated: 2026-10-19
 
-Completed foundation items:
+Jarvis now has two deliberate tracks: the Maker/Workshop product track and the
+Developer Agent engineering track. They share the same local-first principle but
+should not be mixed into one giant autonomy project.
 
-- Thor environment
-- Local LLMs
-- PostgreSQL + pgvector
-- Brain/router architecture
-- React UI
-- Voice pipeline
-- Vision pipeline
-- GitHub synchronization
-- Documentation baseline
+## Track A — Maker & Workshop Assistant
 
-## Phase 2: Maker & Workshop Assistant — Current
+### Foundation — Complete
 
-Phase 2 turns Jarvis into a practical engineering partner for the workshop.
+- Thor local model runtime
+- PostgreSQL + pgvector memory
+- Brain/router foundation
+- React/Vite UI
+- voice and vision pipelines
+- role-based cameras and microphone resolution
+- startup/status tooling
 
-### Phase 2A: Scan Mat Stabilization
+### Measurement validation — Current
 
-Status: completed foundation.
-
-Goals:
-
-- Capture raw image.
-- Detect the 24 inch wide × 18 inch high grid mat.
-- Save annotated image.
-- Save rectified top-down image.
-- Display all outputs in Vision Lab.
-- Store metadata for each scan.
+The software foundation for single-object rotated measurement and Accuracy v2 is
+implemented. The next meaningful milestone is physical validation against known
+reference objects.
 
 Exit criteria:
 
-- User can capture a scan and see raw, annotated, and rectified outputs in the UI.
-- Scan output paths are predictable.
-- Failures are visible and understandable.
+- repeatable measurements on a small set of known objects
+- recorded ruler/caliper ground truth
+- error reported in mm and percent
+- calibration provenance preserved
+- failure/ambiguity states remain explicit
 
-### Phase 2B: Calibration and Measurement
+### Next maker milestones
 
-Status: active. Phase 2.3B single-object rotated measurement, mask/overlay
-artifacts, Accuracy v2 segmentation/scoring diagnostics, structured outcomes,
-and mm/in display are implemented. Accuracy v2 depends on the C920 calibration,
-provenance, and rectified-image scale committed in `1bb9787`. Physical validation
-against known objects remains next; Phase 2.3 is not complete.
+1. Multi-object/internal-feature measurement
+2. Diameter-specific fitting
+3. Scan history and project memory
+4. Conservative OpenSCAD starter generation
+5. Maker Lab project workspace
 
-Goals:
+## Track B — Developer Agent
 
-- Use mat dimensions for pixel-to-inch/mm conversion.
-- Estimate calibration quality.
-- Add measurement overlays. ✅
-- Support basic single-object dimensions and rotation. ✅
-- Store measurement metadata.
-- Validate measurements against known reference objects.
-- Add OCR for labels, markings, and dimensions.
+### Controlled tools — Complete
 
-Exit criteria:
+- read/list/status tools
+- explicit write/patch tools
+- constrained verification commands
+- offline Gradle verification boundary
+- controlled local Git stage/commit tools
+- strict structured repair proposals
+- bounded developer sessions
 
-- Jarvis can produce useful first-pass measurements from rectified images.
-- Measurement output includes assumptions and confidence indicators.
+### Isolated Python repair — Complete milestone
 
-Remaining scope includes multiple objects, holes/internal features,
-diameter-specific fitting, OCR-assisted validation, depth/thickness, and full
-reverse engineering.
+On 2026-10-19 Thor passed the live isolation suite and the existing-project stock
+repair benchmark.
 
-### Phase 2C: Scan History and Project Memory
+Current bounded Python session guarantees include:
 
-Goals:
+- deterministic recognition of the canonical request grammar
+- separate exact approval turn
+- static source/test/verification scope
+- maximum 2 repairs
+- maximum 3 verification runs
+- maximum 2 proposal requests
+- disposable read-only candidate workspace
+- disconnected network namespace
+- AppArmor-gated user namespace creation
+- Bubblewrap filesystem/process isolation
+- no test mutation
+- exact passing-byte sealing before promotion
+- no automatic Git operation
 
-- Store scan records.
-- Associate scans with projects.
-- Persist notes and generated artifacts.
-- Search prior scans and projects.
+### Next Developer Agent milestone
 
-Exit criteria:
+Improve usability and reliability **without widening authority**:
 
-- Marty can return to a prior part/project and see scan history, notes, images, and generated files.
+- expose a clearer bounded-session UI/CLI entry so users do not need to remember
+  the canonical natural-language grammar
+- add concise diagnostics when recognition fails
+- add another small existing-project benchmark with a different bug shape
+- retain the same hard safety limits unless a separate design review approves a
+  change
 
-### Phase 2D: OpenSCAD Starter Generation
+Only after those are stable should we consider broader multi-file repair scopes.
 
-Goals:
-
-- Generate starter OpenSCAD files from measured scans.
-- Use editable parameters.
-- Include source scan IDs and assumptions.
-- Provide preview-ready simple geometry.
-- Support a conservative scan-to-reverse-engineering workflow.
-
-Exit criteria:
-
-- Jarvis can generate a simple editable OpenSCAD starting point from a scan.
-
-### Phase 2E: Maker Lab
-
-Status: planned after measurement inputs are trustworthy.
-
-Goals:
-
-- Add Maker Lab UI area.
-- Support 3D printing workflows.
-- Support laser engraving notes/settings.
-- Support electronics and Raspberry Pi build logs.
-- Support SDR project notes.
-
-Exit criteria:
-
-- Jarvis becomes a project workspace, not just a chat interface.
-
-## Phase 3: Practical Agentic Workflows
-
-Only after Phase 2 is stable.
-
-Possible workflows:
-
-- Guided repair sessions
-- Part comparison
-- Scan-to-model workflows
-- Automated documentation generation
-- Local code maintenance tasks
-- Optional camera positioning
-- Optional hardware control
-
-## Deferred Until Later
+## Deferred
 
 Do not prioritize yet:
 
-- Cloud sync
-- Mobile app
-- robotics
-- autonomous camera movement
+- unrestricted shell access
+- package installation from the Developer Agent
+- autonomous Git push
+- recursive/self-spawning agents
+- unrestricted multi-file mutation
+- cloud dependency for core operation
 - complex multi-agent orchestration
-- replacing the UI framework
+- robotics/autonomous camera movement
 - replacing PostgreSQL memory
