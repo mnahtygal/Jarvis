@@ -22,7 +22,7 @@ profile jarvis-api-entry /usr/libexec/jarvis-api-entry {
 
     profile candidate_runtime flags=(attach_disconnected.path=/run/jarvis-candidate-runtime/) {
       allow all,
-      mount options=(rw rslave) -> /,
+      mount options=(rw silent rslave) -> /,
       mount fstype=tmpfs options=(rw nosuid nodev),
       mount options=(rw rbind),
       mount fstype=proc options=(rw nosuid nodev noexec),

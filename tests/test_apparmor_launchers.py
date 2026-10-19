@@ -72,7 +72,7 @@ def test_apparmor_userns_gate_uses_enforced_transition_domains():
         "profile candidate_runtime "
         "flags=(attach_disconnected.path=/run/jarvis-candidate-runtime/)" in profile
     )
-    assert "      mount options=(rw rslave) -> /," in profile
+    assert "      mount options=(rw silent rslave) -> /," in profile
     assert "      mount fstype=tmpfs options=(rw nosuid nodev)," in profile
     assert "      mount options=(rw rbind)," in profile
     assert "      mount fstype=proc options=(rw nosuid nodev noexec)," in profile
