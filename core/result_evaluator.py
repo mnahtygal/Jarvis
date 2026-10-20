@@ -37,6 +37,14 @@ def evaluate_developer_result(result: object) -> EvaluationResult:
     status = getattr(result, "status", None)
     if status in {"executed", "executed_success"} and getattr(result, "tool_success", None) is True:
         return EvaluationResult(True, "good", "developer tool execution succeeded")
+    if status == "planning_complete" and getattr(result, "tool_success", None) is True:
+        return EvaluationResult(True, "good", "read-only developer inspection succeeded")
+    if status in {"planning_partial", "planning_accepted"}:
+        return EvaluationResult(
+            False,
+            "planning",
+            "developer planning created no executable authority",
+        )
     if status == "confirmation_required":
         return EvaluationResult(
             False,

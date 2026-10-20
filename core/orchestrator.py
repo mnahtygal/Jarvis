@@ -7,6 +7,7 @@ by all non-developer requests.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -27,6 +28,7 @@ from core.developer_bridge import (
     enforce_developer_result_truthfulness,
     execute_developer_request,
     invalidate_pending_developer_action,
+    PLANNING_ONLY_NOTICE,
 )
 from core.execution_strategy import (
     ExecutionStrategy,
@@ -92,7 +94,29 @@ class BrainResult:
     developer_error_code: str | None = None
     developer_argument_summary: tuple[str, ...] = ()
     used_llm: bool | None = None
+    approval_kind: str = "none"
+    approval_pending: bool = False
+    pending_action_id: str | None = None
+    inspected_paths: tuple[str, ...] = ()
+    uninspected_paths: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+_EXECUTABLE_APPROVAL_LANGUAGE = re.compile(
+    r"(?:reply(?:\s+exactly)?\s+['\"]?approve|"
+    r"request(?:ing)?\s+(?:explicit\s+)?approval|"
+    r"approval\s+to\s+(?:proceed|continue|implement|execute|make)|"
+    r"would\s+you\s+like\s+me\s+to\s+continue)",
+    re.I,
+)
+
+
+def _enforce_conversational_approval_truthfulness(response: str) -> str:
+    """Make conversational approval language explicitly non-authorizing."""
+
+    if not isinstance(response, str) or _EXECUTABLE_APPROVAL_LANGUAGE.search(response) is None:
+        return response
+    return PLANNING_ONLY_NOTICE
 
 
 def process_request(command: str) -> BrainResult:
@@ -141,7 +165,9 @@ def process_request(command: str) -> BrainResult:
             developer_result = enforce_developer_result_truthfulness(
                 developer_result
             )
-            if developer_result.tool_invoked:
+            if developer_result.approval_kind == "planning":
+                set_actual_route("developer_planning")
+            elif developer_result.tool_invoked:
                 set_actual_route("developer_tool")
             elif developer_result.status in {
                 DEVELOPER_CONFIRMATION_REQUIRED,
@@ -153,6 +179,7 @@ def process_request(command: str) -> BrainResult:
             response = developer_result.response
         else:
             response = route(normalized_command)
+            response = _enforce_conversational_approval_truthfulness(response)
         actual_route = get_actual_route()
     except Exception:
         elapsed_ms = (time.perf_counter() - started_at) * 1000
@@ -283,6 +310,15 @@ def process_request(command: str) -> BrainResult:
             and classification.developer_request
             and classification.developer_request.mode == "approval"
         ),
+        "approval_kind": (
+            developer_result.approval_kind if developer_result else "none"
+        ),
+        "approval_pending": bool(
+            developer_result and developer_result.approval_pending
+        ),
+        "pending_action_id": (
+            developer_result.pending_action_id if developer_result else None
+        ),
         "llm_fallback_used": actual_route == "llm_fallback",
         "developer": {
             "status": developer_result.status if developer_result else None,
@@ -312,6 +348,12 @@ def process_request(command: str) -> BrainResult:
             ),
             "final_state": (
                 developer_result.final_state if developer_result else None
+            ),
+            "inspected_paths": list(
+                developer_result.inspected_paths if developer_result else ()
+            ),
+            "uninspected_paths": list(
+                developer_result.uninspected_paths if developer_result else ()
             ),
         },
         "processing_ms": processing_ms,
@@ -381,7 +423,25 @@ def process_request(command: str) -> BrainResult:
         developer_argument_summary=(
             developer_result.safe_argument_summary if developer_result else ()
         ),
-        used_llm=actual_route == "llm_fallback",
+        used_llm=bool(
+            actual_route == "llm_fallback"
+            or (developer_result and developer_result.model_invoked)
+        ),
+        approval_kind=(
+            developer_result.approval_kind if developer_result else "none"
+        ),
+        approval_pending=bool(
+            developer_result and developer_result.approval_pending
+        ),
+        pending_action_id=(
+            developer_result.pending_action_id if developer_result else None
+        ),
+        inspected_paths=(
+            developer_result.inspected_paths if developer_result else ()
+        ),
+        uninspected_paths=(
+            developer_result.uninspected_paths if developer_result else ()
+        ),
         metadata=metadata,
     )
     publish_brain_v2_status(result)

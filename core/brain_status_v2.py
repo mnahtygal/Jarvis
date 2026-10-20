@@ -48,6 +48,9 @@ class BrainV2Status:
     plan_execution_ready: bool | None
     unresolved_plan_steps: int
     processing_ms: float | None
+    approval_kind: str
+    approval_pending: bool
+    pending_action_id: str | None
 
 
 _status_lock = Lock()
@@ -99,6 +102,9 @@ def _idle_status() -> BrainV2Status:
         plan_execution_ready=None,
         unresolved_plan_steps=0,
         processing_ms=None,
+        approval_kind="none",
+        approval_pending=False,
+        pending_action_id=None,
     )
 
 
@@ -177,6 +183,9 @@ def publish_brain_v2_status(result) -> None:
             plan_execution_ready=result.plan_execution_ready,
             unresolved_plan_steps=result.unresolved_plan_steps,
             processing_ms=result.metadata.get("processing_ms"),
+            approval_kind=result.approval_kind,
+            approval_pending=result.approval_pending,
+            pending_action_id=result.pending_action_id,
         )
 
 
@@ -247,6 +256,9 @@ def publish_brain_v2_failure(
             plan_execution_ready=plan_execution_ready,
             unresolved_plan_steps=unresolved_plan_steps,
             processing_ms=processing_ms,
+            approval_kind="none",
+            approval_pending=False,
+            pending_action_id=None,
         )
 
 
@@ -277,6 +289,8 @@ def format_brain_v2_status(status: BrainV2Status | None = None) -> str:
             f"Developer status: {snapshot.developer_status}",
             f"Developer capability: {snapshot.developer_capability_id or 'none'}",
             f"Developer tool invoked: {'yes' if snapshot.developer_tool_invoked else 'no'}",
+            f"Approval kind: {snapshot.approval_kind}",
+            f"Approval pending: {'yes' if snapshot.approval_pending else 'no'}",
         )
         if snapshot.developer_verification_kind is not None:
             developer_lines += (

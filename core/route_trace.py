@@ -11,7 +11,7 @@ ROUTE_LABELS = frozenset({
     "unknown", "exact_memory", "semantic_memory", "memory_write",
     "runtime_status", "system", "help_docs", "camera_vision", "chat",
     "llm_fallback", "developer_tool", "developer_confirmation",
-    "developer_unsupported",
+    "developer_unsupported", "developer_planning",
 })
 _actual_route: ContextVar[str | None] = ContextVar("jarvis_actual_route", default=None)
 

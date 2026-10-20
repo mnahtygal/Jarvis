@@ -9,6 +9,8 @@ from core.developer_bridge import (
     DEVELOPER_CANCELLATION,
     DEVELOPER_CONFIRMATION_REQUIRED,
     DEVELOPER_EXECUTABLE,
+    DEVELOPER_INSPECTION,
+    DEVELOPER_PLANNING_ACCEPTANCE,
 )
 from core.request_classifier import RequestClassification, RequestIntent
 
@@ -22,6 +24,7 @@ class ExecutionStrategy(str, Enum):
     CAMERA_VISION = "camera_vision"
     DEVELOPER_TOOL = "developer_tool"
     DEVELOPER_CONFIRMATION = "developer_confirmation"
+    DEVELOPER_PLANNING = "developer_planning"
     DEVELOPER_UNSUPPORTED = "developer_unsupported"
     UNKNOWN = "unknown"
 
@@ -39,6 +42,11 @@ def determine_execution_strategy(
             return ExecutionStrategy.DEVELOPER_TOOL
         if developer_request and developer_request.mode == DEVELOPER_APPROVAL:
             return ExecutionStrategy.DEVELOPER_TOOL
+        if developer_request and developer_request.mode in {
+            DEVELOPER_INSPECTION,
+            DEVELOPER_PLANNING_ACCEPTANCE,
+        }:
+            return ExecutionStrategy.DEVELOPER_PLANNING
         if (
             developer_request
             and developer_request.mode in {

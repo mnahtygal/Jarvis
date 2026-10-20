@@ -35,6 +35,28 @@ grouped by category. Brain v2 status shows only capability IDs and readiness.
 Planning remains observe-only. Non-developer requests continue through the
 existing router exactly once.
 
+## Read-only developer planning
+
+Long architecture missions are not executable developer requests. A bounded
+inspection envelope must provide one canonical absolute workspace and a list of
+at most 16 relative source paths under the exact `Inspect these files before
+making changes:` heading. The bridge revalidates this envelope and reads only
+those paths through the existing `developer.read_file` capability. Each read is
+limited to 32 KiB and the complete inspection is limited to 256 KiB.
+
+Workspace containment, symlink resolution, sensitive-file rejection, UTF-8
+validation, and regular-file checks remain owned by the canonical read tool.
+Failed or uninspected paths are reported separately and are never represented as
+inspection evidence. The local model receives only successful bounded read
+results and may summarize them, but cannot select more paths or tools. Its output
+is explicitly labelled as model-generated, and first-person claims of additional
+file access are withheld.
+
+Planning has no executable authority. Planning results use
+`approval_kind=planning`, always have `approval_pending=false`, and never create
+a `PendingDeveloperAction`. `accept plan` only acknowledges planning; it cannot
+execute tools or authorize a mutation.
+
 ## Phase 1 natural-language Developer execution
 
 Brain uses bounded deterministic rules, not an LLM, to select these capabilities:
@@ -72,6 +94,14 @@ single-use and authorizes only the stored capability and arguments.
 An execution-success lifecycle state additionally requires structured evidence
 that the canonical tool or session was invoked and succeeded; conversational
 model prose is never execution evidence.
+
+Approval lifecycle results expose `approval_kind`, `approval_pending`, and a
+random payload-free `pending_action_id`. Only `_propose_action()` may return
+`approval_kind=execution` with `approval_pending=true`, and it does so only after
+the validated pending object has been installed. Conversational approval
+language is deterministically marked planning-only when no executable action is
+pending. `no_pending_action`, expiry, revalidation, and single-use behavior are
+unchanged.
 
 At approval time the bridge rechecks both registry entries, the explicit Phase 2
 allowlist, confirmation/non-autonomous metadata, argument shape, workspace root,
