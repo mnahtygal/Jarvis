@@ -41,11 +41,19 @@ Installed launcher SHA-256:
 - Production API: active.
 - AppArmor profile: enforced.
 
-## Pending Functional Checks
+## Post-Deployment Functional Verification
 
-- Valid authenticated handheld request through Flask.
-- Real image-analysis request through Flask.
-- Developer Agent candidate execution through production API.
+- Valid authenticated handheld request: HTTP 200, success true.
+- Invalid handheld credential: HTTP 401.
+- Gemma 3 image analysis through Flask: HTTP 200, success true.
+- Developer Agent approval, bridge, and planning tests: 133 passed.
+- Candidate isolation verification: 10 passed.
+- Production API remains active under enforced AppArmor.
+
+## Remaining Verification
+
+- Controlled, approved Developer Agent candidate execution through
+  the production Flask API has not yet been tested.
 
 ## Rollback Backup
 
