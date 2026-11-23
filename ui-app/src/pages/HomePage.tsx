@@ -14,6 +14,7 @@ import {
 import type { DashboardStatus } from "../types/dashboard";
 import ActivityLog, { type ActivityLogEntry } from "../components/ActivityLog";
 import ControlButton from "../components/ControlButton";
+import DeveloperSessionLauncher from "../components/DeveloperSessionLauncher";
 import GlowRing from "../components/GlowRing";
 
 type HomePageProps = {
@@ -198,6 +199,11 @@ export default function HomePage({
             </button>
           </div>
         </div>
+
+        <DeveloperSessionLauncher
+          busy={busy}
+          onSubmitRequest={runQuickCommand}
+        />
 
         <div style={{ marginTop: 24 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, opacity: 0.85 }}>

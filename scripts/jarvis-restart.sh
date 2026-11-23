@@ -5,6 +5,7 @@ SERVICES=(
   "jarvis-llama.service"
   "jarvis-vision.service"
   "jarvis-api.service"
+  "hermes-llama.service"
 )
 
 echo "Restarting Jarvis services..."

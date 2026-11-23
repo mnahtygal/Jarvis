@@ -1,5 +1,23 @@
 # Jarvis Changelog
 
+## 2026-10-21 — Bounded developer session launcher v1
+
+### Added
+
+- Added a Home page form for workspace, source file, and test file that builds
+  the existing canonical bounded Python session request.
+- Added frontend validation and regression coverage for canonical request
+  construction.
+
+### Safety
+
+- The launcher submits through the existing `/text` command path and does not
+  add execution or approval authority.
+- Verification, writable scope, read-only test scope, approval requirement, and
+  disabled Git behavior remain fixed and visible.
+- No Developer Agent backend, command policy, or approval-lifecycle behavior
+  changed.
+
 ## 2026-10-19 — Developer Agent isolated repair milestone
 
 ### Added / hardened

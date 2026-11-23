@@ -5,7 +5,7 @@ LLAMA_CPP_DIR="$HOME/llama.cpp"
 CONFIG_DIR="$HOME/jarvis/config"
 MODEL_CONFIG="$CONFIG_DIR/models.json"
 ACTIVE_MODEL_FILE="$CONFIG_DIR/active_model"
-HOST="0.0.0.0"
+HOST="127.0.0.1"
 PORT="8080"
 
 ACTIVE_KEY="qwen3"

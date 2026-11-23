@@ -1,6 +1,6 @@
 # Jarvis Developer Agent
 
-Last updated: 2026-10-19
+Last updated: 2026-10-21
 
 ## Purpose
 
@@ -52,6 +52,18 @@ Run a bounded developer session on /absolute/workspace. Source file: source.py T
 
 The recognizer is intentionally strict and request length is bounded. Long
 free-form developer plans are not equivalent to this grammar.
+
+### UI launcher
+
+The Home page Developer Session launcher collects an absolute workspace plus one
+relative Python source path and one relative Python test path. It deterministically
+submits the canonical request above through the existing `/text` command path.
+
+The launcher fixes verification to `pytest -q <test>`, makes only the source file
+writable, keeps the test file read-only, prohibits Git, and requires approval.
+It does not execute or approve the session. Jarvis still returns the normal
+`confirmation_required` response, and the user must separately send the exact
+`approve` command through the existing interaction path.
 
 Current hard ceilings:
 
@@ -240,7 +252,7 @@ permission for broader autonomous mutation or shell access.
 
 ## Current Next Step
 
-Improve ergonomics and add another small benchmark while preserving the exact
-authority boundary. In particular, users should not have to memorize the
-canonical grammar forever; a dedicated UI/CLI form can make the same frozen scope
-easier to create without widening it.
+The first UI ergonomics layer now creates the canonical request from structured
+inputs without widening the authority boundary. The next Developer Agent step is
+another small controlled benchmark plus diagnostic improvements; broader command,
+mutation, Git, or approval authority remains out of scope.
