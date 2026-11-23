@@ -155,3 +155,109 @@ def test_candidate_launcher_rejects_arbitrary_absolute_test_path():
         root.rmdir()
     assert result.returncode == 64
     assert "unsupported pytest argument" in result.stderr
+
+
+def test_api_launcher_preserves_only_approved_handheld_token():
+    """Production mode must restore only the approved credential."""
+    source = (
+        PACKAGING_ROOT / "src/jarvis-api-entry.c"
+    ).read_text(encoding="utf-8")
+
+    assert "clearenv()" in source
+    assert 'getenv("JARVIS_HANDHELD_TOKEN")' in source
+    assert 'setenv("JARVIS_HANDHELD_TOKEN"' in source
+
+
+def test_api_launcher_separates_credentials_from_verification():
+    """The verification mode must never inherit handheld credentials."""
+    source = (
+        PACKAGING_ROOT / "src/jarvis-api-entry.c"
+    ).read_text(encoding="utf-8")
+
+    assert "argc == 1" in source
+    assert "JARVIS_SYSTEM_ISOLATION_VERIFY" in source
+    assert "JARVIS_HANDHELD_TOKEN" in source
+
+
+def test_api_launcher_runtime_environment_isolation(tmp_path):
+    """Test the compiled launcher's real environment behavior."""
+    import json
+
+    source = (
+        PACKAGING_ROOT / "src/jarvis-api-entry.c"
+    ).read_text(encoding="utf-8")
+
+    fake_python = tmp_path / "fake-python"
+    fake_python.write_text(
+        "#!/usr/bin/python3\n"
+        "import json, os, sys\n"
+        "print(json.dumps({"
+        "'env': dict(os.environ), "
+        "'args': sys.argv[1:]"
+        "}))\n",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o700)
+
+    replacements = {
+        '#define REPOSITORY_ROOT "/home/mnahtygal/jarvis"':
+            f'#define REPOSITORY_ROOT "{tmp_path}"',
+        '#define PYTHON_PATH REPOSITORY_ROOT "/.venv/bin/python"':
+            f'#define PYTHON_PATH "{fake_python}"',
+    }
+
+    for original, replacement in replacements.items():
+        assert source.count(original) == 1
+        source = source.replace(original, replacement, 1)
+
+    test_source = tmp_path / "launcher.c"
+    test_source.write_text(source, encoding="utf-8")
+    executable = tmp_path / "test-launcher"
+
+    subprocess.run(
+        [
+            "cc", "-std=c17", "-Wall", "-Wextra", "-Werror",
+            "-o", str(executable), str(test_source),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    def launch(arguments, token):
+        environment = {
+            "PATH": "/tmp/untrusted",
+            "UNRELATED_TEST_SECRET": "must-not-survive",
+        }
+        if token is not None:
+            environment["JARVIS_HANDHELD_TOKEN"] = token
+
+        result = subprocess.run(
+            [str(executable), *arguments],
+            cwd="/",
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+        return json.loads(result.stdout)["env"]
+
+    production = launch([], "DUMMY-TEST-TOKEN")
+    assert production["JARVIS_HANDHELD_TOKEN"] == "DUMMY-TEST-TOKEN"
+    assert "UNRELATED_TEST_SECRET" not in production
+    assert production["PATH"] == "/usr/bin:/bin"
+
+    verification = launch(
+        ["--verify-candidate-isolation"],
+        "DUMMY-TEST-TOKEN",
+    )
+    assert "JARVIS_HANDHELD_TOKEN" not in verification
+    assert verification["JARVIS_SYSTEM_ISOLATION_VERIFY"] == "1"
+    assert "UNRELATED_TEST_SECRET" not in verification
+
+    missing = launch([], None)
+    assert "JARVIS_HANDHELD_TOKEN" not in missing
+
+    empty = launch([], "")
+    assert "JARVIS_HANDHELD_TOKEN" not in empty

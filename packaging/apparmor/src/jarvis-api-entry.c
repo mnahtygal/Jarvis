@@ -29,6 +29,7 @@ static int set_fixed_environment(void) {
 }
 
 int main(int argc, char **argv) {
+    char *saved_token = NULL;
     char *const api_argv[] = {PYTHON_PATH, API_PATH, NULL};
     char *const verify_argv[] = {
         PYTHON_PATH,
@@ -43,11 +44,30 @@ int main(int argc, char **argv) {
         fputs("jarvis-api-entry: unsupported argument\n", stderr);
         return 64;
     }
+    if (argc == 1) {
+        const char *inherited_token = getenv("JARVIS_HANDHELD_TOKEN");
+        if (inherited_token != NULL && inherited_token[0] != '\0') {
+            saved_token = strdup(inherited_token);
+            if (saved_token == NULL) {
+                fputs("jarvis-api-entry: credential unavailable\n", stderr);
+                return 69;
+            }
+        }
+    }
     if (chdir(REPOSITORY_ROOT) != 0 || set_fixed_environment() != 0) {
         fputs("jarvis-api-entry: fixed runtime unavailable\n", stderr);
         return 69;
     }
     if (argc == 1) {
+        if (saved_token != NULL &&
+            setenv("JARVIS_HANDHELD_TOKEN", saved_token, 1) != 0) {
+            fputs("jarvis-api-entry: credential unavailable\n", stderr);
+            return 69;
+        }
+        if (saved_token != NULL) {
+            explicit_bzero(saved_token, strlen(saved_token));
+            free(saved_token);
+        }
         execv(PYTHON_PATH, api_argv);
     } else {
         if (setenv("JARVIS_SYSTEM_ISOLATION_VERIFY", "1", 1) != 0) {
