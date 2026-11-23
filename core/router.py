@@ -278,6 +278,23 @@ def _try_natural_memory(command: str):
 
 
 def _is_runtime_identity_request(text: str) -> bool:
+    # A runtime question followed by an independent instruction
+    # must not be swallowed by the deterministic status response.
+    # Keep this guard narrow to preserve existing command behavior.
+    secondary_instructions = (
+        " and give me ",
+        " and tell me ",
+        " and explain ",
+        " and write ",
+        " then give me ",
+        " then tell me ",
+        " then explain ",
+        " then write ",
+    )
+
+    if any(marker in f" {text} " for marker in secondary_instructions):
+        return False
+
     runtime_phrases = [
         "what hardware are you running on",
         "what are you running on",
