@@ -165,15 +165,35 @@ or model output. Call `propose()` with the candidate and present its exact text
 and proposal ID through the local review surface. Forward only an explicit user
 turn of the form `approve memory <proposal_id>` or
 `cancel memory <proposal_id>` to the corresponding method with the same
-interaction ID. Only a successful `approve()` returns an approved proposal to
-hand off to a future persistence adapter. Consumption is single-use even if
-that adapter later fails. Expired requests return `expired` while the entry is
+interaction ID. The engine's standalone `approve()` returns an approved
+proposal for inspection. For storage, use the combined operation below.
+Expired requests return `expired` while the entry is
 still present and `no_matching_proposal` after cleanup.
 
 Keep the review text out of transcript logging and public status. The
 credential and retention checks cover obvious patterns and are heuristic.
 State is local to one engine instance and is lost on process restart. The
-engine has no conversation, Developer Agent, API, or database integration.
+engine itself has no conversation, Developer Agent, API, or database integration.
+
+### Approved project-note persistence
+
+A future trusted local adapter can bind `ApprovedMemoryPersistence` to that
+engine and pass the explicit user turn to `approve_and_persist()`. This
+operation consumes the matching live proposal itself. The interface accepts
+confirmation text and the adapter's trusted interaction context. Proposal
+objects, including previously approved ones, carry no storage authority.
+
+After approval, the adapter checks the top three semantic results with the
+existing project-note duplicate rule. The separate lookup and insert permit
+races between different proposals or writers. A lookup failure stops storage.
+The writer stores the exact reviewed text as a `project_note` in the `project`
+category with fixed provenance metadata. The outcome contains only a status
+and a commit-uncertainty flag. Success requires a positive integer row ID. A
+writer exception or invalid result can leave commit state uncertain. Each
+approval permits one attempt, with no retry after any outcome.
+
+Conversation routing still uses the existing capture paths. The persistence
+adapter is available for future local integration.
 
 ## Vision / Camera Roles
 

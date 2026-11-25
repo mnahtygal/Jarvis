@@ -389,15 +389,19 @@ def add_semantic_memory(
     source_type: str = "manual",
     source_id: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
+    *,
+    preserve_whitespace: bool = False,
 ) -> int:
     """
     Store content as semantic memory and return the new row id.
+    Approved notes can opt into storing the exact text shown for review.
     """
     cleaned = (content or "").strip()
 
     if not cleaned:
         raise ValueError("Cannot store empty semantic memory.")
 
+    stored_content = content if preserve_whitespace else cleaned
     ensure_semantic_memory_schema()
 
     embedding = get_embedding(cleaned)
@@ -429,7 +433,7 @@ def add_semantic_memory(
                 (
                     source_type,
                     source_id,
-                    cleaned,
+                    stored_content,
                     metadata_json,
                     embedding_text,
                 ),
