@@ -193,7 +193,39 @@ writer exception or invalid result can leave commit state uncertain. Each
 approval permits one attempt, with no retry after any outcome.
 
 Conversation routing still uses the existing capture paths. The persistence
-adapter is available for future local integration.
+adapter is available through the dedicated terminal console.
+
+### Trusted local memory console
+
+From the repository root, launch the console with
+`.venv/bin/python -m tools.local_memory_console`. This defaults to **DRY RUN**.
+Add `--persist` to enable actual semantic storage. Both input and output must
+be interactive terminals. The console hides typed input and does not keep a
+transcript or history. The terminal emulator and local session may still record
+review output.
+
+Type `propose memory Build a calibration fixture`. The console shows the exact
+single-line candidate, proposal ID, category, and 120-second expiration.
+Only the first space after `propose memory` separates the command from the
+candidate. Further spaces belong to the candidate, including trailing spaces.
+Long reviews are split into delimited lines. Tabs, control characters, and
+Unicode format and line separators are rejected. Type
+`approve memory <proposal_id>` or `cancel memory <proposal_id>`. In dry run,
+approval consumes the proposal without contacting storage. `help`, `status`,
+and `exit` are also available. Status shows the mode and pending proposal ID.
+The console discards pending state when the session ends.
+
+The console generates its interaction ID and owns the approval engine. TTY
+presence is not proof of physical presence or authenticated human identity.
+SSH sessions, PTY automation, shared terminals, and terminal recording are
+outside this trust boundary. The console assumes a trusted local operator and
+a terminal of stable width during review. Duplicate detection and uncertainty
+handling retain the adapter's limits above.
+
+A future dashboard integration needs its own authenticated, interaction-bound
+proposal review and explicit confirmation, plus CSRF defenses and sanitized
+status and logs. It must keep model output and handheld turns outside the
+approval boundary.
 
 ## Vision / Camera Roles
 
