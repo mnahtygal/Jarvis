@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import logging
+from contextlib import suppress
 from typing import Dict, List
 
 from core.brain_request_context import get_active_request_context
 from core.memory import build_memory_context
+from core.memory_observability import (
+    SEMANTIC_MEMORY_SIMILARITY_THRESHOLD,
+    record_memory_retrieval_error,
+    record_memory_retrieval_result,
+)
 from core.session import get_last_topic, get_recent_history
 
 try:
@@ -119,7 +125,7 @@ def _format_recent_history(limit: int = 8) -> str:
 def _format_semantic_memory(
     user_text: str,
     limit: int = 4,
-    min_similarity: float = 0.50,
+    min_similarity: float = SEMANTIC_MEMORY_SIMILARITY_THRESHOLD,
 ) -> str:
     """
     Retrieve meaning-based memories relevant to the current user text.
@@ -131,6 +137,8 @@ def _format_semantic_memory(
     """
 
     if not search_semantic_memories or not format_semantic_results:
+        with suppress(Exception):
+            record_memory_retrieval_error(similarity_threshold=min_similarity)
         return SEMANTIC_MEMORY_UNAVAILABLE
 
     cleaned = (user_text or "").strip()
@@ -141,28 +149,40 @@ def _format_semantic_memory(
     try:
         results = search_semantic_memories(cleaned, limit=limit)
     except Exception:
-        logger.exception("Semantic memory context unavailable")
+        with suppress(Exception):
+            record_memory_retrieval_error(similarity_threshold=min_similarity)
+        logger.error("Semantic memory context unavailable")
         return "Semantic memory search unavailable."
 
+    results_examined = 0
+    selected = []
     try:
-        filtered = [
-            item
-            for item in results
-            if float(
-                item.get(
-                    "weighted_similarity",
-                    item.get("similarity", 0.0),
-                )
-            ) >= min_similarity
-        ]
-
-        if not filtered:
-            return NO_RELEVANT_SEMANTIC_MEMORY
-
-        return format_semantic_results(filtered)
+        for item in results:
+            results_examined += 1
+            score = float(item.get("weighted_similarity", item.get("similarity", 0.0)))
+            if score >= min_similarity:
+                selected.append((item, score))
+        formatted = (
+            format_semantic_results([item for item, _ in selected])
+            if selected else NO_RELEVANT_SEMANTIC_MEMORY
+        )
     except Exception:
-        logger.exception("Semantic memory results unavailable")
+        with suppress(Exception):
+            record_memory_retrieval_error(
+                results_examined=results_examined,
+                similarity_threshold=min_similarity,
+            )
+        logger.error("Semantic memory results unavailable")
         return "Semantic memory search unavailable."
+
+    # Observability is best effort and cannot change the formatted result.
+    with suppress(Exception):
+        record_memory_retrieval_result(
+            results_examined=results_examined,
+            selected_results=selected,
+            similarity_threshold=min_similarity,
+        )
+    return formatted
 
 
 def _get_last_topic() -> str:

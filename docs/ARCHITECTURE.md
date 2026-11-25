@@ -1,6 +1,6 @@
 # Jarvis Architecture
 
-Last updated: 2026-10-19
+Last updated: 2026-11-25
 
 Jarvis is a local-first AI engineering assistant running primarily on NVIDIA
 Jetson AGX Thor. The current architecture combines Brain v2 orchestration,
@@ -135,6 +135,17 @@ workflows.
 Jarvis uses PostgreSQL for exact/persistent facts and PostgreSQL + pgvector for
 semantic memory. The core runtime remains local-first; do not replace the storage
 architecture casually with a cloud vector store.
+
+Brain v2 records request-scoped semantic retrieval diagnostics in internal result
+metadata. A `ContextVar` isolates concurrent requests and is reset on every exit
+path. Each completed or failed retrieval attempt replaces the previous snapshot
+within the same request. The snapshot includes the outcome, counts, and the
+threshold used for that attempt (normally `0.50`). The selected IDs, weighted
+scores, and category labels share the same order. Invalid IDs and non-finite
+scores use null placeholders, and unrecognized category labels use `unknown`.
+The snapshot carries no memory contents, prompts, credentials, conversation
+history, or embeddings. It stays in internal result metadata. Public Brain and
+dashboard status, Flask and handheld chat responses, and application logs exclude it.
 
 ## Vision / Camera Roles
 

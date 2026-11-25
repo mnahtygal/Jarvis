@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from contextlib import suppress
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -35,6 +36,11 @@ from core.execution_strategy import (
     determine_execution_strategy,
 )
 from core.memory_decision import MemoryDecision, decide_memory
+from core.memory_observability import (
+    begin_memory_retrieval_diagnostics,
+    get_memory_retrieval_diagnostics,
+    reset_memory_retrieval_diagnostics,
+)
 from core.memory_persistence import (
     MemoryPersistenceResult,
     persist_project_note,
@@ -99,7 +105,7 @@ class BrainResult:
     pending_action_id: str | None = None
     inspected_paths: tuple[str, ...] = ()
     uninspected_paths: tuple[str, ...] = ()
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict, repr=False)
 
 
 _EXECUTABLE_APPROVAL_LANGUAGE = re.compile(
@@ -145,10 +151,16 @@ def process_request(command: str) -> BrainResult:
     request_context = BrainRequestContext(
         context_policy=classification.context_policy,
     )
-    context_token = set_active_request_context(request_context)
     trace_token = begin_route_trace()
+    context_token = set_active_request_context(request_context)
+    memory_diagnostics_token = begin_memory_retrieval_diagnostics(
+        semantic_memory_permitted=(
+            classification.context_policy.use_semantic_memory
+        )
+    )
     developer_result: DeveloperBridgeResult | None = None
     confirmation_ms = 0.0
+    memory_retrieval_diagnostics = None
 
     try:
         if classification.intent is RequestIntent.DEVELOPER:
@@ -181,6 +193,10 @@ def process_request(command: str) -> BrainResult:
             response = route(normalized_command)
             response = _enforce_conversational_approval_truthfulness(response)
         actual_route = get_actual_route()
+        with suppress(Exception):
+            snapshot = get_memory_retrieval_diagnostics()
+            if snapshot is not None:
+                memory_retrieval_diagnostics = snapshot.to_safe_dict()
     except Exception:
         elapsed_ms = (time.perf_counter() - started_at) * 1000
         policy = classification.context_policy
@@ -220,6 +236,7 @@ def process_request(command: str) -> BrainResult:
         raise
     finally:
         reset_route_trace(trace_token)
+        reset_memory_retrieval_diagnostics(memory_diagnostics_token)
         reset_active_request_context(context_token)
 
     processing_ms = (time.perf_counter() - started_at) * 1000
@@ -280,6 +297,7 @@ def process_request(command: str) -> BrainResult:
         "memory_persisted": persistence_result.persisted,
         "memory_persistence_target": persistence_result.target,
         "memory_persistence_status": persistence_result.status,
+        "semantic_memory_retrieval": memory_retrieval_diagnostics,
         "requires_plan": plan.requires_plan,
         "plan_step_count": len(plan.steps),
         "plan_categories": list(plan_categories),
