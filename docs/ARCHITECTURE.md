@@ -147,6 +147,34 @@ The snapshot carries no memory contents, prompts, credentials, conversation
 history, or embeddings. It stays in internal result metadata. Public Brain and
 dashboard status, Flask and handheld chat responses, and application logs exclude it.
 
+### Project-note approval engine
+
+`core/memory_approval.py` supplies a standalone, in-memory engine for
+`project_note` proposals in the `project` category. The default capacity is
+64 pending proposals per engine, with one per interaction and a 1,000-character
+candidate limit. A second candidate for a live interaction is rejected so the
+user can finish reviewing the original. Proposals expire after 120 seconds on
+a monotonic clock. Creation sweeps expired entries, and the owner can call
+`cleanup_expired()` during idle periods. There is no terminal history.
+
+A future trusted local adapter should own one engine for the interaction
+lifecycle. It should derive an opaque interaction ID and
+`InteractionSource.TRUSTED_LOCAL_USER` from its trusted user-turn boundary.
+Those values must come from the adapter, never from a prompt, raw client fields,
+or model output. Call `propose()` with the candidate and present its exact text
+and proposal ID through the local review surface. Forward only an explicit user
+turn of the form `approve memory <proposal_id>` or
+`cancel memory <proposal_id>` to the corresponding method with the same
+interaction ID. Only a successful `approve()` returns an approved proposal to
+hand off to a future persistence adapter. Consumption is single-use even if
+that adapter later fails. Expired requests return `expired` while the entry is
+still present and `no_matching_proposal` after cleanup.
+
+Keep the review text out of transcript logging and public status. The
+credential and retention checks cover obvious patterns and are heuristic.
+State is local to one engine instance and is lost on process restart. The
+engine has no conversation, Developer Agent, API, or database integration.
+
 ## Vision / Camera Roles
 
 Camera use is role-based rather than tied permanently to `/dev/video*` numbers.
