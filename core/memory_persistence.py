@@ -1,28 +1,15 @@
-"""Controlled automatic persistence for eligible Brain v2 memory decisions."""
+"""Project-note capture policy and shared duplicate detection."""
 
 from __future__ import annotations
 
-import logging
 import string
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
 from core.memory_decision import MemoryDecision, MemoryType
-from core.semantic_memory import add_semantic_memory, search_semantic_memories
 
 
-logger = logging.getLogger(__name__)
-
-PROJECT_NOTE_AUTO_SAVE_THRESHOLD = 0.70
 PERSISTENCE_TARGET_NONE = "none"
-PERSISTENCE_TARGET_SEMANTIC = "semantic_memory"
-
-
-@dataclass(frozen=True)
-class MemoryPersistenceDecision:
-    persist: bool
-    target: str
-    reason: str
 
 
 @dataclass(frozen=True)
@@ -33,19 +20,36 @@ class MemoryPersistenceResult:
     reason: str
 
 
-def determine_persistence(decision: MemoryDecision) -> MemoryPersistenceDecision:
-    """Choose whether the observe-only decision is eligible for auto-save."""
+def project_note_capture_result(decision: MemoryDecision) -> MemoryPersistenceResult:
+    """Report capture policy without reading or writing candidate content.
 
-    if decision.memory_type is not MemoryType.PROJECT_NOTE:
-        return MemoryPersistenceDecision(False, PERSISTENCE_TARGET_NONE, "not a project note")
+    Ordinary Brain v2 conversation has no authorization path to persistence.
+    A detected project note is observable as approval-required, but this does
+    not create a proposal or grant authority to any later request.
+    """
 
-    if not decision.should_store:
-        return MemoryPersistenceDecision(False, PERSISTENCE_TARGET_NONE, "memory decision declined")
+    if (
+        decision.memory_type is MemoryType.PROJECT_NOTE
+        and decision.should_store
+    ):
+        return MemoryPersistenceResult(
+            False,
+            PERSISTENCE_TARGET_NONE,
+            "approval_required",
+            "explicit approval required",
+        )
 
-    if decision.confidence < PROJECT_NOTE_AUTO_SAVE_THRESHOLD:
-        return MemoryPersistenceDecision(False, PERSISTENCE_TARGET_NONE, "below project note threshold")
-
-    return MemoryPersistenceDecision(True, PERSISTENCE_TARGET_SEMANTIC, "eligible project note")
+    status = (
+        "skipped"
+        if decision.memory_type is MemoryType.PROJECT_NOTE
+        else "not_applicable"
+    )
+    return MemoryPersistenceResult(
+        False,
+        PERSISTENCE_TARGET_NONE,
+        status,
+        "memory decision declined" if status == "skipped" else "not a project note",
+    )
 
 
 def _normalize_content(content: str) -> str:
@@ -71,73 +75,3 @@ def _is_duplicate(content: str, results: List[Dict[str, Any]]) -> bool:
             return True
 
     return False
-
-
-def persist_project_note(
-    content: str,
-    decision: MemoryDecision,
-) -> MemoryPersistenceResult:
-    """Persist one eligible project note with duplicate protection.
-
-    Persistence failures are logged and converted to safe status metadata so
-    the original user response can remain unchanged.
-    """
-
-    persistence = determine_persistence(decision)
-    if not persistence.persist:
-        status = (
-            "skipped"
-            if decision.memory_type is MemoryType.PROJECT_NOTE
-            else "not_applicable"
-        )
-        return MemoryPersistenceResult(
-            False,
-            persistence.target,
-            status,
-            persistence.reason,
-        )
-
-    try:
-        results = search_semantic_memories(content, limit=3)
-        duplicate = _is_duplicate(content, results)
-    except Exception:
-        logger.exception("Automatic project-note duplicate check failed")
-        return MemoryPersistenceResult(
-            False,
-            PERSISTENCE_TARGET_SEMANTIC,
-            "failed",
-            "duplicate check failed",
-        )
-
-    if duplicate:
-        return MemoryPersistenceResult(
-            False,
-            PERSISTENCE_TARGET_SEMANTIC,
-            "duplicate",
-            "duplicate project note",
-        )
-
-    try:
-        add_semantic_memory(
-            content=content,
-            source_type="project_note",
-            metadata={
-                "source": "brain_v2",
-                "capture_method": "automatic_project_note",
-            },
-        )
-    except Exception:
-        logger.exception("Automatic project-note persistence failed")
-        return MemoryPersistenceResult(
-            False,
-            PERSISTENCE_TARGET_SEMANTIC,
-            "failed",
-            "semantic persistence failed",
-        )
-
-    return MemoryPersistenceResult(
-        True,
-        PERSISTENCE_TARGET_SEMANTIC,
-        "persisted",
-        "project note persisted",
-    )

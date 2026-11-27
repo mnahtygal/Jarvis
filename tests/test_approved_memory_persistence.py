@@ -136,6 +136,13 @@ def test_duplicate_is_skipped(setup, row):
     storage.write.assert_not_called()
 
 
+def test_unrelated_match_below_duplicate_threshold_does_not_block_approved_write(setup):
+    engine, adapter, storage, _ = setup
+    storage.search.return_value = [{"content": "another fixture", "similarity": 0.959}]
+    assert confirm(adapter, propose(engine)).status == "persisted"
+    storage.write.assert_called_once()
+
+
 def test_lookup_failure_closes_authorization_without_insertion(setup, caplog):
     engine, adapter, storage, _ = setup
     storage.search.side_effect = RuntimeError(TEXT)

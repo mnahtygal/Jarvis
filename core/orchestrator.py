@@ -43,7 +43,7 @@ from core.memory_observability import (
 )
 from core.memory_persistence import (
     MemoryPersistenceResult,
-    persist_project_note,
+    project_note_capture_result,
 )
 from core.planner import PlanResult, analyze_plan
 from core.plan_validator import PlanValidationResult, validate_plan
@@ -245,19 +245,14 @@ def process_request(command: str) -> BrainResult:
         if developer_result is not None
         else evaluate_response(response)
     )
-    if (
-        developer_result is None
-        and evaluation.success
-        and evaluation.quality == "good"
+    if developer_result is not None or not (
+        evaluation.success and evaluation.quality == "good"
     ):
-        persistence_result = persist_project_note(normalized_command, memory_decision)
-    else:
         persistence_result = MemoryPersistenceResult(
-            False,
-            "none",
-            "skipped",
-            "request evaluation was not successful",
+            False, "none", "skipped", "request evaluation was not successful",
         )
+    else:
+        persistence_result = project_note_capture_result(memory_decision)
     policy = classification.context_policy
     context_sources = [
         source

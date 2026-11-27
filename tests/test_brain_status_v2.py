@@ -5,7 +5,6 @@ import pytest
 
 from core import brain_status_v2, orchestrator, router
 from core.brain_status_v2 import get_brain_v2_status, get_brain_v2_status_response
-from core.memory_persistence import MemoryPersistenceResult
 
 
 def _reset_status(monkeypatch):
@@ -56,24 +55,17 @@ def test_semantic_request_publishes_context_sources(monkeypatch):
 def test_project_note_publishes_memory_and_persistence_status(monkeypatch):
     _reset_status(monkeypatch)
     monkeypatch.setattr(orchestrator, "route", lambda command: "safe response")
-    monkeypatch.setattr(
-        orchestrator,
-        "persist_project_note",
-        lambda content, decision: MemoryPersistenceResult(
-            False,
-            "semantic_memory",
-            "duplicate",
-            "duplicate project note",
-        ),
-    )
 
     orchestrator.process_request("We should build satellite tracking someday.")
     status = get_brain_v2_status()
 
     assert status.memory_should_store is True
     assert status.memory_type == "project_note"
-    assert status.memory_persistence_status == "duplicate"
-    assert status.memory_persistence_target == "semantic_memory"
+    assert status.memory_persistence_status == "approval_required"
+    assert status.memory_persistence_target == "none"
+    assert status.approval_kind == "none"
+    assert status.approval_pending is False
+    assert status.pending_action_id is None
 
 
 def test_deterministic_status_command_does_not_expose_request_content(monkeypatch):

@@ -147,6 +147,31 @@ The snapshot carries no memory contents, prompts, credentials, conversation
 history, or embeddings. It stays in internal result metadata. Public Brain and
 dashboard status, Flask and handheld chat responses, and application logs exclude it.
 
+### Controlled project-note capture
+
+Brain v2 still classifies durable-looking project ideas as `project_note`
+candidates, and semantic retrieval remains available under the request's context
+policy. Ordinary conversation no longer performs the former automatic duplicate
+lookup or semantic-memory insert. There is no confidence threshold, model output,
+HTTP field or header, localhost origin, or caller-supplied interaction identifier
+that can re-enable that retired path.
+
+A detected candidate on an ordinary request evaluated as successful and good
+produces `approval_required`, with target `none` and `memory_persisted=false`.
+The status records the decision. `approval_kind` remains `none` and
+`approval_pending` remains false. The request creates no proposal or approval
+ID. Public Brain v2 status may show the status and memory type.
+Developer Agent requests and unsuccessful or lower-quality evaluations retain
+`skipped`. Successful, good non-project requests retain `not_applicable`.
+
+The explicit router commands remain separate legacy write paths. `remember`,
+`note`, and `save` can write semantic user notes; natural fact statements and
+`remember` fact forms can write exact memory; `update my ... to ...` and
+`forget that ...` update or delete exact memory. Conversation history in
+`core/brain.py` also continues to record ordinary user and assistant turns.
+Controlled project-note capture does not change any of those behaviors, and it
+does not make their authorization model equivalent to project-note approval.
+
 ### Project-note approval engine
 
 `core/memory_approval.py` supplies a standalone, in-memory engine for
@@ -157,8 +182,8 @@ user can finish reviewing the original. Proposals expire after 120 seconds on
 a monotonic clock. Creation sweeps expired entries, and the owner can call
 `cleanup_expired()` during idle periods. There is no terminal history.
 
-A future trusted local adapter should own one engine for the interaction
-lifecycle. It should derive an opaque interaction ID and
+The trusted local console owns one engine for its interaction lifecycle. Any
+future authenticated adapter must likewise derive an opaque interaction ID and
 `InteractionSource.TRUSTED_LOCAL_USER` from its trusted user-turn boundary.
 Those values must come from the adapter, never from a prompt, raw client fields,
 or model output. Call `propose()` with the candidate and present its exact text
@@ -177,8 +202,8 @@ engine itself has no conversation, Developer Agent, API, or database integration
 
 ### Approved project-note persistence
 
-A future trusted local adapter can bind `ApprovedMemoryPersistence` to that
-engine and pass the explicit user turn to `approve_and_persist()`. This
+The trusted local console binds `ApprovedMemoryPersistence` to that engine and
+passes the explicit user turn to `approve_and_persist()`. This
 operation consumes the matching live proposal itself. The interface accepts
 confirmation text and the adapter's trusted interaction context. Proposal
 objects, including previously approved ones, carry no storage authority.
@@ -192,8 +217,8 @@ and a commit-uncertainty flag. Success requires a positive integer row ID. A
 writer exception or invalid result can leave commit state uncertain. Each
 approval permits one attempt, with no retry after any outcome.
 
-Conversation routing still uses the existing capture paths. The persistence
-adapter is available through the dedicated terminal console.
+Ordinary conversation never calls this adapter and never creates its proposals.
+The persistence adapter is available through the dedicated terminal console.
 
 ### Trusted local memory console
 
@@ -225,7 +250,33 @@ handling retain the adapter's limits above.
 A future dashboard integration needs its own authenticated, interaction-bound
 proposal review and explicit confirmation, plus CSRF defenses and sanitized
 status and logs. It must keep model output and handheld turns outside the
-approval boundary.
+approval boundary. No new endpoint or authorization channel is implied by the
+ordinary conversation status.
+
+Candidate detection and credential/retention checks are heuristic. Public
+status excludes candidate text. Ordinary conversation history and the existing
+heard-command log can retain the original turn. Terminal emulators or local
+sessions can record console review output. Pending proposals are process-local
+and disappear on restart. Duplicate
+lookup and insert are not atomic, and a writer failure can have an uncertain
+commit outcome.
+
+### PostgreSQL protection in tests
+
+Run automated tests from the repository root with
+`.venv/bin/python -m pytest tests/…`. The repository's pytest configuration
+loads the PostgreSQL guard before conftest and test-module imports. It blocks
+psycopg2 connection entry points for the life of the pytest process. Fixture
+mocks can substitute fake connections and restore the guard when they unwind.
+The terminal summary counts blocked calls during startup/session, collection
+(including test imports), fixture setup, test execution, and teardown. Counts
+are process-local and reflect the active pytest phase at the time of each call.
+
+This is Python-level protection. A reference to the original native connector
+captured before plugin load can bypass it. Code run before plugin load, other
+database clients, fresh subprocesses, standalone scripts, and invocations that
+bypass the pytest configuration require separate protection. Default discovery
+uses `tests/` and ignores the root-level live PostgreSQL smoke scripts.
 
 ## Vision / Camera Roles
 
