@@ -195,7 +195,7 @@ Read-only repeatable-read before/after snapshots matched:
 
 All 56 records remain unchanged, matching the November 27 backup validation and Milestone 1 snapshots. Final API health: {"status":"ok"}. No new approved production note was inserted during this milestone; trusted approval compatibility was verified through regression tests. Existing-key recall was tested, but live mutation attempts intentionally used synthetic keys. Matching snapshots establish final contents, not the absence of every possible intermediate operation.
 
-### Current limitations and next mission
+### Milestone 2 limitations and next mission (historical)
 
 - All identified conversational durable-memory mutation paths are closed. Ordinary conversational saves, updates and deletes are intentionally unavailable pending trusted replacements.
 - Direct Python calls, administrative utilities and database privileges are unchanged; this is not database-level access control.
@@ -207,8 +207,52 @@ All 56 records remain unchanged, matching the November 27 backup validation and 
 - The 27 established baseline failures, encrypted off-drive backup and runtime restore validation remain outstanding.
 - Rolling back to Milestone 1 would restore legacy direct conversational mutation paths; rolling back further may also restore implicit writes.
 
-Next mission: Structured Exact-Memory Approval Proposals v1. Design immutable, bounded, expiring proposals for a trusted interaction, including the normalized key, proposed operation/value and reviewed existing value, without database mutation. Follow separately with transactional approved persistence (including stale-value checks and accurate history), trusted console integration, authenticated dashboard integration and controlled semantic correction/deletion.
+Next mission (completed as Milestone 3 below): Structured Exact-Memory Approval Proposals v1. Design immutable, bounded, expiring proposals for a trusted interaction, including the normalized key, proposed operation/value and reviewed existing value, without database mutation. Follow separately with transactional approved persistence (including stale-value checks and accurate history), trusted console integration, authenticated dashboard integration and controlled semantic correction/deletion.
 
 Development ownership remains operator and Bud/authorized Codex for implementation; all other AI collaborators review only.
 
 This update is documentation only; no service restart is required.
+
+---
+
+## Milestone 3: Structured Exact-Memory Approval Proposals v1
+
+Status: implemented, independently reviewed and tested, merged and pushed. Standalone module only; not wired into the running application.
+
+- Starting checkpoint: `a947562d4fb46c3d681d02c390c687b3c111a2ce`.
+- Implementation: `c91a591809eee57af063cd185effb7b0cddf11c7`.
+- Feature branch: `feature/brain-v2-exact-memory-proposals`.
+- Steps 164–169B completed: source audit, architecture, branch, Sol High implementation, independent review and testing, feature push and fast-forward merge to main.
+- Local and remote main matched after the merge.
+- Three files, 920 insertions: core/exact_memory_approval.py (311 lines), tests/test_exact_memory_approval.py (543 lines), docs/ARCHITECTURE.md (66 added lines).
+- Production API PID remains 687225; health returned {"status":"ok"}. Active production authorization implementation remains Milestone 2 (ebafb7c). No restart, schema change, production lookup adapter, or memory mutation was introduced.
+
+### Architecture and implementation
+
+The standalone ExactMemoryApprovalEngine is deliberately separate from the project-note engine and adapter. It accepts an injected trusted read-only lookup, with no database, model, embedding, or execution-layer dependency. Actual enum members distinguish CREATE (absent key), UPDATE (existing row and changed value), and DELETE (existing row, no proposed value). No upsert semantics. Existing empty stored values represent present rows.
+
+Frozen slotted ExactMemoryProposal and ExactMemoryRecordSnapshot objects retain reviewed row ID, exact key and existing value, nullable timestamps, proposed value, operation, proposal ID, trusted interaction and monotonic lifecycle timestamps. Keys use strip().lower() only, capped at 256 characters before and after normalization; no broad aliases or punctuation removal. Proposed values preserve spelling and spacing up to 1,000 characters. Unsafe Unicode categories and credential/retention patterns are screened across keys, values and joined fields. Malformed, unsafe, sensitive or oversized existing snapshots fail closed even for deletion. Lookup errors are sanitized; generic representations omit payloads and interaction IDs.
+
+Default capacity is 64 slots per engine, including in-flight lookups, with one slot per trusted interaction. A reservation is installed under the state lock before lookup, external lookup runs outside the lock, and finally cleanup checks reservation identity to avoid removing a newer reservation. The 120-second TTL starts upon publication, not lookup start. Approval and cancellation require exact trusted-source identity, the same interaction, and the full command approve exact memory <lowercase UUID4 hex ID> or cancel exact memory <ID>. Consumption is atomic under the engine lock, with exact-deadline expiration and no terminal-ID history. Approval returns reviewed data only; an approved object is not independently sufficient authority for future persistence.
+
+Existing project-note engine, persistence adapter, console, router, orchestrator, API, UI, schema, PostgreSQL guard and security configuration remain unchanged. Pre-existing modified launcher binary and unrelated untracked artifacts excluded and preserved.
+
+### Verification
+
+- Codex Sol High: 124 new tests passed separately; expanded prior 440-test selection plus new suite: 564 passed, zero failures/skips; standalone guard self-test passed.
+- All three Codex outer pytest runs reported zero blocked PostgreSQL attempts across startup/session, collection/import, setup, call and teardown. Two intentional guard child runs reported 14 probes (2 startup/session, 4 collection/import, 2 setup, 4 call, 2 teardown).
+- Independent source review inspected all 311 engine lines, all 543 test lines, architecture diff and entrypoint references; no blocking findings. Accepted reuse of existing private screening regexes without refactoring the working project-note engine.
+- Independent Thor verification: guard self-test 1 passed in 4.01 seconds; selected regression suite 421 passed in 6.23 seconds; 422 total independent passes, zero blocked PostgreSQL attempts in all five phases of both outer runs. Suites overlap; counts are not additive unique tests.
+- Python compilation and git diff --check passed.
+- Regression coverage includes operation preconditions, normalization, exact value preservation, empty existing values, invalid inputs and snapshots, unsafe Unicode, heuristic screening, sanitized lookup failures, capacity and reservation release, interruption, concurrent approvals/cancellations, slow lookup isolation, expiration, cross-engine IDs, project adapter compatibility and chat/voice spoof isolation.
+- No live database mutation or fresh live checksum comparison was performed for this isolated module; last verified durable-memory fingerprints are those in Milestone 2.
+
+### Remaining limitations and next mission
+
+The trusted enum and frozen objects are in-process safeguards, not authentication or protection against arbitrary privileged Python code. Capacity applies per engine; a stalled lookup can retain a slot until it returns or is interrupted. Future lookup adapters must bound execution time. Credential screening is heuristic and unsafe legacy rows require separate authorized administrative handling. A reviewed row can become stale. Existing conversational authorization restrictions remain in effect; no exact-memory approval interface or persistence is available yet. The 27 established baseline failures, off-drive encrypted backup and runtime restore validation remain outstanding. Source audit also identified a hard-coded database password fallback; remove it in a separate controlled authentication change and rotate credentials if in use. Do not include credential values in documentation.
+
+Next mission: Transactional Approved Exact-Memory Persistence v1. Design bounded read-only lookup and transactional persistence, consuming genuine approval from the trusted engine directly. Enforce create-only conflicts, reviewed row identity and value/version checks, accurate atomic memory_history insertion, rollback and uncertain-commit handling, and no automatic retry of consumed approvals. Use isolated test databases for integration testing rather than production data. Follow separately with trusted console integration, authenticated dashboard approval and controlled semantic correction/deletion.
+
+Development ownership: operator and Bud/authorized Codex implement; other AI collaborators review only.
+
+This checkpoint update is documentation only. No production service restart is required.
