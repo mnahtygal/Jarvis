@@ -7,7 +7,7 @@ from enum import Enum
 import time
 
 from core.developer_bridge import DeveloperRequest, classify_developer_request
-from core.router import normalize_text_for_routing
+from core.router import is_memory_change_command, normalize_text_for_routing
 
 
 class RequestIntent(str, Enum):
@@ -45,7 +45,7 @@ def _policy_for(intent: RequestIntent) -> ContextPolicy:
         RequestIntent.CONVERSATION: ContextPolicy(False, True, True, True, "conversation request"),
         RequestIntent.FACTUAL_QUESTION: ContextPolicy(False, False, False, False, "general factual question"),
         RequestIntent.MEMORY_RECALL: ContextPolicy(True, True, True, False, "memory recall request"),
-        RequestIntent.MEMORY_WRITE: ContextPolicy(False, False, False, False, "memory write request"),
+        RequestIntent.MEMORY_WRITE: ContextPolicy(False, False, False, False, "memory change request"),
         RequestIntent.RUNTIME_STATUS: ContextPolicy(False, False, False, False, "runtime command"),
         RequestIntent.SYSTEM_COMMAND: ContextPolicy(False, False, False, False, "system command"),
         RequestIntent.CAMERA_OR_VISION: ContextPolicy(False, False, False, False, "camera or vision command"),
@@ -89,12 +89,6 @@ def _is_follow_up(text: str) -> bool:
         "how does it work", "compare it",
     )
     return any(phrase in text for phrase in phrases)
-
-
-def _is_memory_write(text: str) -> bool:
-    return (text + " ").startswith(
-        ("remember ", "note ", "save ", "update my ", "forget that ")
-    )
 
 
 def _is_runtime_status(text: str) -> bool:
@@ -143,13 +137,17 @@ def classify_request(command: str) -> RequestClassification:
         raise TypeError("command must be a string")
 
     text = normalize_text_for_routing(command)
+    memory_change = is_memory_change_command(text)
     recognition_started = time.perf_counter()
-    developer_request = classify_developer_request(command)
+    developer_request = None if memory_change else classify_developer_request(command)
     developer_recognition_ms = (
         time.perf_counter() - recognition_started
     ) * 1000
     if developer_request is not None:
         intent = RequestIntent.DEVELOPER
+        policy = _policy_for(intent)
+    elif memory_change:
+        intent = RequestIntent.MEMORY_WRITE
         policy = _policy_for(intent)
     elif _is_exact_memory_recall(text):
         intent = RequestIntent.MEMORY_RECALL
@@ -160,9 +158,6 @@ def classify_request(command: str) -> RequestClassification:
     elif _is_follow_up(text):
         intent = RequestIntent.CONVERSATION
         policy = ContextPolicy(False, True, True, True, "follow-up conversation")
-    elif _is_memory_write(text):
-        intent = RequestIntent.MEMORY_WRITE
-        policy = _policy_for(intent)
     elif _is_runtime_status(text):
         intent = RequestIntent.RUNTIME_STATUS
         policy = _policy_for(intent)

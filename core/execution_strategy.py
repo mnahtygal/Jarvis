@@ -58,7 +58,7 @@ def determine_execution_strategy(
         return ExecutionStrategy.DEVELOPER_UNSUPPORTED
 
     if intent is RequestIntent.MEMORY_WRITE:
-        return ExecutionStrategy.MEMORY
+        return ExecutionStrategy.DETERMINISTIC
 
     if intent is RequestIntent.MEMORY_RECALL:
         if classification.context_policy.use_semantic_memory:

@@ -15,7 +15,6 @@ from core.route_trace import (
 
 
 @pytest.mark.parametrize("command,handler,args,label", [
-    ("remember that Kelly likes tea", "_store_semantic_note", ("Kelly likes tea",), "memory_write"),
     ("semantic search satellite", "get_semantic_search_response", ("satellite",), "semantic_memory"),
     ("brain status", "get_brain_status_response", (), "runtime_status"),
     ("brain v2 status", "get_brain_v2_status_response", (), "runtime_status"),
@@ -27,7 +26,6 @@ from core.route_trace import (
     ("xyzzy", "get_llm_response", ("xyzzy",), "llm_fallback"),
     ("what time is it", "get_time_response", (), "system"),
     ("I work at GM", "get_llm_response", ("I work at GM",), "llm_fallback"),
-    ("forget that color", "forget", ("color",), "memory_write"),
 ])
 def test_router_returns_same_string_and_invokes_handler_once(monkeypatch, command, handler, args, label):
     expected = "  unchanged response\nwith spacing  "
@@ -60,6 +58,19 @@ def test_exact_memory_response_unchanged(monkeypatch):
     assert result.response == "Based on your saved memory, your wife's name is Kelly, Marty."
     assert result.actual_route == "exact_memory"
     recall.assert_called_once_with("my wife's name")
+
+
+@pytest.mark.parametrize("command", ["remember that Kelly likes tea", "forget that color"])
+def test_blocked_memory_route_is_traced_once(monkeypatch, command):
+    traced_router = Mock(wraps=router.route)
+    monkeypatch.setattr(orchestrator, "route", traced_router)
+    result = orchestrator.process_request(command)
+    traced_router.assert_called_once_with(command)
+    assert result.actual_route == result.metadata["actual_route"] == "memory_authorization_required"
+    assert get_brain_v2_status().actual_route == result.actual_route
+    assert result.memory_persistence_status == "approval_required"
+    assert not result.memory_persisted
+    assert get_actual_route() == "unknown"
 
 
 def test_camera_status_response_unchanged(monkeypatch):

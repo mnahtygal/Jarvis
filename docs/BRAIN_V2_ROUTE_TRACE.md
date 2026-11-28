@@ -6,10 +6,10 @@ router once, captures the label, and restores the enclosing trace in `finally`.
 Direct router callers still receive strings; outside an active trace, setters
 do not retain state. Nested and concurrent requests have independent traces.
 
-Labels: `exact_memory`, `semantic_memory`, `memory_write`, `runtime_status`,
+Labels: `exact_memory`, `semantic_memory`, `memory_authorization_required`, `runtime_status`,
 `system`, `help_docs`, `camera_vision`, `chat`, `llm_fallback`, and `unknown`.
-Explicit semantic saves use `memory_write`; semantic reads/search use
-`semantic_memory`. A branch label identifies the selected handler, not successful
+Blocked conversational memory changes use `memory_authorization_required`.
+Semantic reads and searches use `semantic_memory`. A branch label identifies the selected handler, not successful
 execution or a specific LLM backend. If a handler raises before a label is set,
 the failed lifecycle records `unknown`. Evaluation remains separate.
 
@@ -17,8 +17,7 @@ the failed lifecycle records `unknown`. Evaluation remains separate.
 the captured label. `brain v2 status` includes `Actual route`. The route field
 was introduced in `2.0-phase8`; later Brain versions retain it.
 The command displays the previous completed snapshot and then
-becomes the latest request itself. Other response text and router condition
-order are unchanged. Expected strategy may differ: `hello` expects `llm` under
+becomes the latest request itself. Expected strategy may differ: `hello` expects `llm` under
 the existing classifier but actually uses `chat`.
 
 No commands, responses, prompts, memory values, or exception text enter the

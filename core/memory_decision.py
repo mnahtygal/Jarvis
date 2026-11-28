@@ -62,23 +62,12 @@ def decide_memory(
     }:
         return _none("question or command", 0.96)
 
-    if text.startswith("forget that ") or text.startswith("forget "):
-        return _none("memory deletion command", 0.99)
-
-    if text.startswith(("remember ", "note ", "save ")):
+    if classification.intent is RequestIntent.MEMORY_WRITE:
         return MemoryDecision(
-            True,
+            False,
             MemoryType.EXPLICIT_MEMORY_COMMAND,
             0.98,
             "explicit memory command",
-        )
-
-    if text.startswith("update my "):
-        return MemoryDecision(
-            True,
-            MemoryType.EXPLICIT_MEMORY_COMMAND,
-            0.96,
-            "explicit memory update",
         )
 
     if text.startswith((

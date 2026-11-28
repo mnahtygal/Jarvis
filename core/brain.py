@@ -2,6 +2,7 @@
 
 from core.orchestrator import process_request
 from core.developer_bridge import classify_developer_request
+from core.router import is_memory_change_command, normalize_text_for_routing
 from core.session import (
     remember_user_message,
     remember_assistant_message,
@@ -89,7 +90,10 @@ def think(command: str) -> str:
     if not cleaned_command:
         return "I didn't hear anything, Marty."
 
-    is_developer_request = classify_developer_request(cleaned_command) is not None
+    is_developer_request = (
+        not is_memory_change_command(normalize_text_for_routing(cleaned_command))
+        and classify_developer_request(cleaned_command) is not None
+    )
     if is_developer_request:
         print("[BRAIN] Heard developer request")
     else:

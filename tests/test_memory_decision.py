@@ -5,7 +5,8 @@ from core.request_classifier import classify_request
 
 def test_memory_decisions_are_deterministic_and_bounded():
     cases = {
-        "remember that Kelly likes tea": (True, MemoryType.EXPLICIT_MEMORY_COMMAND),
+        "remember that Kelly likes tea": (False, MemoryType.EXPLICIT_MEMORY_COMMAND),
+        "forget that color": (False, MemoryType.EXPLICIT_MEMORY_COMMAND),
         "my favorite color is blue": (True, MemoryType.PREFERENCE),
         "I work at GM": (True, MemoryType.EXACT_FACT),
         "I prefer SQL Server": (True, MemoryType.PREFERENCE),
@@ -41,8 +42,9 @@ def test_memory_decision_has_no_persistence_side_effects(monkeypatch):
     result = orchestrator.process_request("remember that Kelly likes tea")
 
     assert result.response == "existing response"
-    assert result.memory_decision.should_store is True
-    assert result.metadata["should_store_memory"] is True
+    assert result.memory_decision.memory_type is MemoryType.EXPLICIT_MEMORY_COMMAND
+    assert result.memory_decision.should_store is False
+    assert result.metadata["should_store_memory"] is False
 
 
 def test_memory_decision_does_not_change_router_response_or_call_count(monkeypatch):

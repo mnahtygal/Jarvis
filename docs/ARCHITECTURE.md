@@ -172,21 +172,8 @@ previously called `remember()` and could upsert an exact-memory row and append
 to `memory_history`. Those statements now follow ordinary routing with the
 existing recall paths available. The classifier still observes `exact_fact`
 and `preference` candidates, which share the capture statuses above. Candidate
-recognition and confidence provide no write authority. The router's write path
-requires an explicit command even when the classifier misses a candidate.
-
-The explicit legacy commands remain direct write paths. `remember` fact forms
-upsert exact memory, and freeform `remember`, `note`, and `save` can write
-semantic user notes. `update my ... to ...` upserts exact memory, and
-`forget that ...` deletes it. The router matches whole command words.
-Legacy key normalization still maps keys containing `prefer` or `preference`
-to `my preferred database`, including unrelated preferences expressed through
-an explicit fact command. Existing rows keep their keys and values.
-
-Whole-word matching still treats prose or a voice transcript that starts with
-a recognized command, such as `note that ...`, as a command. The legacy parser
-uses phrases such as `is` to distinguish an exact fact from a freeform
-`remember` note. It does not verify the speaker's intent beyond this syntax.
+recognition and confidence provide no write authority. Existing saved facts
+remain available to recall, including through legacy key normalization.
 
 Successful LLM replies for detected exact facts and preferences with
 `approval_required` include a separate, application-generated note stating that
@@ -204,6 +191,37 @@ adapter support project notes only. Conversation history still records ordinary
 user and assistant turns, and the existing heard-command log can contain the
 original input. Capture status applies to durable memory writes separately from
 conversation retention.
+
+### Explicit memory command authorization
+
+Chat and voice cannot directly insert, overwrite, update, or delete durable
+exact or semantic memories. Leading whole-word `remember` (including
+`remember this` and `remember that`), `note` (including `note that`),
+`save` (including `save this`), `update my`, and `forget that` forms
+receive a fixed authorization response. Incomplete forms receive the same
+response. Leading command-like prose can also match this syntax.
+
+Leading memory commands take precedence over Developer Agent heuristics.
+The router handles them before keyword-based recall and other narrow shortcuts,
+so terms such as `database`, `wife`, `workplace`, and `ship` leave the
+authorization response in place. The existing multiline and
+large-request fallback runs first. Model responses from that path have no
+mutation authority. HTTP metadata, origin, prior turns, and Developer Agent
+approvals cannot authorize a memory change.
+
+A blocked command uses route `memory_authorization_required` and decision
+`explicit_memory_command` with `should_store=false`, including deletion
+requests. `approval_required` describes the boundary. The result reports
+`memory_persisted=false`, target `none`, no pending approval, and no action ID.
+The status contains no candidate text. The existing HTTP `heard` field, input
+logs, conversation history, and session state keep their existing behavior.
+
+Conversational save, update, and forget are unavailable until an authorized
+workflow exists. The trusted local console can approve new project notes
+only. The router has no durable-memory mutation calls. Trusted in-process
+Python callers, standalone administrative or migration utilities, and direct
+database access are outside this application boundary. The underlying SQL and
+database privileges retain their existing behavior.
 
 ### Project-note approval engine
 

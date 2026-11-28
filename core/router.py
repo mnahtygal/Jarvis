@@ -31,19 +31,20 @@ from skills.runtime_skill import (
     get_runtime_identity_response,
 )
 
-from core.memory import (
-    remember,
-    recall,
-    update_memory,
-    forget,
-    get_all_memories,
+from core.memory import recall, get_all_memories
+
+
+_MEMORY_AUTHORIZATION_RESPONSE = (
+    "Long-term memory changes require trusted authorization. "
+    "I haven't changed your saved memory."
 )
 
-try:
-    from core.semantic_memory import add_semantic_memory, search_semantic_memories
-except Exception:
-    add_semantic_memory = None
-    search_semantic_memories = None
+
+def is_memory_change_command(text: str) -> bool:
+    """Recognize legacy command forms in normalized routing text, even if incomplete."""
+    return (text + " ").startswith(
+        ("remember ", "note ", "save ", "update my ", "forget that ")
+    )
 
 
 def normalize_text_for_routing(command: str) -> str:
@@ -61,7 +62,6 @@ def normalize_text_for_routing(command: str) -> str:
     - "what do you remember"
 
     Important:
-    - The original command is still used when storing memories.
     - This normalized text is only for intent matching.
     """
     text = (command or "").lower().strip()
@@ -154,99 +154,6 @@ def _try_exact_memory_question(text: str):
             return f"Based on your saved memory, you work at {value}, Marty."
 
     return None
-
-def _remember_is_fact(fact: str):
-    lowered = fact.lower()
-
-    if " is called " in lowered:
-        split_text = " is called "
-    elif " is named " in lowered:
-        split_text = " is named "
-    elif " is " in lowered:
-        split_text = " is "
-    else:
-        return None
-
-    index = lowered.find(split_text)
-
-    key = fact[:index].strip()
-    value = fact[index + len(split_text):].strip().strip(" .!?")
-
-    key = normalize_key(key)
-
-    if not key or not value:
-        return None
-
-    return remember(key, value)
-
-
-def _looks_like_duplicate_semantic_note(note: str):
-    """
-    Check for very similar existing semantic memory.
-
-    This is intentionally simple:
-    - exact normalized content match is a duplicate
-    - similarity >= 0.96 is treated as duplicate
-    """
-    if search_semantic_memories is None:
-        return None
-
-    cleaned = " ".join((note or "").strip().lower().split())
-
-    if not cleaned:
-        return None
-
-    try:
-        results = search_semantic_memories(note, limit=3)
-    except Exception:
-        return None
-
-    for item in results:
-        existing_content = " ".join(
-            item.get("content", "").strip().lower().split()
-        )
-        similarity = float(item.get("similarity", 0.0))
-
-        if existing_content == cleaned or similarity >= 0.96:
-            return item
-
-    return None
-
-
-def _store_semantic_note(note: str) -> str:
-    """
-    Store freeform notes in pgvector semantic memory.
-    """
-    cleaned = (note or "").strip().strip(" .!?")
-
-    if not cleaned:
-        return "I can remember that, Marty, but I need something to save."
-
-    if add_semantic_memory is None:
-        return "Semantic memory is not available right now, Marty."
-
-    duplicate = _looks_like_duplicate_semantic_note(cleaned)
-
-    if duplicate:
-        memory_id = duplicate.get("id", "?")
-        similarity = float(duplicate.get("similarity", 0.0))
-        return (
-            f"I already have a very similar semantic memory, Marty. "
-            f"Memory #{memory_id}, similarity={similarity:.3f}."
-        )
-
-    memory_id = add_semantic_memory(
-        content=cleaned,
-        source_type="user_note",
-        source_id=None,
-        metadata={
-            "source": "marty",
-            "capture_method": "freeform_remember",
-        },
-    )
-
-    return f"I saved that to semantic memory, Marty. Memory #{memory_id}."
-
 
 def _is_runtime_identity_request(text: str) -> bool:
     # A runtime question followed by an independent instruction
@@ -550,6 +457,10 @@ def route(command: str) -> str:
         set_actual_route("llm_fallback")
         return get_llm_response(command)
 
+    if is_memory_change_command(text):
+        set_actual_route("memory_authorization_required")
+        return _MEMORY_AUTHORIZATION_RESPONSE
+
     camera_response = _try_camera_role_command(text)
     if camera_response:
         set_actual_route("camera_vision")
@@ -654,70 +565,6 @@ def route(command: str) -> str:
     if _is_docs_request(text):
         set_actual_route("help_docs")
         return get_docs_response()
-
-    # Include a trailing space so bare commands still match whole words.
-    memory_command = text + " "
-    if memory_command.startswith("remember this "):
-        note = _extract_after_prefix(command, "remember this")
-        set_actual_route("memory_write")
-        return _store_semantic_note(note)
-
-    if memory_command.startswith("remember that "):
-        fact = _extract_after_prefix(command, "remember that")
-        set_actual_route("memory_write")
-
-        response = _remember_is_fact(fact)
-        if response:
-            return response
-
-        return _store_semantic_note(fact)
-
-    if memory_command.startswith("remember "):
-        note = _extract_after_prefix(command, "remember")
-        set_actual_route("memory_write")
-
-        response = _remember_is_fact(note)
-        if response:
-            return response
-
-        return _store_semantic_note(note)
-
-    if memory_command.startswith("note that "):
-        note = _extract_after_prefix(command, "note that")
-        set_actual_route("memory_write")
-        return _store_semantic_note(note)
-
-    if memory_command.startswith("note "):
-        note = _extract_after_prefix(command, "note")
-        set_actual_route("memory_write")
-        return _store_semantic_note(note)
-
-    if memory_command.startswith("save this "):
-        note = _extract_after_prefix(command, "save this")
-        set_actual_route("memory_write")
-        return _store_semantic_note(note)
-
-    if memory_command.startswith("save "):
-        note = _extract_after_prefix(command, "save")
-        set_actual_route("memory_write")
-        return _store_semantic_note(note)
-
-    if text.startswith("update my ") and " to " in text:
-        fact = text[len("update "):].strip()
-        key, value = fact.split(" to ", 1)
-
-        key = normalize_key(key)
-        value = value.strip().strip(" .!?")
-
-        set_actual_route("memory_write")
-        return update_memory(key, value)
-
-    if text.startswith("forget that "):
-        key = text[len("forget that "):].strip()
-        key = normalize_key(key)
-
-        set_actual_route("memory_write")
-        return forget(key)
 
     if (
         text.startswith("what is my ")

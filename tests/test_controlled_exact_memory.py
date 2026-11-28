@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from core import approved_memory_persistence, memory, orchestrator, router
+from core import approved_memory_persistence, memory, orchestrator, semantic_memory
 from core.brain_status_v2 import get_brain_v2_status, get_brain_v2_status_response
 from core.memory_approval import MemoryApprovalEngine
 from core.memory_decision import MemoryType
@@ -17,7 +17,7 @@ RETENTION_NOTE = "Memory status: This turn did not save or update long-term memo
 def storage(monkeypatch):
     storage = Mock()
     monkeypatch.setattr(memory, "get_connection", storage.connect)
-    monkeypatch.setattr(router, "add_semantic_memory", storage.semantic_write)
+    monkeypatch.setattr(semantic_memory, "add_semantic_memory", storage.semantic_write)
     monkeypatch.setattr(approved_memory_persistence, "add_semantic_memory", storage.approved_write)
     monkeypatch.setattr(MemoryApprovalEngine, "propose", storage.propose)
     return storage
@@ -155,40 +155,41 @@ def test_failed_conversational_response_keeps_skipped_status(monkeypatch, storag
     assert storage.mock_calls == []
 
 
-@pytest.mark.parametrize(("command", "handler", "args"), [
-    ("Remember that my device is called Test Device.", "remember", ("my device", "Test Device")),
-    ("Remember my device is named Test Device.", "remember", ("my device", "Test Device")),
-    ("Update my device to Test Device.", "update_memory", ("my device", "test device")),
-    ("Forget that my device.", "forget", ("my device",)),
+@pytest.mark.parametrize("command", [
+    "Remember that my device is called Test Device.",
+    "Remember my device is named Test Device.",
+    "Update my device to Test Device.",
+    "Forget that my device.",
 ])
-def test_explicit_exact_commands_keep_their_write_route(monkeypatch, command, handler, args):
-    confirmation = "I saved that to long-term memory."
-    write = Mock(return_value=confirmation)
-    monkeypatch.setattr(router, handler, write)
-    result = orchestrator.process_request(command)
-    assert result.response == confirmation
-    assert result.actual_route == "memory_write"
-    write.assert_called_once_with(*args)
-
-
-@pytest.mark.parametrize("prefix", ["Remember this:", "Remember that", "  NOTE,", "  Save this:"])
-def test_explicit_semantic_commands_keep_their_write_route(monkeypatch, storage, prefix):
-    monkeypatch.setattr(router, "search_semantic_memories", Mock(return_value=[]))
-    storage.semantic_write.return_value = 17
-    result = orchestrator.process_request(f"{prefix} Bring a spare bracket.")
-    assert result.actual_route == "memory_write"
-    assert result.response == "I saved that to semantic memory, Marty. Memory #17."
-    assert storage.semantic_write.call_args.kwargs["content"] == "Bring a spare bracket"
-    assert storage.semantic_write.call_args.kwargs["source_type"] == "user_note"
-    storage.connect.assert_not_called()
-
-
-@pytest.mark.parametrize("command", ["Remember", "  NOTE,  ", "Save!", "Remember this:", "Remember that"])
-def test_bare_memory_commands_prompt_for_content(monkeypatch, storage, command):
+def test_explicit_exact_commands_are_blocked(monkeypatch, storage, command):
     model = Mock()
     monkeypatch.setattr(llm_skill, "ask_local_llm", model)
     result = orchestrator.process_request(command)
-    assert result.actual_route == "memory_write"
-    assert result.response == "I can remember that, Marty, but I need something to save."
+    assert result.actual_route == "memory_authorization_required"
+    assert result.memory_persistence_status == "approval_required"
+    assert "Test Device" not in result.response
+    model.assert_not_called()
+    assert storage.mock_calls == []
+
+
+@pytest.mark.parametrize("prefix", ["Remember this:", "Remember that", "  NOTE,", "  Save this:"])
+def test_explicit_semantic_commands_are_blocked(monkeypatch, storage, prefix):
+    model = Mock()
+    monkeypatch.setattr(llm_skill, "ask_local_llm", model)
+    result = orchestrator.process_request(f"{prefix} Bring a spare bracket.")
+    assert result.actual_route == "memory_authorization_required"
+    assert result.memory_persistence_status == "approval_required"
+    assert "Bring a spare bracket" not in result.response
+    model.assert_not_called()
+    assert storage.mock_calls == []
+
+
+@pytest.mark.parametrize("command", ["Remember", "  NOTE,  ", "Save!", "Remember this:", "Remember that"])
+def test_bare_memory_commands_report_authorization_required(monkeypatch, storage, command):
+    model = Mock()
+    monkeypatch.setattr(llm_skill, "ask_local_llm", model)
+    result = orchestrator.process_request(command)
+    assert result.actual_route == "memory_authorization_required"
+    assert result.memory_persistence_status == "approval_required"
     model.assert_not_called()
     assert storage.mock_calls == []

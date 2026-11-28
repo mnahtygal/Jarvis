@@ -23,7 +23,7 @@ capabilities make readiness false without changing validation or routing.
 
 Registered IDs:
 
-- Memory: `memory.recall_exact`, `memory.search_semantic`, `memory.write_explicit`
+- Memory: `memory.recall_exact`, `memory.search_semantic`, `memory.write_explicit` (disabled in conversation)
 - Runtime: `runtime.health`, `runtime.identity`, `runtime.active_model`, `runtime.brain_status`
 - System: `system.status`, `system.time`, `help.docs`
 - Camera: `camera.status`, `camera.capture`

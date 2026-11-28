@@ -9,7 +9,7 @@ from core.result_evaluator import evaluate_response
 def test_execution_strategy_mappings():
     cases = {
         "what is my wife's name": ExecutionStrategy.MEMORY,
-        "remember that my favorite color is blue": ExecutionStrategy.MEMORY,
+        "remember that my favorite color is blue": ExecutionStrategy.DETERMINISTIC,
         "what did I tell you about Jarvis memory": ExecutionStrategy.SEMANTIC_MEMORY,
         "what is PostgreSQL": ExecutionStrategy.LLM,
         "tell me more": ExecutionStrategy.LLM,

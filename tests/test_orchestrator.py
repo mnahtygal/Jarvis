@@ -28,7 +28,7 @@ def test_request_classification_examples():
         ),
         "remember that my favorite color is blue": (
             RequestIntent.MEMORY_WRITE,
-            (False, False, False, False, "memory write request"),
+            (False, False, False, False, "memory change request"),
         ),
         "make something interesting": (
             RequestIntent.UNKNOWN,

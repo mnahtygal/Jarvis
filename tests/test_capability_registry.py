@@ -293,7 +293,7 @@ def test_capabilities_command_is_deterministic_and_safe(monkeypatch, command):
 
     assert response == expected == get_capabilities_response()
     assert response.startswith("Jarvis Brain v2 capabilities:")
-    assert "memory.write_explicit [manual-only]" in response
+    assert "memory.write_explicit [disabled]" in response
     assert "runtime.health [future-executable]" in response
     assert "developer.read_file [brain-read-only]" in response
     assert "developer.write_file [brain-explicit-approval]" in response

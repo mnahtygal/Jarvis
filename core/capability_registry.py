@@ -22,7 +22,7 @@ class Capability:
 _CAPABILITIES = (
     Capability("memory.recall_exact", "memory", True, True, "Recall an exact saved fact"),
     Capability("memory.search_semantic", "memory", True, True, "Search semantic memory"),
-    Capability("memory.write_explicit", "memory", True, False, "Store an explicit memory command"),
+    Capability("memory.write_explicit", "memory", False, False, "Conversational memory changes are disabled"),
     Capability("runtime.health", "runtime", True, True, "Inspect Jarvis runtime health"),
     Capability("runtime.identity", "runtime", True, True, "Inspect runtime identity"),
     Capability("runtime.active_model", "runtime", True, True, "Inspect the active local model"),

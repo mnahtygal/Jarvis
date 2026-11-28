@@ -253,6 +253,10 @@ def process_request(command: str) -> BrainResult:
         persistence_result = MemoryPersistenceResult(
             False, "none", "skipped", "request evaluation was not successful",
         )
+    elif actual_route == "memory_authorization_required":
+        persistence_result = MemoryPersistenceResult(
+            False, "none", "approval_required", "trusted authorization required",
+        )
     else:
         persistence_result = memory_capture_result(memory_decision)
     if (

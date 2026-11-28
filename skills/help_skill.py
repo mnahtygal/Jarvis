@@ -13,13 +13,12 @@ Core commands:
 - "what time is it" or "what is the date" - time/date response
 - "system status" - CPU, memory, disk, or system status
 
-Memory commands:
-- "remember that my favorite ship is Eurodam"
-- "my test project is called blue falcon"
+Memory recall:
 - "what is my favorite ship?"
 - "what do you remember about me?"
-- "update my preferred database to PostgreSQL"
-- "forget that my test project"
+- "semantic search calibration"
+- Chat and voice cannot save, update, or forget long-term memories.
+- The trusted local memory console supports approved project notes. Exact-memory approval is unavailable.
 
 AI brain:
 - Unknown questions fall back to the local LLM.
@@ -29,5 +28,4 @@ AI brain:
 
 Current project status:
 - Voice and camera are planned later.
-- pgvector semantic memory is planned next, but not active yet.
 """.strip()
