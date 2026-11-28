@@ -312,6 +312,72 @@ and disappear on restart. Duplicate
 lookup and insert are not atomic, and a writer failure can have an uncertain
 commit outcome.
 
+### Structured exact-memory approval proposals
+
+`core/exact_memory_approval.py` provides a standalone in-process engine.
+A frozen, slotted proposal carries a UUID4 hex ID, trusted interaction ID,
+operation, normalized key, optional reviewed record, optional proposed value,
+monotonic creation and expiry times, and status. A reviewed record is a frozen,
+slotted snapshot with a positive integer row ID, the exact normalized key,
+the stored text value, and nullable `datetime` timestamps. Timestamps can be
+naive or use an immutable standard timezone. An empty stored value still
+represents an existing row.
+
+The engine accepts actual `ExactMemoryOperation` enum members:
+
+- `CREATE` requires an absent key and a nonblank value.
+- `UPDATE` requires an existing row and a nonblank value that differs from
+  the reviewed value by exact string comparison.
+- `DELETE` requires an existing row and a proposed value of `None`.
+
+Keys use only `memory_key.strip().lower()`, with a 256-character cap before
+and after normalization. Punctuation and internal spacing remain intact.
+Proposed values retain their exact spelling and spacing, up to 1,000
+characters. The engine rejects controls, format characters, surrogates, and
+Unicode line and paragraph separators. It applies the project-note credential
+and retention opt-out patterns to keys, values, and joined fields. Screening
+is heuristic. A malformed, unsafe, sensitive, or oversized existing record
+cannot be reviewed or approved here, even for deletion. An authorized
+administrative process must handle such records separately.
+
+A trusted caller supplies the lookup `(normalized_key) -> ExactMemoryRecordSnapshot | None`.
+`None` means absent. The engine validates inputs before lookup, checks returned
+keys for exact equality, and rejects lookup failures with fixed error codes.
+It runs the lookup outside its state lock and has no production lookup adapter
+or database dependency. Generic representations omit keys, values, snapshots,
+and interaction IDs. Trusted reviewers still need to handle these fields as
+sensitive data when rendering or serializing them.
+
+The trusted composition layer must supply the exact
+`InteractionSource.TRUSTED_LOCAL_USER` enum member and derive its own
+interaction ID (up to 128 characters). The enum is an in-process contract
+and carries no authentication by itself. There is currently no exact-memory console, API, chat,
+voice, handheld, LooLoo, or dashboard integration. Project-note approvals use
+a separate engine and adapter and cannot be exchanged with exact-memory
+approvals.
+
+Each engine defaults to 64 slots across published proposals and in-flight
+lookups, with one slot per interaction. The engine reserves a slot before
+lookup, releases it on failure, and starts the 120-second TTL on publication
+of the validated review. A hung lookup can occupy its slot until it returns
+or is interrupted. A future lookup adapter must bound its own execution time.
+The clock dependency must be a prompt monotonic source. Approval and
+cancellation require a full match of `approve exact memory <id>` or
+`cancel exact memory <id>`, using the same interaction and a lowercase
+32-digit hex ID. A matching proposal is consumed once, expires at the exact
+deadline, and leaves no terminal history. Expiration is cleaned lazily and
+through `cleanup_expired()`.
+
+Approval returns review data and performs no durable write. An approved
+proposal object alone carries no write authority. The snapshot can become
+stale at any time. A future persistence adapter must consume genuine approval
+directly from its trusted engine and use transactional compare-and-swap or an
+equivalent stale-record check. It must handle create-only conflicts, verify
+the existing row identity and reviewed value, and record accurate
+`memory_history` atomically with the mutation. It must also distinguish
+failure from uncertain commit outcomes and avoid automatic retries of consumed
+approvals.
+
 ### PostgreSQL protection in tests
 
 Run automated tests from the repository root with
