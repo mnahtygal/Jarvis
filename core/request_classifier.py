@@ -92,10 +92,8 @@ def _is_follow_up(text: str) -> bool:
 
 
 def _is_memory_write(text: str) -> bool:
-    return (
-        text.startswith(("remember", "note", "save", "update my ", "forget that "))
-        or (text.startswith("my ") and " is " in text)
-        or text.startswith(("i work at ", "i work for ", "i prefer ", "i like "))
+    return (text + " ").startswith(
+        ("remember ", "note ", "save ", "update my ", "forget that ")
     )
 
 

@@ -248,35 +248,6 @@ def _store_semantic_note(note: str) -> str:
     return f"I saved that to semantic memory, Marty. Memory #{memory_id}."
 
 
-def _try_natural_memory(command: str):
-    text = normalize_text_for_routing(command)
-
-    if text.startswith("my ") and (
-        " is called " in text
-        or " is named " in text
-        or " is " in text
-    ):
-        return _remember_is_fact(command)
-
-    if text.startswith("i work at "):
-        value = command[len("I work at "):].strip().strip(" .!?")
-        return remember("my workplace", value)
-
-    if text.startswith("i work for "):
-        value = command[len("I work for "):].strip().strip(" .!?")
-        return remember("my workplace", value)
-
-    if text.startswith("i prefer "):
-        value = command[len("I prefer "):].strip().strip(" .!?")
-        return remember("my preferred database", value)
-
-    if text.startswith("i like "):
-        value = command[len("I like "):].strip().strip(" .!?")
-        return remember("something I like", value)
-
-    return None
-
-
 def _is_runtime_identity_request(text: str) -> bool:
     # A runtime question followed by an independent instruction
     # must not be swallowed by the deterministic status response.
@@ -684,12 +655,14 @@ def route(command: str) -> str:
         set_actual_route("help_docs")
         return get_docs_response()
 
-    if text.startswith("remember this"):
+    # Include a trailing space so bare commands still match whole words.
+    memory_command = text + " "
+    if memory_command.startswith("remember this "):
         note = _extract_after_prefix(command, "remember this")
         set_actual_route("memory_write")
         return _store_semantic_note(note)
 
-    if text.startswith("remember that"):
+    if memory_command.startswith("remember that "):
         fact = _extract_after_prefix(command, "remember that")
         set_actual_route("memory_write")
 
@@ -699,7 +672,7 @@ def route(command: str) -> str:
 
         return _store_semantic_note(fact)
 
-    if text.startswith("remember"):
+    if memory_command.startswith("remember "):
         note = _extract_after_prefix(command, "remember")
         set_actual_route("memory_write")
 
@@ -709,22 +682,22 @@ def route(command: str) -> str:
 
         return _store_semantic_note(note)
 
-    if text.startswith("note that"):
+    if memory_command.startswith("note that "):
         note = _extract_after_prefix(command, "note that")
         set_actual_route("memory_write")
         return _store_semantic_note(note)
 
-    if text.startswith("note"):
+    if memory_command.startswith("note "):
         note = _extract_after_prefix(command, "note")
         set_actual_route("memory_write")
         return _store_semantic_note(note)
 
-    if text.startswith("save this"):
+    if memory_command.startswith("save this "):
         note = _extract_after_prefix(command, "save this")
         set_actual_route("memory_write")
         return _store_semantic_note(note)
 
-    if text.startswith("save"):
+    if memory_command.startswith("save "):
         note = _extract_after_prefix(command, "save")
         set_actual_route("memory_write")
         return _store_semantic_note(note)
@@ -773,11 +746,6 @@ def route(command: str) -> str:
         response = "Here's what I remember, Marty: "
         response += "; ".join([f"{k} is {v}" for k, v in memories.items()])
         return response
-
-    natural_memory_response = _try_natural_memory(command)
-    if natural_memory_response:
-        set_actual_route("memory_write")
-        return natural_memory_response
 
     if text in {
         "time",

@@ -6,7 +6,7 @@ from core import brain_status_v2, developer_bridge, orchestrator
 from core.brain_status_v2 import get_brain_v2_status, get_brain_v2_status_response
 from core.memory_approval import MemoryApprovalEngine
 from core.memory_decision import MemoryDecision, MemoryType
-from core.memory_persistence import project_note_capture_result
+from core.memory_persistence import memory_capture_result
 
 
 PROJECT_NOTE = "We should build satellite tracking someday."
@@ -61,11 +61,13 @@ def test_candidate_confidence_does_not_change_gate(monkeypatch, confidence):
 
 @pytest.mark.parametrize(("decision", "status"), [
     (MemoryDecision(False, MemoryType.PROJECT_NOTE, 1.0, "declined"), "skipped"),
-    (MemoryDecision(True, MemoryType.EXACT_FACT, 1.0, "fact"), "not_applicable"),
+    (MemoryDecision(False, MemoryType.EXACT_FACT, 1.0, "declined"), "skipped"),
+    (MemoryDecision(False, MemoryType.PREFERENCE, 1.0, "declined"), "skipped"),
+    (MemoryDecision(True, MemoryType.EXACT_FACT, 1.0, "fact"), "approval_required"),
     (MemoryDecision(False, MemoryType.NONE, 0.0, "none"), "not_applicable"),
 ])
 def test_capture_policy_for_other_decisions(decision, status):
-    result = project_note_capture_result(decision)
+    result = memory_capture_result(decision)
     assert result.status == status
     assert result.persisted is False
     assert result.target == "none"
@@ -151,15 +153,15 @@ def test_personal_facts_preferences_and_explicit_commands_do_not_auto_persist(mo
     )
     monkeypatch.setattr(orchestrator, "route", lambda command: "legacy response")
 
-    for command in (
-        "My new phone is a Samsung S26 Ultra",
-        "I prefer SQL Server",
-        "remember that Kelly likes tea",
+    for command, expected in (
+        ("My new phone is a Samsung S26 Ultra", "approval_required"),
+        ("I prefer SQL Server", "approval_required"),
+        ("remember that Kelly likes tea", "not_applicable"),
     ):
         result = orchestrator.process_request(command)
         assert result.response == "legacy response"
         assert result.memory_persisted is False
-        assert result.memory_persistence_status == "not_applicable"
+        assert result.memory_persistence_status == expected
 
     assert calls == []
 
@@ -202,7 +204,7 @@ def test_developer_approval_status_is_separate_from_memory_capture(monkeypatch, 
     workspace = developer_bridge.Workspace(tmp_path)
     monkeypatch.setattr(developer_bridge, "Workspace", lambda: workspace)
     capture = Mock(side_effect=AssertionError("Developer Agent must not run memory capture"))
-    monkeypatch.setattr(orchestrator, "project_note_capture_result", capture)
+    monkeypatch.setattr(orchestrator, "memory_capture_result", capture)
     try:
         result = orchestrator.process_request("Create demo.py with hello world")
         status = get_brain_v2_status()

@@ -162,15 +162,48 @@ The status records the decision. `approval_kind` remains `none` and
 `approval_pending` remains false. The request creates no proposal or approval
 ID. Public Brain v2 status may show the status and memory type.
 Developer Agent requests and unsuccessful or lower-quality evaluations retain
-`skipped`. Successful, good non-project requests retain `not_applicable`.
+`skipped`, along with declined capture candidates. Successful, good requests
+outside the supported capture types report `not_applicable`.
 
-The explicit router commands remain separate legacy write paths. `remember`,
-`note`, and `save` can write semantic user notes; natural fact statements and
-`remember` fact forms can write exact memory; `update my ... to ...` and
-`forget that ...` update or delete exact memory. Conversation history in
-`core/brain.py` also continues to record ordinary user and assistant turns.
-Controlled project-note capture does not change any of those behaviors, and it
-does not make their authorization model equivalent to project-note approval.
+### Controlled exact-memory and preference capture
+
+Ordinary statements about personal facts, workplaces, likes, and preferences
+previously called `remember()` and could upsert an exact-memory row and append
+to `memory_history`. Those statements now follow ordinary routing with the
+existing recall paths available. The classifier still observes `exact_fact`
+and `preference` candidates, which share the capture statuses above. Candidate
+recognition and confidence provide no write authority. The router's write path
+requires an explicit command even when the classifier misses a candidate.
+
+The explicit legacy commands remain direct write paths. `remember` fact forms
+upsert exact memory, and freeform `remember`, `note`, and `save` can write
+semantic user notes. `update my ... to ...` upserts exact memory, and
+`forget that ...` deletes it. The router matches whole command words.
+Legacy key normalization still maps keys containing `prefer` or `preference`
+to `my preferred database`, including unrelated preferences expressed through
+an explicit fact command. Existing rows keep their keys and values.
+
+Whole-word matching still treats prose or a voice transcript that starts with
+a recognized command, such as `note that ...`, as a command. The legacy parser
+uses phrases such as `is` to distinguish an exact fact from a freeform
+`remember` note. It does not verify the speaker's intent beyond this syntax.
+
+Successful LLM replies for detected exact facts and preferences with
+`approval_required` include a separate, application-generated note stating that
+the turn did not save or update long-term memory. The reply text stays intact,
+including negations, quotes, and explanations. The application evaluates the
+reply before appending the note. This clarification depends on heuristic
+candidate classification, so some ordinary statements receive no note.
+The model can still produce misleading wording. The note reports the actual
+result for the turn and applies equally to replies without a save claim.
+
+Future exact-memory approval needs a trusted review surface that shows the
+normalized key, proposed value, and any existing value before an operator
+authorizes an overwrite. The local memory console and approved persistence
+adapter support project notes only. Conversation history still records ordinary
+user and assistant turns, and the existing heard-command log can contain the
+original input. Capture status applies to durable memory writes separately from
+conversation retention.
 
 ### Project-note approval engine
 

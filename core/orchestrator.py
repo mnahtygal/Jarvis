@@ -35,7 +35,7 @@ from core.execution_strategy import (
     ExecutionStrategy,
     determine_execution_strategy,
 )
-from core.memory_decision import MemoryDecision, decide_memory
+from core.memory_decision import MemoryDecision, MemoryType, decide_memory
 from core.memory_observability import (
     begin_memory_retrieval_diagnostics,
     get_memory_retrieval_diagnostics,
@@ -43,7 +43,7 @@ from core.memory_observability import (
 )
 from core.memory_persistence import (
     MemoryPersistenceResult,
-    project_note_capture_result,
+    memory_capture_result,
 )
 from core.planner import PlanResult, analyze_plan
 from core.plan_validator import PlanValidationResult, validate_plan
@@ -115,6 +115,8 @@ _EXECUTABLE_APPROVAL_LANGUAGE = re.compile(
     r"would\s+you\s+like\s+me\s+to\s+continue)",
     re.I,
 )
+
+_RETENTION_NOTE = "Memory status: This turn did not save or update long-term memory."
 
 
 def _enforce_conversational_approval_truthfulness(response: str) -> str:
@@ -252,7 +254,13 @@ def process_request(command: str) -> BrainResult:
             False, "none", "skipped", "request evaluation was not successful",
         )
     else:
-        persistence_result = project_note_capture_result(memory_decision)
+        persistence_result = memory_capture_result(memory_decision)
+    if (
+        actual_route == "llm_fallback"
+        and persistence_result.status == "approval_required"
+        and memory_decision.memory_type in {MemoryType.EXACT_FACT, MemoryType.PREFERENCE}
+    ):
+        response = f"{response}\n\n{_RETENTION_NOTE}"
     policy = classification.context_policy
     context_sources = [
         source

@@ -26,7 +26,7 @@ from core.route_trace import (
     ("explain runtime behavior", "get_llm_response", ("explain runtime behavior",), "llm_fallback"),
     ("xyzzy", "get_llm_response", ("xyzzy",), "llm_fallback"),
     ("what time is it", "get_time_response", (), "system"),
-    ("I work at GM", "remember", ("my workplace", "GM"), "memory_write"),
+    ("I work at GM", "get_llm_response", ("I work at GM",), "llm_fallback"),
     ("forget that color", "forget", ("color",), "memory_write"),
 ])
 def test_router_returns_same_string_and_invokes_handler_once(monkeypatch, command, handler, args, label):
@@ -39,7 +39,12 @@ def test_router_returns_same_string_and_invokes_handler_once(monkeypatch, comman
     result = orchestrator.process_request(command)
 
     assert isinstance(result.response, str)
-    assert result.response == expected
+    if command == "I work at GM":
+        assert result.response == (
+            f"{expected}\n\nMemory status: This turn did not save or update long-term memory."
+        )
+    else:
+        assert result.response == expected
     handler_mock.assert_called_once_with(*args)
     traced_router.assert_called_once_with(command)
     assert result.actual_route == label

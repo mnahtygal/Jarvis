@@ -1,4 +1,4 @@
-"""Project-note capture policy and shared duplicate detection."""
+"""Observe-only capture policy and approved project-note duplicate detection."""
 
 from __future__ import annotations
 
@@ -20,18 +20,22 @@ class MemoryPersistenceResult:
     reason: str
 
 
-def project_note_capture_result(decision: MemoryDecision) -> MemoryPersistenceResult:
+def memory_capture_result(decision: MemoryDecision) -> MemoryPersistenceResult:
     """Report capture policy without reading or writing candidate content.
 
     Ordinary Brain v2 conversation has no authorization path to persistence.
-    A detected project note is observable as approval-required, but this does
-    not create a proposal or grant authority to any later request.
+    Eligible candidates report that approval is required. This creates no
+    proposal and grants no authority to later requests.
     """
 
-    if (
-        decision.memory_type is MemoryType.PROJECT_NOTE
-        and decision.should_store
-    ):
+    if decision.memory_type not in {
+        MemoryType.PROJECT_NOTE, MemoryType.EXACT_FACT, MemoryType.PREFERENCE,
+    }:
+        return MemoryPersistenceResult(
+            False, PERSISTENCE_TARGET_NONE, "not_applicable", "not a capture candidate",
+        )
+
+    if decision.should_store:
         return MemoryPersistenceResult(
             False,
             PERSISTENCE_TARGET_NONE,
@@ -39,16 +43,8 @@ def project_note_capture_result(decision: MemoryDecision) -> MemoryPersistenceRe
             "explicit approval required",
         )
 
-    status = (
-        "skipped"
-        if decision.memory_type is MemoryType.PROJECT_NOTE
-        else "not_applicable"
-    )
     return MemoryPersistenceResult(
-        False,
-        PERSISTENCE_TARGET_NONE,
-        status,
-        "memory decision declined" if status == "skipped" else "not a project note",
+        False, PERSISTENCE_TARGET_NONE, "skipped", "memory decision declined",
     )
 
 
